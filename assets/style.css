@@ -1,0 +1,113 @@
+/* V.I.S.O.R. — tema oscuro, minimalista, glassmorphism moderado.
+   --acento lo define components/estilos.py según el fenómeno activo. */
+
+:root {
+  --fondo: #07090d;
+  --vidrio: rgba(255, 255, 255, 0.045);
+  --borde: rgba(255, 255, 255, 0.09);
+  --texto: #f5f5f7;
+  --texto-tenue: #8e8e93;
+  --radio: 18px;
+}
+
+html, body, .stApp {
+  background: radial-gradient(1200px 600px at 80% -10%, color-mix(in srgb, var(--acento) 9%, transparent), transparent 60%), var(--fondo);
+  color: var(--texto);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif;
+}
+
+.block-container { padding: 1.4rem 2rem 2rem; max-width: 100%; }
+header[data-testid="stHeader"] { background: transparent; }
+#MainMenu, footer { visibility: hidden; }
+
+/* ---------- Barra lateral ---------- */
+section[data-testid="stSidebar"] {
+  background: rgba(14, 17, 23, 0.72);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  border-right: 1px solid var(--borde);
+}
+.visor-lateral-titulo { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.08em; margin-bottom: 0.6rem; }
+section[data-testid="stSidebar"] [data-testid="stCaptionContainer"] {
+  letter-spacing: 0.14em; font-size: 0.68rem; color: var(--texto-tenue); margin-top: 1rem;
+}
+section[data-testid="stSidebar"] [role="radiogroup"] label {
+  background: var(--vidrio); border: 1px solid var(--borde); border-radius: 12px;
+  padding: 0.55rem 0.75rem; margin-bottom: 0.35rem; width: 100%;
+  transition: border-color 0.2s, background 0.2s;
+}
+section[data-testid="stSidebar"] [role="radiogroup"] { width: 100%; }
+section[data-testid="stSidebar"] label[data-testid="stRadioOption"] { display: flex; box-sizing: border-box; }
+section[data-testid="stSidebar"] label[data-testid="stRadioOption"] > div > div:first-child { display: none; }
+section[data-testid="stSidebar"] [role="radiogroup"] label:hover { border-color: var(--acento); }
+section[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) {
+  border-color: var(--acento);
+  background: color-mix(in srgb, var(--acento) 12%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--acento) 22%, transparent);
+}
+
+/* ---------- Encabezado ---------- */
+.visor-header {
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.8rem;
+  padding: 1rem 1.4rem; margin-bottom: 1rem;
+  background: var(--vidrio); border: 1px solid var(--borde); border-radius: var(--radio);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+}
+.visor-titulo {
+  font-size: 1.9rem; font-weight: 700; letter-spacing: 0.18em; line-height: 1.1;
+  background: linear-gradient(90deg, #fff, var(--acento));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.visor-subtitulo { color: var(--texto-tenue); font-size: 0.82rem; margin-top: 0.2rem; }
+.visor-header-der { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.visor-chip {
+  padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.78rem;
+  border: 1px solid var(--acento); color: var(--acento);
+  background: color-mix(in srgb, var(--acento) 10%, transparent);
+}
+.visor-chip-tenue { border-color: var(--borde); color: var(--texto-tenue); background: transparent; }
+.visor-demo {
+  padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+  color: #1a1300; background: #ffd60a;
+}
+
+/* ---------- Mapa ---------- */
+iframe[title*="st_folium"], [data-testid="stCustomComponentV1"] {
+  border-radius: var(--radio); border: 1px solid var(--borde); overflow: hidden;
+}
+
+/* ---------- Panel informativo ---------- */
+.visor-panel {
+  background: var(--vidrio); border: 1px solid var(--borde); border-radius: var(--radio);
+  padding: 1.2rem 1.3rem; backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+}
+.visor-panel-titulo { font-size: 1.15rem; font-weight: 650; color: var(--acento); margin-bottom: 0.5rem; }
+.visor-texto { font-size: 0.86rem; line-height: 1.55; color: #d1d1d6; margin: 0 0 0.6rem; }
+.visor-seccion {
+  font-size: 0.66rem; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--texto-tenue); margin: 1rem 0 0.4rem;
+}
+.visor-fila {
+  display: flex; justify-content: space-between; gap: 1rem; font-size: 0.8rem;
+  padding: 0.38rem 0; border-bottom: 1px solid var(--borde);
+}
+.visor-fila span { color: var(--texto-tenue); flex-shrink: 0; }
+.visor-fila strong { font-weight: 500; text-align: right; overflow-wrap: anywhere; }
+.visor-aviso {
+  font-size: 0.78rem; line-height: 1.45; padding: 0.6rem 0.75rem; margin-top: 0.6rem;
+  border-radius: 12px; border: 1px solid var(--borde); background: rgba(255, 255, 255, 0.03);
+}
+.visor-aviso-demo { border-color: #ffd60a; color: #ffe566; background: rgba(255, 214, 10, 0.08); }
+.visor-aviso-general { border-color: color-mix(in srgb, var(--acento) 55%, transparent); }
+.visor-lista { font-size: 0.78rem; line-height: 1.5; color: #c7c7cc; padding-left: 1.1rem; margin: 0.6rem 0 0; }
+.visor-lista li { margin-bottom: 0.35rem; }
+
+/* ---------- Leyenda ---------- */
+.visor-leyenda-barra { height: 10px; border-radius: 999px; border: 1px solid var(--borde); }
+.visor-leyenda-ejes { display: flex; justify-content: space-between; font-size: 0.72rem; color: #c7c7cc; margin-top: 0.35rem; }
+.visor-leyenda-nota { font-size: 0.68rem; color: var(--texto-tenue); margin-top: 0.3rem; }
+
+@media (max-width: 900px) {
+  .block-container { padding: 1rem; }
+  .visor-titulo { font-size: 1.4rem; }
+}
