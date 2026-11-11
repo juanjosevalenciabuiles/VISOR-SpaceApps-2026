@@ -14,4 +14,5 @@ externalPort = 80
 [deployment]
 deploymentTarget = "autoscale"
 # Mismo arranque que en desarrollo, para que el despliegue tenga las mismas bibliotecas.
+build = ["bash", "start.sh", "--verificar"]
 run = ["bash", "start.sh"]

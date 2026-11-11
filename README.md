@@ -6,53 +6,82 @@ Visor geoespacial que muestra productos de radar SAR **ya procesados** sobre un 
 
 > V.I.S.O.R. muestra **indicios**, no detecciones confirmadas. Los GeoTIFF que vienen en `data/` son **sintéticos de demostración**: no provienen de ningún satélite. El color describe la señal medida, no un nivel de riesgo.
 
-## Ejecutar
+## Guía rápida
 
-Requiere **Python 3.12**.
+**En Replit, el uso diario son dos pasos:**
 
-```bash
-pip install -r requirements.txt
-bash start.sh               # verifica bibliotecas e inicia la app en el puerto 5000
-bash start.sh --verificar   # solo comprueba pyexpat + Rasterio y termina
-pytest                      # 65 pruebas
-```
+1. Panel **Git** → **Pull** (trae lo nuevo de GitHub).
+2. Botón **Run**.
 
-En Windows sin bash: `python -m streamlit run app.py --server.port 5000`.
+No hay que instalar nada a mano. Al pulsar Run, `start.sh` crea el entorno `.venv` si no existe, instala las dependencias solo si cambió `requirements.txt` e inicia la app. La primera vez tarda unos minutos; después arranca en segundos.
 
-### En Replit
+**Otras situaciones** (en la pestaña Shell):
 
-El botón **Run** y el despliegue ejecutan lo mismo: `bash start.sh` (ver `.replit`).
+| Quiero… | Comando |
+| --- | --- |
+| Probar una rama, por ejemplo la v1.1 | `bash actualizar.sh feature/visor-v1.1` |
+| Volver a la versión estable | `bash actualizar.sh main` |
+| Deshacer la última actualización | `bash actualizar.sh --volver` |
+| Actualizar aunque tenga cambios sin guardar | `bash actualizar.sh --guardar` (los aparta; se recuperan con `git stash pop`) |
+| Revisar el entorno sin abrir la app | `bash start.sh --verificar` |
+| Ejecutar las pruebas | `bash start.sh --pruebas` |
+| Empezar de cero si algo quedó mal | borrar la carpeta `.venv` y pulsar Run |
 
-- **Puerto:** 5000, expuesto como 80. Está en `start.sh` y en `[[ports]]`; no cambiar uno sin el otro.
-- **Expat / Rasterio:** Rasterio necesita `libexpat.so.1`. `.replit` declara `expat` como paquete Nix y `start.sh` busca las Expat instaladas (`REPLIT_LD_LIBRARY_PATH`, luego `/nix/store`) y usa la primera con la que `pyexpat` y `rasterio` importan de verdad. No depende de una ruta fija; la ruta antigua queda solo como último recurso.
-- **Un solo Streamlit:** si el puerto 5000 lo ocupa una instancia anterior de la app, `start.sh` la cierra antes de arrancar.
-- **Seguridad:** CORS y XSRF de Streamlit están activados. `start.sh` autoriza únicamente el dominio propio del Repl (`REPLIT_DEV_DOMAIN`, `REPLIT_DOMAINS`). Si la vista previa se queda en "Connecting…", no desactivar las protecciones: revisar en la consola del navegador qué conexión falla y reportarlo.
-- **Secreto:** `CARTO_API_KEY` en **Secrets**. Hay que reiniciar la app después de crearlo o cambiarlo. El despliegue público necesita el mismo secreto en su propia configuración.
+Después de cualquier `actualizar.sh`, pulsar **Run**.
 
-**Estado de verificación (11-nov-2026):**
+**Nunca hace falta** `pip install`. Si aparece el error `externally-managed-environment` es porque se intentó instalar en el Python del sistema: usar Run o `bash start.sh --verificar`.
+
+## Cómo funciona
+
+Requiere **Python 3.12** y bash. En Windows sin bash: crear un entorno virtual, `pip install -r requirements.txt` dentro de él y `python -m streamlit run app.py --server.port 5000`.
+
+### Arranque (`start.sh`)
+
+El botón Run, el despliegue y la ejecución local usan el mismo guion, en este orden:
+
+1. Elige el Python del sistema y comprueba `pyexpat`.
+2. Crea o reutiliza `.venv`. Si quedó roto (por ejemplo, al reconstruirse el entorno Nix), lo rehace.
+3. Instala dependencias **dentro de `.venv`** solo cuando `requirements.txt` cambió. Nunca instala en el Python de Nix ni usa `--break-system-packages`.
+4. Busca una Expat con la que `pyexpat` y `rasterio` importan de verdad (`REPLIT_LD_LIBRARY_PATH`, luego `/nix/store`). No depende de una ruta fija; la ruta antigua queda solo como último recurso.
+5. Inicia Streamlit en el puerto **5000** (expuesto como 80 en `.replit`).
+
+Otros detalles:
+
+- **Un solo Streamlit:** si el puerto lo ocupa una instancia anterior de esta misma app, la cierra. Si lo ocupa otro programa, no lo toca y avisa.
+- **Arrancar nunca actualiza el código.** Las actualizaciones son siempre una acción explícita (Pull o `actualizar.sh`).
+- **Seguridad:** CORS y XSRF de Streamlit están activados. `start.sh` autoriza únicamente el dominio propio del Repl. Si la vista previa se queda en "Connecting…", no desactivar las protecciones: revisar en la consola del navegador qué conexión falla y reportarlo.
+- **Secreto:** `CARTO_API_KEY` en **Secrets**. Hay que volver a pulsar Run después de crearlo o cambiarlo. El despliegue público necesita el mismo secreto en su propia configuración.
+- **Despliegue:** `.replit` prepara el entorno en la fase de construcción (`bash start.sh --verificar`) y arranca con `bash start.sh`.
+
+### Actualizaciones (`actualizar.sh`)
+
+Replit no ofrece una sincronización automática al recibir commits: hay que pedir los cambios con **Pull** en el panel Git. `actualizar.sh` hace lo mismo desde la Shell y además permite cambiar de rama y regresar:
+
+- Si hay cambios locales en archivos del proyecto, **se detiene** y explica las opciones. Nunca los descarta.
+- Solo avanza la rama (fast-forward). No fusiona, no reescribe historia y no sube nada a GitHub.
+- Guarda dónde estabas para poder regresar con `--volver`.
+- Al terminar prepara las dependencias con `bash start.sh --verificar`.
+- Los Secrets viven en el Repl, no en Git: ninguna actualización los cambia.
+
+### Pruebas
+
+- GitHub ejecuta `pytest` en cada Pull Request y en cada push a `main` (`.github/workflows/pruebas.yml`).
+- Para que sea obligatorio antes de integrar: en GitHub, **Settings → Branches → Add rule** para `main`, activar *Require status checks to pass* y elegir `pytest`. Esto lo configura el dueño del repositorio.
+- Las pruebas no se ejecutan al iniciar la app, para no retrasarla.
+
+### Estado de verificación (11-nov-2026)
 
 | Qué | Estado |
 | --- | --- |
 | v1.0 en el Replit del equipo (app, CARTO, Rasterio 1.5.2) | Comprobado por el equipo |
-| v1.1: pruebas y app completa con Python 3.12 y las versiones de `requirements.txt` | Comprobado fuera de Replit |
-| v1.1: selección de Expat de `start.sh` | Comprobado solo con un almacén Nix simulado |
-| v1.1 dentro del Replit real (arranque, vista previa con CORS/XSRF activos) | **Pendiente** |
-| Carga real de teselas de OpenTopoMap y Sentinel-2 cloudless | **Pendiente** (el entorno de pruebas no tenía acceso a esos servidores) |
+| v1.1: 82 pruebas con Python 3.12 y las versiones de `requirements.txt` | Comprobado fuera de Replit y en GitHub Actions |
+| Instalación desde cero, segundo arranque sin reinstalar, cambio de `requirements.txt`, reparación de `.venv` | Comprobado fuera de Replit |
+| Tres fenómenos y cinco mapas base en navegador | Comprobado fuera de Replit (sin ver las teselas) |
+| `actualizar.sh` contra el repositorio real de GitHub | Comprobado fuera de Replit |
+| Selección de Expat en Nix | Comprobado solo con un almacén Nix simulado |
+| Run y Preview dentro del Replit real, con CORS/XSRF activos | **Pendiente** |
+| Carga real de teselas (CARTO con la clave del equipo, OpenTopoMap, Sentinel-2) | **Pendiente** en la v1.1 |
 | Despliegue público | **Pendiente** |
-
-### Actualizar el Replit existente sin perder su configuración
-
-Los Secrets viven en el Repl, no en Git: cambiar de rama no los borra.
-
-```bash
-git status                          # si hay cambios locales: git stash
-git fetch origin
-git checkout feature/visor-v1.1
-pip install -r requirements.txt
-bash start.sh --verificar           # debe imprimir "Expat: … | Rasterio: 1.5.2"
-```
-
-Luego **Run** y revisar: la vista previa carga, los cinco mapas base se ven, la capa SAR sigue al cambiar de fondo. Si algo falla, `git checkout main` devuelve la versión anterior que ya funcionaba. Hacer merge del Pull Request solo después de esta comprobación.
 
 ## Sistema cartográfico multicapa
 
@@ -127,7 +156,8 @@ No subir productos crudos de varios GB: la app no los procesa.
 
 ```
 app.py                  Punto de entrada: solo orquesta
-start.sh                Arranque único (Replit, despliegue y local)
+start.sh                Arranque único: entorno .venv, Expat y Streamlit
+actualizar.sh           Actualización segura desde GitHub
 components/
   barra_lateral.py      Fenómeno, configuración cartográfica, leyendas, créditos
   mapa.py               Mapa Folium por grupos de capas independientes
@@ -158,7 +188,7 @@ tests/                  test_geotiff.py · test_cartografia.py · test_replit.py
    ```bash
    git checkout main && git pull
    git checkout -b mapas/mi-cambio
-   # editar, luego: pytest  y abrir la app
+   # editar, luego: bash start.sh --pruebas  y abrir la app
    git add -A && git commit -m "mapas: describe el cambio"
    git push -u origin mapas/mi-cambio      # y abrir el Pull Request en GitHub
    ```
@@ -170,7 +200,7 @@ tests/                  test_geotiff.py · test_cartografia.py · test_replit.py
 - Un módulo, una persona a la vez: interfaz (`components/`, `assets/`), datos SAR (`data/*.tif`, `scripts/`), cargador (`utils/geotiff.py`, `tests/`), cartografía (`utils/mapas_base.py`, `utils/capas_contexto.py`, `data/contexto/`), contenido científico (`utils/config.py`, `.json`), integración (`.replit`, `start.sh`, `requirements.txt`, README).
 - En `utils/config.py` cada quien edita solo el bloque de su fenómeno.
 - Los `.tif` son binarios y no se fusionan: un responsable por archivo.
-- No cambiar versiones de `requirements.txt` sin volver a correr las pruebas.
+- No cambiar versiones de `requirements.txt` sin volver a correr las pruebas. Al cambiarlo, cada integrante recibe las nuevas dependencias solo con pulsar Run.
 - La edición simultánea en un mismo Repl depende del plan de Replit; este flujo no la necesita.
 
 Tareas, estados y roles se gestionan **solo en Notion**.
