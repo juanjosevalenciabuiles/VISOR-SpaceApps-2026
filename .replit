@@ -3,8 +3,6 @@ run = "bash start.sh"
 
 [nix]
 channel = "stable-25_05"
-# Expat queda declarada en el entorno: Rasterio la necesita (libexpat.so.1).
-# start.sh localiza la versión compatible sin depender de una ruta fija.
 packages = ["expat"]
 
 [[ports]]

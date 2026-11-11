@@ -22,9 +22,15 @@ from utils.mapas_base import MapaBase, obtener, url_teselas
 
 
 def mapa_fijo() -> folium.Map:
-    """Lienzo vacío centrado en Antioquia. Debe generar siempre el mismo código."""
+    """Lienzo centrado en Antioquia, sin navegación fuera del mundo."""
     return folium.Map(
-        location=MAPA_CENTRO, zoom_start=MAPA_ZOOM, tiles=None, control_scale=True
+        location=MAPA_CENTRO,
+        zoom_start=MAPA_ZOOM,
+        tiles=None,
+        control_scale=True,
+        min_zoom=2,
+        max_bounds=True,
+        max_bounds_viscosity=1.0,
     )
 
 
