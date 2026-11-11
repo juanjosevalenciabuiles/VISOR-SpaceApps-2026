@@ -1,8 +1,11 @@
 modules = ["python-3.12", "web"]
-run = "bash start.sh"  
+run = "bash start.sh"
 
 [nix]
 channel = "stable-25_05"
+# Expat queda declarada en el entorno: Rasterio la necesita (libexpat.so.1).
+# start.sh localiza la versión compatible sin depender de una ruta fija.
+packages = ["expat"]
 
 [[ports]]
 localPort = 5000
@@ -10,12 +13,5 @@ externalPort = 80
 
 [deployment]
 deploymentTarget = "autoscale"
-run = [
-  "streamlit",
-  "run",
-  "app.py",
-  "--server.port",
-  "5000",
-  "--server.address",
-  "0.0.0.0",
-]
+# Mismo arranque que en desarrollo, para que el despliegue tenga las mismas bibliotecas.
+run = ["bash", "start.sh"]

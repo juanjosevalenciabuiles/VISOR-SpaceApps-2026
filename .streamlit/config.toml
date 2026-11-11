@@ -7,9 +7,9 @@ textColor = "#F5F5F7"
 
 [server]
 headless = true
-# Necesario para que la vista previa de Replit (iframe) cargue la app.
-enableCORS = false
-enableXsrfProtection = false
+# CORS y XSRF quedan con sus valores por defecto (activados). No desactivarlos
+# para "arreglar" la vista previa: si el iframe de Replit no conecta, primero
+# identificar la causa (ver README, sección Replit).
 
 [browser]
 gatherUsageStats = false
