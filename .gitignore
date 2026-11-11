@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.pythonlibs/
+.cache/
+.upm/
+.DS_Store
+# Productos SAR pesados: nunca al repositorio. Solo GeoTIFF ligeros en data/.
+data/crudos/
+*.zip
+*.SAFE

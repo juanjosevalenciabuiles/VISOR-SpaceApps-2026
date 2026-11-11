@@ -1,0 +1,15 @@
+[theme]
+base = "dark"
+primaryColor = "#00F0FF"
+backgroundColor = "#07090D"
+secondaryBackgroundColor = "#0E1117"
+textColor = "#F5F5F7"
+
+[server]
+headless = true
+# Necesario para que la vista previa de Replit (iframe) cargue la app.
+enableCORS = false
+enableXsrfProtection = false
+
+[browser]
+gatherUsageStats = false
