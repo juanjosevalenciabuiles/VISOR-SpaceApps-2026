@@ -9,6 +9,7 @@ reiniciar el mapa:
 Por eso cambiar el fondo, el fenómeno o la opacidad no mueve la ubicación ni
 el zoom, y la capa SAR no depende del mapa base elegido.
 """
+
 import folium
 from streamlit_folium import st_folium
 
@@ -22,7 +23,9 @@ from utils.mapas_base import MapaBase, obtener, url_teselas
 
 def mapa_fijo() -> folium.Map:
     """Lienzo vacío centrado en Antioquia. Debe generar siempre el mismo código."""
-    return folium.Map(location=MAPA_CENTRO, zoom_start=MAPA_ZOOM, tiles=None, control_scale=True)
+    return folium.Map(
+        location=MAPA_CENTRO, zoom_start=MAPA_ZOOM, tiles=None, control_scale=True
+    )
 
 
 def grupo_mapa_base(mapa: MapaBase) -> folium.FeatureGroup:
@@ -34,6 +37,7 @@ def grupo_mapa_base(mapa: MapaBase) -> folium.FeatureGroup:
         subdomains=mapa.subdominios,
         max_zoom=mapa.max_zoom,
         max_native_zoom=mapa.max_zoom_nativo or mapa.max_zoom,
+        no_wrap=True,
     ).add_to(grupo)
     return grupo
 
@@ -58,20 +62,26 @@ def grupo_contexto(clave: str) -> folium.FeatureGroup | None:
     capa = CAPAS_CONTEXTO[clave]
     estilo = {"color": capa.color, "weight": capa.grosor, "opacity": 0.9, "fill": False}
     grupo = folium.FeatureGroup(name=capa.nombre)
-    folium.GeoJson(datos.geojson, name=capa.nombre, style_function=lambda _: estilo).add_to(grupo)
+    folium.GeoJson(
+        datos.geojson, name=capa.nombre, style_function=lambda _: estilo
+    ).add_to(grupo)
     return grupo
 
 
 def _grupo_rectangulo(gdf, nombre: str, estilo: dict) -> folium.FeatureGroup:
     grupo = folium.FeatureGroup(name=nombre)
     folium.GeoJson(
-        gdf, name=nombre, style_function=lambda _: estilo,
+        gdf,
+        name=nombre,
+        style_function=lambda _: estilo,
         tooltip=folium.GeoJsonTooltip(fields=["nombre"], labels=False),
     ).add_to(grupo)
     return grupo
 
 
-def construir_capas(fenomeno: Fenomeno, capa: Capa | None, c: Controles) -> list[folium.FeatureGroup]:
+def construir_capas(
+    fenomeno: Fenomeno, capa: Capa | None, c: Controles
+) -> list[folium.FeatureGroup]:
     """Grupos de capas activos, de abajo hacia arriba."""
     grupos = [grupo_mapa_base(obtener(c.mapa_base))]
 
@@ -85,16 +95,29 @@ def construir_capas(fenomeno: Fenomeno, capa: Capa | None, c: Controles) -> list
                 grupos.append(grupo)
 
     if c.mostrar_referencia:
-        grupos.append(_grupo_rectangulo(
-            geo.area_referencia(), "Área de referencia",
-            {"color": "#8E8E93", "weight": 1, "fill": False, "dashArray": "4 6"},
-        ))
+        grupos.append(
+            _grupo_rectangulo(
+                geo.area_referencia(),
+                "Área de referencia",
+                {"color": "#8E8E93", "weight": 1, "fill": False, "dashArray": "4 6"},
+            )
+        )
     if capa is not None and c.mostrar_huella:
-        etiqueta = f"Cobertura · {fenomeno.nombre}" + (" (DEMO)" if capa.es_demo else "")
-        grupos.append(_grupo_rectangulo(
-            geo.huella(capa.limites, etiqueta), "Cobertura de la capa",
-            {"color": fenomeno.color, "weight": 1.5, "fill": False, "dashArray": "6 6"},
-        ))
+        etiqueta = f"Cobertura · {fenomeno.nombre}" + (
+            " (DEMO)" if capa.es_demo else ""
+        )
+        grupos.append(
+            _grupo_rectangulo(
+                geo.huella(capa.limites, etiqueta),
+                "Cobertura de la capa",
+                {
+                    "color": fenomeno.color,
+                    "weight": 1.5,
+                    "fill": False,
+                    "dashArray": "6 6",
+                },
+            )
+        )
     return grupos
 
 
@@ -113,5 +136,5 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles) -> None:
         height=640,
         use_container_width=True,
         returned_objects=[],  # el mapa no provoca recargas de la app al moverlo
-        key="mapa",           # misma clave siempre: se conserva ubicación y zoom
+        key="mapa",  # misma clave siempre: se conserva ubicación y zoom
     )
