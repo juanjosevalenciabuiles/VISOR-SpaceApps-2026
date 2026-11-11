@@ -22,10 +22,11 @@ estilos.inyectar_css(fenomeno.color)
 
 capa, error = None, None
 try:
-    capa = cargar_capa(fenomeno.ruta)
+    capa = cargar_capa(fenomeno.ruta, categorico=fenomeno.categorico)
 except ErrorCapa as e:
     error = str(e)
 
+barra_lateral.render_leyenda(fenomeno, capa, controles)
 encabezado.render(fenomeno, capa)
 
 col_mapa, col_info = st.columns([2.7, 1], gap="medium")
