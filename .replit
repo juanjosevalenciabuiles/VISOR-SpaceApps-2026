@@ -1,5 +1,5 @@
 modules = ["python-3.12", "web"]
-run = "streamlit run app.py --server.port 5000 --server.address 0.0.0.0"
+run = "bash start.sh"  
 
 [nix]
 channel = "stable-25_05"
@@ -10,4 +10,12 @@ externalPort = 80
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["streamlit", "run", "app.py", "--server.port", "5000", "--server.address", "0.0.0.0"]
+run = [
+  "streamlit",
+  "run",
+  "app.py",
+  "--server.port",
+  "5000",
+  "--server.address",
+  "0.0.0.0",
+]
