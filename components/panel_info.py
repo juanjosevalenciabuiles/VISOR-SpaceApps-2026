@@ -29,14 +29,19 @@ def render(fenomeno: Fenomeno, capa: Capa | None, error: str | None) -> None:
 
     if capa is not None:
         m = capa.metadatos
-        fuente = "Sintética (generada para pruebas)" if capa.es_demo else m.get("FUENTE", fenomeno.fuente)
+        sin_meta = "No disponible (sin metadatos)"
         alto, ancho = capa.forma_original
         crs = capa.crs_original + (" → EPSG:4326" if capa.reproyectada else "")
+        minimo, maximo = capa.rango
         partes += [
             '<div class="visor-seccion">Producto</div>',
-            _fila("Tipo", m.get("PRODUCTO", fenomeno.producto)),
-            _fila("Fuente", fuente),
-            _fila("Fecha", m.get("FECHA", "No disponible")),
+            _fila("Tipo", m.get("PRODUCTO") or f"{fenomeno.producto} (esperado)"),
+            _fila("Valores", "Categóricos (clases)" if fenomeno.categorico else "Continuos"),
+            _fila("Unidades", m.get("UNIDADES") or fenomeno.unidades),
+            _fila("Rango de datos", f"{minimo:.3g} a {maximo:.3g}"),
+            # Fuente y fecha solo se afirman si vienen en los metadatos del archivo.
+            _fila("Fuente", "Sintética (generada para pruebas)" if capa.es_demo else m.get("FUENTE", sin_meta)),
+            _fila("Fecha", m.get("FECHA", sin_meta)),
             _fila("Archivo", f"data/{fenomeno.archivo}"),
             _fila("Dimensiones", f"{ancho} × {alto} px"),
             _fila("CRS", crs),

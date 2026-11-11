@@ -105,6 +105,14 @@ iframe[title*="st_folium"], [data-testid="stCustomComponentV1"] {
 /* ---------- Leyenda ---------- */
 .visor-leyenda-barra { height: 10px; border-radius: 999px; border: 1px solid var(--borde); }
 .visor-leyenda-ejes { display: flex; justify-content: space-between; font-size: 0.72rem; color: #c7c7cc; margin-top: 0.35rem; }
+.visor-leyenda-clase { display: flex; align-items: center; gap: 0.5rem; font-size: 0.74rem; color: #c7c7cc; margin-bottom: 0.3rem; }
+.visor-leyenda-clase i { width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--borde); flex-shrink: 0; }
+.visor-leyenda-clase i.linea { height: 3px; width: 18px; border: none; border-radius: 2px; }
+.visor-nota-base { margin: -0.5rem 0 0.9rem; }
+.visor-leyenda-ctx { margin-top: 0.8rem; }
+.visor-leyenda-ctx .visor-leyenda-nota { margin: 0 0 0.5rem; }
+.visor-credito { font-size: 0.68rem; line-height: 1.45; color: var(--texto-tenue); margin-bottom: 0.4rem; }
+.visor-credito b { color: #c7c7cc; font-weight: 600; }
 .visor-leyenda-nota { font-size: 0.68rem; color: var(--texto-tenue); margin-top: 0.3rem; }
 
 @media (max-width: 900px) {

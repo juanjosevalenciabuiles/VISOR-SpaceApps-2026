@@ -2,10 +2,15 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+.visor_anterior
 .pythonlibs/
 .cache/
 .upm/
 .DS_Store
+# Credenciales: nunca al repositorio (la clave de CARTO va en Secrets / variable de entorno).
+.env
+.env.*
+.streamlit/secrets.toml
 # Productos SAR pesados: nunca al repositorio. Solo GeoTIFF ligeros en data/.
 data/crudos/
 *.zip

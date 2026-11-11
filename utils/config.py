@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote
 
 RAIZ = Path(__file__).resolve().parent.parent
 DATA_DIR = RAIZ / "data"
@@ -20,24 +21,42 @@ ANTIOQUIA_BBOX = (-77.20, 5.40, -73.80, 8.90)
 MAPA_CENTRO = (7.0, -75.5)  # (lat, lon)
 MAPA_ZOOM = 8
 
-# Mapa base CartoDB Dark Matter (`cartodbdark_matter`). Desde 2026 CARTO exige
-# una API key gratuita para sus teselas ráster; sin ella se ven con la marca de
-# agua "API KEY REQUIRED". Se pide en https://carto.com/basemaps/apikey/ y se
-# guarda como secreto/variable de entorno CARTO_API_KEY (nunca en el código).
-MAPA_ATRIBUCION = (
-    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
-    'contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-)
+# --- Clave de CARTO -------------------------------------------------------
+# Los mapas base de CARTO exigen una API key gratuita; sin ella las teselas
+# llegan con la marca de agua "API KEY REQUIRED". La clave vive SOLO en la
+# variable de entorno CARTO_API_KEY (en Replit: Secrets). Nunca en el código,
+# en el repositorio ni en los registros. El catálogo de fondos está en
+# utils/mapas_base.py.
+_LARGO_MAX_CLAVE = 512
+
+
+def carto_estado() -> str:
+    """'ok', 'ausente' o 'invalida'. Nunca devuelve ni registra la clave.
+
+    Solo se comprueba la forma (ASCII imprimible, sin espacios ni saltos de
+    línea, largo razonable). Si CARTO la rechaza, se nota por la marca de agua.
+    """
+    clave = os.environ.get("CARTO_API_KEY", "").strip()
+    if not clave:
+        return "ausente"
+    forma_valida = (
+        len(clave) <= _LARGO_MAX_CLAVE
+        and clave.isascii()
+        and clave.isprintable()
+        and not any(c.isspace() for c in clave)
+    )
+    return "ok" if forma_valida else "invalida"
 
 
 def carto_api_key() -> str:
-    return os.environ.get("CARTO_API_KEY", "").strip()
+    """Clave de CARTO, o cadena vacía si falta o su forma no es válida."""
+    return os.environ.get("CARTO_API_KEY", "").strip() if carto_estado() == "ok" else ""
 
 
-def url_mapa_base() -> str:
-    url = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+def sufijo_clave_carto() -> str:
+    """'?key=…' codificado para URL, o cadena vacía si no hay clave utilizable."""
     clave = carto_api_key()
-    return f"{url}?key={clave}" if clave else url
+    return f"?key={quote(clave, safe='')}" if clave else ""
 
 
 # Lado máximo (px) con el que se lee un ráster. Protege la memoria y mantiene
@@ -47,20 +66,53 @@ MAX_LADO_PX = 1024
 
 @dataclass(frozen=True)
 class Fenomeno:
+    """Perfil de visualización de un fenómeno. Cada uno se configura por separado.
+
+    Importante: un valor alto NO significa por sí mismo "más riesgo". Qué
+    extremo de la escala es el relevante depende del producto, y se declara
+    aquí con `invertir`, `leyenda_min` y `leyenda_max`.
+    """
     clave: str
     nombre: str
     icono: str
-    archivo: str                 # nombre del GeoTIFF dentro de /data
-    colores: tuple[str, ...]     # rampa de menor a mayor indicio
+    archivo: str                      # nombre del GeoTIFF dentro de /data
     descripcion: str
-    producto: str                # tipo de producto SAR esperado
-    fuente: str                  # fuente esperada de los datos reales
-    leyenda_min: str
-    leyenda_max: str
+    producto: str                     # tipo de producto SAR esperado
     advertencias: tuple[str, ...]
-    invertir: bool = False       # True si valores BAJOS indican mayor indicio
-    vmin: float | None = None    # rango fijo de visualización (None = percentiles)
+
+    # --- Valores ---
+    tipo_valores: str = "continuo"    # "continuo" (bilinear) o "categorico" (nearest)
+    unidades: str = "sin unidades"
+
+    # --- Continuo: rampa y normalización ---
+    colores: tuple[str, ...] = ("#1C1C1E", "#FFFFFF")   # de extremo tenue a intenso
+    vmin: float | None = None         # rango fijo; None = percentiles de los datos
     vmax: float | None = None
+    percentiles: tuple[float, float] = (2, 98)
+    invertir: bool = False            # True: el extremo intenso va en los valores BAJOS
+    leyenda_min: str = "Valores bajos"   # qué significan los valores bajos / altos
+    leyenda_max: str = "Valores altos"
+
+    # --- Categórico: (valor, etiqueta, color). color=None deja la clase transparente ---
+    clases: tuple[tuple[float, str, str | None], ...] = ()
+
+    # --- Transparencia de datos VÁLIDOS (NoData siempre es transparente) ---
+    transparencia: str = "gradual"    # "gradual" (de alfa_min a 1) o "nodata" (todo opaco)
+    alfa_min: float = 0.25            # opacidad mínima de un dato válido en modo gradual
+
+    def __post_init__(self) -> None:
+        if self.tipo_valores not in ("continuo", "categorico"):
+            raise ValueError(f"{self.clave}: tipo_valores inválido")
+        if self.transparencia not in ("gradual", "nodata"):
+            raise ValueError(f"{self.clave}: transparencia inválida")
+        if self.categorico and not self.clases:
+            raise ValueError(f"{self.clave}: un producto categórico necesita `clases`")
+        if self.vmin is not None and self.vmax is not None and self.vmax <= self.vmin:
+            raise ValueError(f"{self.clave}: vmax debe ser mayor que vmin")
+
+    @property
+    def categorico(self) -> bool:
+        return self.tipo_valores == "categorico"
 
     @property
     def ruta(self) -> Path:
@@ -68,10 +120,15 @@ class Fenomeno:
 
     @property
     def color(self) -> str:
-        """Color de acento (el más intenso de la rampa)."""
+        """Color de acento de la interfaz."""
         return self.colores[-1]
 
 
+# PERFILES ACTUALES: pensados para los GeoTIFF sintéticos (índice 0–1 sin
+# significado físico). Al integrar cada producto real de HyP3 hay que revisar
+# en su perfil: unidades, vmin/vmax, invertir, transparencia y textos de leyenda.
+# Fuente y fecha NO se configuran aquí: solo se muestran si vienen en los
+# metadatos del archivo (etiquetas del GeoTIFF o su .json lateral).
 FENOMENOS: dict[str, Fenomeno] = {
     "inundacion": Fenomeno(
         clave="inundacion",
@@ -86,9 +143,15 @@ FENOMENOS: dict[str, Fenomeno] = {
             "puede indicar terreno cubierto por agua."
         ),
         producto="Cambio de retrodispersión (amplitud SAR, RTC)",
-        fuente="Sentinel-1 (ESA/Copernicus), procesado con ASF HyP3",
-        leyenda_min="Menor indicio",
-        leyenda_max="Mayor indicio de agua",
+        tipo_valores="continuo",
+        unidades="índice relativo, sin unidades",
+        vmin=None,
+        vmax=None,
+        invertir=False,
+        transparencia="gradual",
+        alfa_min=0.25,
+        leyenda_min="Señal más débil",
+        leyenda_max="Señal más intensa",
         advertencias=(
             "Superficies lisas (pistas, vías, suelo desnudo) y la sombra de radar "
             "en montaña pueden confundirse con agua.",
@@ -107,9 +170,15 @@ FENOMENOS: dict[str, Fenomeno] = {
             "fechas). Señala laderas donde la superficie pudo haberse movido."
         ),
         producto="Desplazamiento InSAR / diferencia de amplitud",
-        fuente="Sentinel-1 (ESA/Copernicus), procesado con ASF HyP3",
-        leyenda_min="Menor indicio",
-        leyenda_max="Mayor indicio de cambio",
+        tipo_valores="continuo",
+        unidades="índice relativo, sin unidades",
+        vmin=None,
+        vmax=None,
+        invertir=False,
+        transparencia="gradual",
+        alfa_min=0.25,
+        leyenda_min="Señal más débil",
+        leyenda_max="Señal más intensa",
         advertencias=(
             "En topografía andina hay sombra y layover: zonas donde el radar no "
             "observa bien la ladera.",
@@ -129,9 +198,15 @@ FENOMENOS: dict[str, Fenomeno] = {
             "retrodispersión entre fechas)."
         ),
         producto="Cambio de coherencia InSAR / retrodispersión",
-        fuente="Sentinel-1 (ESA/Copernicus), procesado con ASF HyP3",
-        leyenda_min="Menor indicio",
-        leyenda_max="Mayor indicio de cambio",
+        tipo_valores="continuo",
+        unidades="índice relativo, sin unidades",
+        vmin=None,
+        vmax=None,
+        invertir=False,
+        transparencia="gradual",
+        alfa_min=0.25,
+        leyenda_min="Señal más débil",
+        leyenda_max="Señal más intensa",
         advertencias=(
             "Cosechas, cambios de humedad del suelo y lluvias recientes también "
             "modifican la señal sin que haya tala.",
