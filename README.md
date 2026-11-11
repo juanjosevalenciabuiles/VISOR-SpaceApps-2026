@@ -29,6 +29,8 @@ No hay que instalar nada a mano. Al pulsar Run, `start.sh` crea el entorno `.ven
 
 Después de cualquier `actualizar.sh`, pulsar **Run**.
 
+Mientras `main` siga en la v1.0, al pasar a `main` este guion deja de estar disponible (allí aún no existe). Para regresar a la rama de pruebas: `git checkout feature/visor-v1.1` y Run.
+
 **Nunca hace falta** `pip install`. Si aparece el error `externally-managed-environment` es porque se intentó instalar en el Python del sistema: usar Run o `bash start.sh --verificar`.
 
 ## Cómo funciona
