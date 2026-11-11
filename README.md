@@ -1,79 +1,185 @@
-# V.I.S.O.R.
+# V.I.S.O.R. · v1.1
 
 **Visualización Inteligente de Superficies y Observación por Radar** — NASA Space Apps Challenge 2026, reto *Dancing with the SARs*.
 
-Plataforma web que muestra productos de radar SAR **ya procesados** sobre un mapa interactivo de Antioquia, para tres fenómenos: inundaciones, deslizamientos y deforestación.
+Visor geoespacial que muestra productos de radar SAR **ya procesados** sobre un mapa interactivo de Antioquia, para tres fenómenos: inundaciones, deslizamientos y deforestación.
 
-> V.I.S.O.R. muestra **indicios**, no detecciones confirmadas. Los archivos que vienen en `data/` son **sintéticos de demostración**: no provienen de ningún satélite.
+> V.I.S.O.R. muestra **indicios**, no detecciones confirmadas. Los GeoTIFF que vienen en `data/` son **sintéticos de demostración**: no provienen de ningún satélite. El color describe la señal medida, no un nivel de riesgo.
 
 ## Ejecutar
 
-**En Replit:** botón **Run**. La app abre en el puerto 5000 (configurado en `.replit`).
-
-**En local:**
+Requiere **Python 3.12**.
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py
+bash start.sh               # verifica bibliotecas e inicia la app en el puerto 5000
+bash start.sh --verificar   # solo comprueba pyexpat + Rasterio y termina
+pytest                      # 65 pruebas
 ```
 
-**Pruebas:** `pytest`
+En Windows sin bash: `python -m streamlit run app.py --server.port 5000`.
 
-### Mapa base (CARTO API key)
+### En Replit
 
-El mapa base es CartoDB Dark Matter. CARTO ahora exige una API key gratuita para sus teselas; sin ella el fondo sale con la marca de agua "API KEY REQUIRED".
+El botón **Run** y el despliegue ejecutan lo mismo: `bash start.sh` (ver `.replit`).
 
-1. Pedir la key en <https://carto.com/basemaps/apikey/> (gratis, sin cuenta).
-2. Guardarla como `CARTO_API_KEY`: en Replit, en **Secrets**; en local, `export CARTO_API_KEY=...`.
+- **Puerto:** 5000, expuesto como 80. Está en `start.sh` y en `[[ports]]`; no cambiar uno sin el otro.
+- **Expat / Rasterio:** Rasterio necesita `libexpat.so.1`. `.replit` declara `expat` como paquete Nix y `start.sh` busca las Expat instaladas (`REPLIT_LD_LIBRARY_PATH`, luego `/nix/store`) y usa la primera con la que `pyexpat` y `rasterio` importan de verdad. No depende de una ruta fija; la ruta antigua queda solo como último recurso.
+- **Un solo Streamlit:** si el puerto 5000 lo ocupa una instancia anterior de la app, `start.sh` la cierra antes de arrancar.
+- **Seguridad:** CORS y XSRF de Streamlit están activados. `start.sh` autoriza únicamente el dominio propio del Repl (`REPLIT_DEV_DOMAIN`, `REPLIT_DOMAINS`). Si la vista previa se queda en "Connecting…", no desactivar las protecciones: revisar en la consola del navegador qué conexión falla y reportarlo.
+- **Secreto:** `CARTO_API_KEY` en **Secrets**. Hay que reiniciar la app después de crearlo o cambiarlo. El despliegue público necesita el mismo secreto en su propia configuración.
 
-Nunca se escribe la key en el código ni se sube al repositorio.
+**Estado de verificación (11-nov-2026):**
+
+| Qué | Estado |
+| --- | --- |
+| v1.0 en el Replit del equipo (app, CARTO, Rasterio 1.5.2) | Comprobado por el equipo |
+| v1.1: pruebas y app completa con Python 3.12 y las versiones de `requirements.txt` | Comprobado fuera de Replit |
+| v1.1: selección de Expat de `start.sh` | Comprobado solo con un almacén Nix simulado |
+| v1.1 dentro del Replit real (arranque, vista previa con CORS/XSRF activos) | **Pendiente** |
+| Carga real de teselas de OpenTopoMap y Sentinel-2 cloudless | **Pendiente** (el entorno de pruebas no tenía acceso a esos servidores) |
+| Despliegue público | **Pendiente** |
+
+### Actualizar el Replit existente sin perder su configuración
+
+Los Secrets viven en el Repl, no en Git: cambiar de rama no los borra.
+
+```bash
+git status                          # si hay cambios locales: git stash
+git fetch origin
+git checkout feature/visor-v1.1
+pip install -r requirements.txt
+bash start.sh --verificar           # debe imprimir "Expat: … | Rasterio: 1.5.2"
+```
+
+Luego **Run** y revisar: la vista previa carga, los cinco mapas base se ven, la capa SAR sigue al cambiar de fondo. Si algo falla, `git checkout main` devuelve la versión anterior que ya funcionaba. Hacer merge del Pull Request solo después de esta comprobación.
+
+## Sistema cartográfico multicapa
+
+El mapa tiene capas independientes, de abajo hacia arriba: **mapa base → capa SAR → hidrografía y carreteras → cobertura y área de referencia**. Cambiar el fondo, el fenómeno o la opacidad no reinicia el mapa: se conservan la ubicación, el zoom y la capa SAR.
+
+### Mapas base (`utils/mapas_base.py`)
+
+| Fondo | Proveedor | Condiciones de uso |
+| --- | --- | --- |
+| Oscuro · Dark Matter (predeterminado) | CARTO | Requiere `CARTO_API_KEY`. Datos © OpenStreetMap (ODbL) |
+| Carreteras · Voyager | CARTO | Igual que el anterior |
+| Claro · Positron | CARTO | Igual que el anterior |
+| Relieve · OpenTopoMap | OpenTopoMap | Teselas CC-BY-SA; datos OpenStreetMap y SRTM. Servidor de voluntarios: uso moderado, sin descargas masivas |
+| Satélite 2016 · Sentinel-2 | EOX IT Services (Copernicus Sentinel-2) | Mosaico *Sentinel-2 cloudless* 2016, CC BY 4.0 con atribución |
+
+- La atribución de cada proveedor aparece dentro del mapa y en **Créditos y fuentes** de la barra lateral.
+- La imagen satelital es de **2016**: sirve de contexto, no muestra el estado actual del terreno.
+- No se usa Esri World Imagery porque sus condiciones piden cuenta y clave de ArcGIS.
+- La clave de CARTO solo se añade a las URL de CARTO, codificada; nunca se envía a otros proveedores ni se imprime. Como toda clave de mapas web, es visible en el navegador: conviene restringirla al dominio de la app en el panel de CARTO.
+
+### Capas de contexto (`utils/capas_contexto.py`, `data/contexto/`)
+
+| Capa | Fuente | Alcance real |
+| --- | --- | --- |
+| Hidrografía | Natural Earth 1:10m v5.1.2, dominio público | Solo ríos Cauca, Magdalena y Atrato. Sin quebradas, drenaje ni cuencas |
+| Carreteras | Natural Earth 1:10m v5.1.2, dominio público | Solo vías principales. Sin vías secundarias |
+
+Son datos reales pero de escala general. `python scripts/preparar_contexto.py` los regenera. Para más detalle hay que conseguir una fuente oficial (IGAC, IDEAM) o un extracto de OpenStreetMap, guardar su GeoJSON en `data/contexto/` y declararlo en `CAPAS_CONTEXTO` con fuente y licencia. Si falta el archivo de una capa, su interruptor queda desactivado: la app no inventa geometrías.
+
+**Precipitación:** no está implementada. No es hidrografía: es un dato ráster con fecha. Queda pendiente hasta elegir una fuente verificable (por ejemplo NASA GPM IMERG) y definir fechas.
+
+## Datos SAR
+
+### Integrar productos reales (HyP3)
+
+1. Procesar fuera de la app (ASF HyP3) y exportar un GeoTIFF **ligero** de una banda.
+2. Guardarlo en `data/` como `inundacion.tif`, `deslizamiento.tif` o `deforestacion.tif`. El aviso de demostración depende de la etiqueta `VISOR_DEMO=1` del propio archivo y desaparece solo.
+3. Crear al lado un `.json` con los metadatos **verificables**. Fuente y fecha solo se muestran si vienen aquí o en las etiquetas del GeoTIFF; si no, el panel dice "No disponible".
+
+   ```json
+   {
+     "fuente": "Sentinel-1 IW, ASF HyP3 RTC",
+     "fecha": "2026-05-01 / 2026-05-13",
+     "producto": "Cambio de retrodispersión VV",
+     "unidades": "dB"
+   }
+   ```
+
+4. Revisar el **perfil del fenómeno** en `utils/config.py`. Los perfiles actuales están pensados para los sintéticos (índice 0–1):
+
+   | Campo | Para qué sirve |
+   | --- | --- |
+   | `tipo_valores` | `"continuo"` (remuestreo bilinear) o `"categorico"` (nearest, no inventa clases) |
+   | `vmin`, `vmax` | Rango fijo de la escala. `None` usa `percentiles` de los datos |
+   | `invertir` | `True` si el extremo relevante son los valores **bajos** (p. ej. caída de dB) |
+   | `transparencia` | `"gradual"` (de `alfa_min` a opaco) o `"nodata"` (todo dato válido opaco) |
+   | `clases` | Solo categórico: `(valor, etiqueta, color)`; `color=None` deja la clase transparente |
+   | `unidades`, `leyenda_min`, `leyenda_max` | Textos de la leyenda |
+
+### Reglas del cargador (`utils/geotiff.py`)
+
+- Acepta cualquier CRS y reproyecta a EPSG:4326.
+- Solo NoData y NaN son transparentes; un valor bajo o un cero son datos válidos y se ven.
+- Reduce rásters de más de 1024 px y lee una sola vez, ya a resolución de pantalla.
+- Relee solo si cambia el `.tif` o su `.json`.
+- Avisa si la capa queda fuera de Antioquia, si es constante o si su `.json` está dañado.
+- Da un error legible si el archivo falta, está dañado, vacío, sin CRS o con extensión inválida.
+
+No subir productos crudos de varios GB: la app no los procesa.
 
 ## Estructura
 
 ```
 app.py                  Punto de entrada: solo orquesta
+start.sh                Arranque único (Replit, despliegue y local)
 components/
-  barra_lateral.py      Selector de fenómeno y controles de capa
-  encabezado.py         Identidad del proyecto
-  mapa.py               Mapa Folium + capa SAR + cobertura
-  leyenda.py            Leyenda de color
-  panel_info.py         Descripción, producto, fuente, advertencias
-  estilos.py            Inyecta assets/style.css
+  barra_lateral.py      Fenómeno, configuración cartográfica, leyendas, créditos
+  mapa.py               Mapa Folium por grupos de capas independientes
+  leyenda.py            Leyenda SAR (continua o por clases) y de contexto
+  panel_info.py         Descripción, producto, metadatos, advertencias
+  encabezado.py · estilos.py
 utils/
-  config.py             Fenómenos, colores, textos, rutas  ← casi todo se ajusta aquí
+  config.py             Perfil de cada fenómeno, clave de CARTO, rutas
+  mapas_base.py         Catálogo de fondos: proveedor, licencia, atribución
+  capas_contexto.py     Hidrografía y vías: lectura, caché, fuentes
   geotiff.py            Lectura de GeoTIFF: CRS, NoData, caché, colores
   geo.py                Utilidades GeoPandas
 assets/style.css        Tema oscuro / glassmorphism
-data/                   GeoTIFF ligeros que lee la app
-scripts/generar_datos_demo.py   Regenera los datos sintéticos
-tests/                  Pruebas del cargador
+data/                   GeoTIFF ligeros · data/contexto/ GeoJSON de contexto
+scripts/                generar_datos_demo.py · preparar_contexto.py
+tests/                  test_geotiff.py · test_cartografia.py · test_replit.py
+.github/                Plantilla de Pull Request y pruebas automáticas
 ```
 
-## Cómo integrar datos reales (HyP3)
+## Trabajo colaborativo (5 integrantes)
 
-1. Procesar fuera de la app (ASF HyP3) y exportar un GeoTIFF **ligero** de una banda.
-2. Guardarlo en `data/` con el nombre exacto: `inundacion.tif`, `deslizamiento.tif` o `deforestacion.tif`. Reemplaza al sintético y el aviso de demostración desaparece solo (depende de la etiqueta `VISOR_DEMO=1` del archivo).
-3. (Opcional) Crear al lado un `.json` con los metadatos que se muestran en el panel:
+**GitHub es la fuente de verdad.** Replit es un lugar donde editar y ejecutar.
 
-   ```json
-   { "fuente": "Sentinel-1 IW, ASF HyP3 RTC", "fecha": "2026-05-01 / 2026-05-13", "producto": "Cambio de retrodispersión VV (dB)" }
+1. `main` solo recibe código por Pull Request, después de probarlo en Replit.
+2. Una rama por tarea, con prefijo del módulo: `ui/…`, `datos/…`, `mapas/…`, `docs/…`.
+3. Ciclo de trabajo:
+
+   ```bash
+   git checkout main && git pull
+   git checkout -b mapas/mi-cambio
+   # editar, luego: pytest  y abrir la app
+   git add -A && git commit -m "mapas: describe el cambio"
+   git push -u origin mapas/mi-cambio      # y abrir el Pull Request en GitHub
    ```
 
-4. Ajustar la visualización en `utils/config.py` si hace falta: `vmin`/`vmax` (rango fijo) e `invertir=True` cuando los valores **bajos** son el indicio (p. ej. caída de dB en inundaciones).
+4. Otra persona revisa. GitHub ejecuta `pytest` en cada Pull Request (`.github/workflows/pruebas.yml`).
 
-El cargador acepta cualquier CRS (reproyecta a EPSG:4326), trata NoData y NaN como transparente, reduce rásters de más de 1024 px y muestra un error legible si el archivo falta, está dañado o no tiene CRS. No subir productos crudos de varios GB: la app no los procesa.
+**Para evitar conflictos:**
 
-## Trabajo colaborativo
+- Un módulo, una persona a la vez: interfaz (`components/`, `assets/`), datos SAR (`data/*.tif`, `scripts/`), cargador (`utils/geotiff.py`, `tests/`), cartografía (`utils/mapas_base.py`, `utils/capas_contexto.py`, `data/contexto/`), contenido científico (`utils/config.py`, `.json`), integración (`.replit`, `start.sh`, `requirements.txt`, README).
+- En `utils/config.py` cada quien edita solo el bloque de su fenómeno.
+- Los `.tif` son binarios y no se fusionan: un responsable por archivo.
+- No cambiar versiones de `requirements.txt` sin volver a correr las pruebas.
+- La edición simultánea en un mismo Repl depende del plan de Replit; este flujo no la necesita.
 
-- **Un módulo, una persona a la vez.** Los archivos están separados para que dos personas no editen el mismo: interfaz (`components/`, `assets/`), datos (`utils/geotiff.py`, `scripts/`), configuración y textos (`utils/config.py`), pruebas (`tests/`), documentación.
-- **GitHub es el respaldo.** Conectar el Repl a un repositorio (panel **Git** de Replit) y hacer commits pequeños y frecuentes con mensaje claro. Antes de empezar: *pull*. Antes de irse: *commit + push*.
-- **Ramas** para cambios grandes (`ui/…`, `datos/…`); `main` siempre debe ejecutar.
-- **Antes de subir:** `pytest` y abrir la app.
-- La edición simultánea en Replit depende del plan del dueño del Repl; si no está disponible, cada integrante trabaja en su copia y se integra por GitHub.
-- Tareas, estados y roles se gestionan **solo en Notion**. Aquí no hay tablero paralelo.
+Tareas, estados y roles se gestionan **solo en Notion**.
 
 ## Limitaciones actuales
 
-- Solo hay datos sintéticos; no existe ningún resultado científico todavía.
-- El rectángulo "Área de referencia" es aproximado, no el límite oficial de Antioquia.
-- Una capa por fenómeno; sin comparación de fechas ni consulta de valores por clic.
+- Solo hay datos SAR sintéticos; no existe ningún resultado científico todavía.
+- Los perfiles de visualización no están calibrados con productos reales.
+- Hidrografía y vías son de escala general; sin quebradas, cuencas ni vías secundarias.
+- Sin capa de precipitación.
+- El "Área de referencia" es un rectángulo aproximado, no el límite oficial de Antioquia.
+- Una capa SAR por fenómeno; sin comparación de fechas ni consulta de valores por clic.
