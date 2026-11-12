@@ -12,8 +12,10 @@ sin porcentaje: no se inventa progreso.
 """
 from __future__ import annotations
 
+import os
 from datetime import date
 from html import escape
+from pathlib import Path
 
 import folium
 import streamlit as st
@@ -107,15 +109,38 @@ def paso_area(centrar) -> None:
               type="tertiary", on_click=centrar, args=((region.oeste, region.sur, region.este, region.norte),))
 
 
+def catalogo_simulado() -> Path | None:
+    """Solo pruebas automáticas: VISOR_ASF_SIMULADO apunta a una respuesta de ASF guardada.
+    Cuando está activa, el paso 02 lo dice en pantalla: nunca pasa por una consulta real."""
+    ruta = os.environ.get("VISOR_ASF_SIMULADO")
+    return Path(ruta) if ruta else None
+
+
+class _RespuestaGuardada:
+    def __init__(self, cuerpo: bytes):
+        self.cuerpo = cuerpo
+
+    def read(self) -> bytes:
+        return self.cuerpo
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+
 def _buscar() -> None:
     region, error = region_actual()
     periodo, error_p = periodo_actual()
     if error or error_p:
         st.session_state.update(sar_busqueda=None, sar_error_busqueda=error or error_p)
         return
+    simulado = catalogo_simulado()
+    abrir = (lambda *_a, **_k: _RespuestaGuardada(simulado.read_bytes())) if simulado else None
     try:
         r = bus.buscar(region.oeste, region.sur, region.este, region.norte, *periodo,
-                       fecha_evento=st.session_state.get("sar_evento"))
+                       fecha_evento=st.session_state.get("sar_evento"), abrir=abrir)
     except bus.ErrorBusqueda as e:
         st.session_state.update(sar_busqueda=None, sar_error_busqueda=str(e))
         return
@@ -132,6 +157,9 @@ def etiqueta_par(p: bus.ParEscenas) -> str:
 def paso_escenas() -> None:
     _nota("Consulta de solo lectura al catálogo público de ASF (Sentinel-1 GRD, modo IW). "
           "No descarga imágenes ni usa credenciales.")
+    if catalogo_simulado():
+        _nota(f"CATÁLOGO SIMULADO (pruebas automáticas): respuesta guardada {catalogo_simulado().name}, "
+              "no una consulta real a ASF.", "mc-aviso")
     if st.button("Buscar escenas en ASF", key="sar_buscar", icon=":material/travel_explore:", type="primary"):
         with st.spinner("Consultando ASF… (hasta 30 s)"):
             _buscar()

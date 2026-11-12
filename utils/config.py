@@ -12,7 +12,9 @@ from pathlib import Path
 from urllib.parse import quote
 
 RAIZ = Path(__file__).resolve().parent.parent
-DATA_DIR = RAIZ / "data"
+# VISOR_DATA_DIR solo para pruebas automáticas (tests/e2e, scripts/verificar_visor.py):
+# permite usar una copia temporal de los datos sin tocar data/. Sin la variable, data/.
+DATA_DIR = Path(os.environ["VISOR_DATA_DIR"]) if os.environ.get("VISOR_DATA_DIR") else RAIZ / "data"
 ASSETS_DIR = RAIZ / "assets"
 
 # Rectángulo APROXIMADO que contiene a Antioquia (oeste, sur, este, norte) en
