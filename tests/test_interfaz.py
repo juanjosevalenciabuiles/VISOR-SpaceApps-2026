@@ -107,7 +107,14 @@ def estado(monkeypatch):
 def test_estado_inicial(estado):
     assert estado["ui_explorador"] and estado["ui_info"] and estado["ui_sar"] == "cerrado"
     assert estado["vista"] is None
-    assert interfaz.css_estado() == ".st-key-panel_sar,.st-key-sar_minimizado{display:none !important}"
+    css = interfaz.css_estado()
+    assert css.startswith(".st-key-panel_sar,.st-key-sar_minimizado{display:none !important}")
+    assert "@media (max-width:720px){.st-key-panel_info{bottom:calc(46vh + 38px)" in css   # explorador abierto
+
+
+def test_movil_informacion_baja_si_el_explorador_esta_cerrado(estado):
+    interfaz.alternar_explorador()
+    assert "46vh" not in interfaz.css_estado()
 
 
 def test_estado_invalido_se_corrige(estado):

@@ -231,8 +231,7 @@ i.mc-transparente { background: repeating-conic-gradient(rgba(255, 255, 255, 0.2
     max-height: 46vh; border-radius: 18px;
   }
   .st-key-panel_info { max-height: 40vh; }
-  /* Con el explorador abierto, la información cede el espacio inferior. */
-  body:has(.st-key-panel_explorador:not([style*="none"])) .st-key-panel_info { bottom: calc(46vh + 38px); max-height: 24vh; }
+  /* Con el explorador abierto, la información sube (regla emitida por interfaz.css_estado). */
   .st-key-sar_minimizado { top: auto; bottom: 30px; left: 8px; }
   .st-key-barra_superior { gap: 0.2rem !important; padding-left: 12px !important; }
   .st-key-barra_superior button { padding: 0.3rem 0.45rem !important; min-height: 36px; }
