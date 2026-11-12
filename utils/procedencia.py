@@ -79,7 +79,7 @@ def sha256_archivo(ruta: str | Path) -> str:
     return h.hexdigest()
 
 
-def _vacio(valor) -> bool:
+def campo_vacio(valor) -> bool:
     return valor is None or (isinstance(valor, (str, list, tuple, dict)) and len(valor) == 0)
 
 
@@ -105,7 +105,7 @@ def evaluar(es_demo: bool, ficha: dict | None, sha256: str | None = None) -> Pro
         return Procedencia(NO_DECLARADA, "La ficha no declara un estado reconocido "
                            "(real_sin_validar o validado).", declarado=declarado)
 
-    faltantes = tuple(c for c in CAMPOS_TRAZABILIDAD if _vacio(bloque.get(c)))
+    faltantes = tuple(c for c in CAMPOS_TRAZABILIDAD if campo_vacio(bloque.get(c)))
     if faltantes:
         return Procedencia(NO_DECLARADA, "La ficha está incompleta: faltan campos de trazabilidad.",
                            faltantes, declarado)
@@ -125,7 +125,7 @@ def evaluar(es_demo: bool, ficha: dict | None, sha256: str | None = None) -> Pro
     if declarado == VALIDADO:
         validacion = bloque.get("validacion")
         sin = tuple(f"validacion.{c}" for c in CAMPOS_VALIDACION
-                    if not isinstance(validacion, dict) or _vacio(validacion.get(c)))
+                    if not isinstance(validacion, dict) or campo_vacio(validacion.get(c)))
         if sin:
             return Procedencia(REAL_SIN_VALIDAR, "La ficha declara VALIDADO, pero no documenta la "
                                "validación; se muestra como REAL SIN VALIDAR.", sin, declarado)
