@@ -83,7 +83,9 @@ header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecor
   font-weight: 700; letter-spacing: 0.08em; white-space: nowrap;
 }
 .mc-insignia-demo { color: #1a1300; background: #ffd60a; }
-.mc-insignia-real { color: #04121c; background: var(--theme-accent); }
+.mc-insignia-nodeclarada { color: #d1d1d6; border: 1px dashed rgba(209, 209, 214, 0.7); }
+.mc-insignia-real { color: #ffd479; border: 1px solid rgba(255, 212, 121, 0.75); background: rgba(255, 212, 121, 0.10); }
+.mc-insignia-validado { color: #04140a; background: #30d158; }
 .mc-insignia-tenue { color: var(--mc-tenue); border: 1px solid var(--mc-borde); }
 
 /* Botones de la interfaz flotante */
@@ -141,6 +143,10 @@ button:focus-visible { outline: 2px solid var(--theme-accent) !important; outlin
 }
 .st-key-panel_explorador [data-testid="stSliderThumbValue"], .st-key-panel_explorador [role="slider"] { color: var(--theme-accent); }
 .visor-aviso-general { border-color: rgba(var(--theme-rgb), 0.5) !important; }
+
+.visor-procedencia { margin: 0.2rem 0 0.4rem; }
+.visor-procedencia .visor-texto { margin: 0.45rem 0 0.25rem; font-size: 0.8rem; }
+.visor-nota-procedencia { font-size: 0.72rem; color: var(--mc-tenue); margin: 0; line-height: 1.4; }
 
 /* Barras de desplazamiento discretas */
 [class*="st-key-panel_"]::-webkit-scrollbar { width: 8px; }

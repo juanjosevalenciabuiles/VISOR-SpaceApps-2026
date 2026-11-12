@@ -21,7 +21,9 @@ import streamlit as st
 
 from components import barra_lateral, panel_info
 from components.barra_lateral import Controles
+from components.panel_info import insignia
 from utils.config import MAPA_CENTRO, MAPA_ZOOM, Fenomeno
+from utils import procedencia
 from utils.geotiff import Capa
 
 ESTADO_INICIAL = {
@@ -116,9 +118,9 @@ def aplicar_css_estado() -> None:
 def insignia_procedencia(capa: Capa | None) -> str:
     if capa is None:
         return '<span class="mc-insignia mc-insignia-tenue">SIN CAPA</span>'
-    if capa.es_demo:
-        return '<span class="mc-insignia mc-insignia-demo">DEMO · DATOS SINTÉTICOS</span>'
-    return '<span class="mc-insignia mc-insignia-tenue">PROCEDENCIA SEGÚN METADATOS</span>'
+    if capa.es_demo:  # la marca del propio GeoTIFF manda, aunque falte la evaluación
+        return insignia(procedencia.Procedencia(procedencia.DEMO, "VISOR_DEMO=1"))
+    return insignia(capa.procedencia)
 
 
 @st.dialog("Ayuda · V.I.S.O.R.", width="large")
@@ -140,8 +142,12 @@ def mostrar_ayuda() -> None:
 | Etiqueta | Significado |
 | --- | --- |
 | DEMO | Datos sintéticos generados para probar la interfaz. No son observaciones. |
-| REAL SIN VALIDAR | Producto derivado de datos satelitales reales; resultado exploratorio. |
-| VALIDADO | Producto respaldado por una verificación científica independiente. |
+| PROCEDENCIA NO DECLARADA | Falta una ficha de procedencia completa: no se puede afirmar de qué datos ni de qué proceso sale la capa. |
+| REAL SIN VALIDAR | Producto derivado de datos satelitales reales, con ficha de procedencia completa; resultado exploratorio. |
+| VALIDADO | Además, respaldado por una verificación independiente documentada en su ficha. |
+
+Las etiquetas REAL SIN VALIDAR y VALIDADO nunca se asignan por defecto: exigen una ficha JSON que
+corresponda exactamente al archivo (huella SHA-256).
 
 Un cambio de retrodispersión de radar **no confirma** una inundación ni ningún otro fenómeno.
 

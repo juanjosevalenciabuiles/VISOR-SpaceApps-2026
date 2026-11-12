@@ -160,17 +160,25 @@ def test_ir_a_coordenadas_y_volver(estado):
 
 
 def test_insignias_de_procedencia():
+    from utils import procedencia as p
+
     class Capa:
         es_demo = True
+        procedencia = None
     assert "DEMO" in interfaz.insignia_procedencia(Capa())
-    Capa.es_demo = False
-    assert "PROCEDENCIA" in interfaz.insignia_procedencia(Capa()) and "REAL" not in interfaz.insignia_procedencia(Capa())
+    Capa.es_demo = False   # sin evaluación: nunca se supone que es real
+    assert "NO DECLARADA" in interfaz.insignia_procedencia(Capa()) and "REAL" not in interfaz.insignia_procedencia(Capa())
     assert "SIN CAPA" in interfaz.insignia_procedencia(None)
+    for estado, texto, clase in ((p.NO_DECLARADA, "PROCEDENCIA NO DECLARADA", "mc-insignia-nodeclarada"),
+                                 (p.REAL_SIN_VALIDAR, "REAL SIN VALIDAR", "mc-insignia-real"),
+                                 (p.VALIDADO, "VALIDADO", "mc-insignia-validado")):
+        html = interfaz.insignia(p.Procedencia(estado, "x"))
+        assert texto in html and clase in html
 
 
 def test_ayuda_explica_etiquetas_nisar_e_ia():
     texto = inspect.getsource(interfaz.mostrar_ayuda)
-    for frase in ("DEMO", "REAL SIN VALIDAR", "VALIDADO", "NISAR", "Sentinel-1", "inteligencia artificial", "no confirma"):
+    for frase in ("DEMO", "REAL SIN VALIDAR", "VALIDADO", "PROCEDENCIA NO DECLARADA", "NISAR", "Sentinel-1", "inteligencia artificial", "no confirma"):
         assert frase in texto
 
 
