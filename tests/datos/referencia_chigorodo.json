@@ -1,0 +1,27 @@
+{
+  "descripcion": "Valores de referencia de los productos reales de Chigorodó, verificados por el equipo en Replit el 12-nov-2026. Los usa scripts/verificar_visor.py para detectar cambios en data/analisis/. No son una validación científica.",
+  "fuente": "Relevo técnico del equipo, 12-nov-2026 (VISOR_relevo_Claude_12nov2026.md)",
+  "cuadricula": {"crs": "EPSG:32618", "ancho": 924, "alto": 926, "nodata": 255,
+                 "pixeles_validos": 855533, "pixeles_sin_dato": 91},
+  "productos": {
+    "coincidencia_VV_VH_Chigorodo.tif": {
+      "rol": "exploratorio, sin ficha",
+      "procedencia": "no_declarada",
+      "clases": {"0": 814519, "1": 729, "2": 12852, "3": 27433}
+    },
+    "coincidencia_VV_VH_20260924_20261006.tif": {
+      "rol": "reproducible, generado con scripts/combinar_vv_vh.py",
+      "procedencia": "real_sin_validar",
+      "clases": {"0": 815237, "1": 11, "2": 27992, "3": 12293},
+      "umbrales_db": {"VV": 7.5, "VH": 3.0},
+      "area_clase_3_ha": 1106.37
+    }
+  },
+  "comparacion": {
+    "a": "coincidencia_VV_VH_20260924_20261006.tif",
+    "b": "coincidencia_VV_VH_Chigorodo.tif",
+    "equivalentes": false,
+    "pixeles_distintos": 15860,
+    "nota": "Configuraciones distintas: el reproducible usa VV −7,5 dB; el exploratorio no documenta su umbral VV. VH coincide; toda la diferencia viene de VV. NO se exige equivalencia: se verifica que la diferencia documentada se mantiene."
+  }
+}

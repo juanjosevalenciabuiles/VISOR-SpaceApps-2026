@@ -123,6 +123,7 @@ principal() {
         echo "Listo. Pulsa Run. Si la app ya estaba abierta, pulsa antes Stop: durante la"
         echo "actualización Streamlit puede mezclar archivos viejos y nuevos en memoria"
         echo "(p. ej. «cannot import name ...»). Reiniciar lo resuelve; no toca data/."
+        echo "Para comprobar esta versión con tus datos reales (solo lectura): bash verificar.sh"
     else
         echo
         echo "La nueva versión no pasó la verificación." >&2

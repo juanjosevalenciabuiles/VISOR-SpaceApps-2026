@@ -21,3 +21,6 @@ data/analisis/
 
 # Paquetes de exportación (QGIS)
 exportaciones/
+
+# Informes de verificación y capturas de pruebas
+informes/
