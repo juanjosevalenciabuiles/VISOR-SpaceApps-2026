@@ -271,5 +271,6 @@ def test_app_flujo_sar_e_ir_a(app):
     app.button(key="btn_ir").click().run()
     assert app.session_state["vista"]["n"] == 2 and "entre -85 y 85" in app.session_state["ir_error"]
     app.button(key="btn_chigorodo").click().run()
-    assert app.session_state["ir_error"] is None and app.text_input(key="ir_lat").value == "7.6750"
+    assert not app.exception and len(app.warning) == 0
+    assert app.session_state["ir_error"] is None
     assert app.session_state["vista"]["centro"] == [7.675, -76.675] and app.session_state["vista"]["zoom"] == 11

@@ -112,8 +112,9 @@ def _ir_a_coordenadas() -> None:
 
 
 def ir_a_chigorodo() -> None:
-    """Restablece los campos al AOI de Chigorodó y lleva el mapa allí."""
-    st.session_state.update(IR_A_INICIAL, ir_error=None)
+    """Lleva el mapa al AOI de Chigorodó. No reescribe los campos: asignar el
+    valor de un widget desde código hace que Streamlit muestre un aviso."""
+    st.session_state["ir_error"] = None
     ir_a(CHIGORODO_CENTRO[0], CHIGORODO_CENTRO[1], CHIGORODO_ZOOM)
 
 
@@ -214,18 +215,18 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None) -> None:
                   type="primary" if st.session_state["ui_info"] else "secondary")
         with st.popover("Ir a…", icon=":material/my_location:", key="popover_ir"):
             # Campos de texto, no numéricos: la rueda del ratón o del panel táctil no los altera.
-            for clave, valor in IR_A_INICIAL.items():
-                st.session_state.setdefault(clave, valor)
-            st.text_input("Latitud (−85 a 85)", key="ir_lat", placeholder="7.6750")
-            st.text_input("Longitud (−180 a 180)", key="ir_lon", placeholder="-76.6750")
-            st.slider("Zoom", 3, 18, key="ir_zoom")
+            # El valor inicial va como argumento (no en session_state) para que el navegador lo
+            # muestre aunque el menú no se haya abierto antes.
+            st.text_input("Latitud (−85 a 85)", IR_A_INICIAL["ir_lat"], key="ir_lat")
+            st.text_input("Longitud (−180 a 180)", IR_A_INICIAL["ir_lon"], key="ir_lon")
+            st.slider("Zoom", 3, 18, IR_A_INICIAL["ir_zoom"], key="ir_zoom")
             if st.session_state.get("ir_error"):
                 st.markdown(f'<div class="mc-aviso">{escape(st.session_state["ir_error"])}</div>',
                             unsafe_allow_html=True)
             with st.container(horizontal=True):
                 st.button("Ir", key="btn_ir", type="primary", on_click=_ir_a_coordenadas)
                 st.button("Chigorodó", key="btn_chigorodo", icon=":material/location_on:", on_click=ir_a_chigorodo,
-                          help="Centro del AOI del análisis VV/VH (−76,80 a −76,55; 7,55 a 7,80).")
+                          help="Centro del AOI del análisis VV/VH (−76,80 a −76,55; 7,55 a 7,80), zoom 11.")
                 st.button("Área inicial", key="btn_inicio", icon=":material/home:", on_click=volver_al_inicio,
                           help="Vista general de Antioquia.")
         st.button("Herramientas SAR", key="btn_sar", icon=":material/satellite_alt:", on_click=abrir_sar,
