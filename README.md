@@ -91,11 +91,12 @@ Un **único mapa a pantalla completa** con superficies de vidrio flotantes. No h
 
 | Superficie | Qué hace |
 | --- | --- |
-| Barra superior | Fenómeno activo y etiqueta de procedencia (DEMO…), botones Explorador, Información, Ir a…, Herramientas SAR y Ayuda |
-| Explorador (izquierda) | Fenómeno, mapa base, capa SAR y opacidad, hidrografía, vías, cobertura, área de referencia |
-| Información (derecha) | Descripción, producto, procedencia, cómo interpretar, leyenda y créditos |
+| Barra superior | Fenómeno activo y su estado de procedencia, botones Explorador, Información, Ir a…, Herramientas SAR y Ayuda |
+| Explorador (izquierda) | Fenómeno, mapa base, capa SAR y opacidad, hidrografía, vías, cobertura, área de referencia y **Resultados SAR** de `data/analisis/` |
+| Información (derecha) | Ficha científica del resultado SAR activo (si hay) y, debajo, la del fenómeno: descripción, producto, procedencia, cómo interpretar, leyendas y créditos |
+| Ir a… | Coordenadas validadas (por defecto, el centro del AOI de Chigorodó, zoom 11), botón Chigorodó y Área inicial (vista de Antioquia) |
 | Herramientas SAR | Panel que se abre, minimiza y cierra, con cuatro pasos: Área, Escenas, Análisis, Resultados. **Aún no ejecuta nada**: se conectará a los motores reales en una fase posterior |
-| Línea temporal | Conceptual y deshabilitada hasta que existan dos productos fechados y comparables |
+| Línea temporal | De solo lectura. Muestra T₁ y T₂ cuando hay un único resultado activo con ficha de procedencia válida; si no, es conceptual |
 
 - **El mapa no se reinicia.** Cambiar de fenómeno, de fondo, abrir o cerrar paneles conserva centro, zoom y capas. "Ir a…" mueve el mapa existente.
 - **Modo inmersivo.** Cerrar el explorador y la información deja solo el mapa, la barra superior y la línea temporal.
@@ -104,6 +105,46 @@ Un **único mapa a pantalla completa** con superficies de vidrio flotantes. No h
 - **Móvil (≤ 720 px).** Los paneles pasan a hojas inferiores que dejan visible la atribución del mapa; la barra superior muestra solo iconos.
 
 Archivos: `components/interfaz.py` (superficies y estado), `assets/mission_control.css` (vidrio y disposición), `components/mapa.py` (pantalla completa y "Ir a…"). Las páginas de análisis y búsqueda siguen usando `assets/style.css`.
+
+## Procedencia y resultados SAR
+
+### Cuatro estados de procedencia (`utils/procedencia.py`)
+
+| Estado | Cuándo |
+| --- | --- |
+| DEMO · DATOS SINTÉTICOS | El GeoTIFF lleva `VISOR_DEMO=1`. Una ficha no puede quitar esa marca |
+| PROCEDENCIA NO DECLARADA | Por defecto: no hay ficha, está incompleta o no corresponde al archivo |
+| REAL SIN VALIDAR | Ficha `<nombre>.json` con `procedencia.estado = "real_sin_validar"`, todos los campos de trazabilidad (sensor, fechas, polarizaciones, método, entradas, generado_por, archivo) y el **SHA-256 del propio GeoTIFF** |
+| VALIDADO | Lo anterior con `estado = "validado"` y `procedencia.validacion` completa (responsable, fecha, método, referencia). Si falta la validación, se muestra REAL SIN VALIDAR |
+
+REAL SIN VALIDAR y VALIDADO **nunca se asignan por defecto**. Si el GeoTIFF cambia después de escribir su ficha, la huella deja de coincidir y la capa vuelve a PROCEDENCIA NO DECLARADA. No se escriben fichas a mano: las genera el código que produce el resultado.
+
+### Resultados de `data/analisis/` como capas opcionales (`utils/resultados.py`)
+
+Cada GeoTIFF de `data/analisis/` aparece en el explorador, en **Resultados SAR**, con su insignia de procedencia, un interruptor, su opacidad y «Centrar en el mapa». Se superpone a la capa del fenómeno sin reemplazarla y sin reiniciar el mapa; cambiar de fenómeno no lo apaga. El perfil se reconoce por lo que declara el archivo (ficha o etiquetas internas), no por su nombre:
+
+| Perfil | Clases |
+| --- | --- |
+| Coincidencia VV/VH | 1 solo VV (cian `#00F0FF`) · 2 solo VH (naranja `#FF9F0A`) · 3 VV y VH (violeta `#7D7AFF`) · 0 y 255 transparentes |
+| Máscara del motor (una polarización) | Clases de `utils/analisis_sar.CLASES_MASCARA` |
+
+La clase 0 de la coincidencia **no significa «sin cambios»**: incluye aumentos significativos y señal baja en ambas fechas; solo indica que no hubo disminución significativa en ninguna polarización. La visualización solo cambia colores: los valores del GeoTIFF no se tocan, y las estadísticas (píxeles, % de válidos, hectáreas) se calculan a resolución completa desde el archivo.
+
+La ficha científica del panel de información dice de dónde sale cada dato (ficha de procedencia o etiquetas del GeoTIFF). Lo que no está declarado aparece como «No declarado en el archivo». Por eso el GeoTIFF exploratorio `coincidencia_VV_VH_Chigorodo.tif`, que no tiene ficha, se muestra como **PROCEDENCIA NO DECLARADA** y sin sensor, fechas ni método.
+
+### Combinación VV/VH reproducible (`utils/combinacion_sar.py`)
+
+Combina las máscaras VV y VH del motor (mismo par de fechas, misma cuadrícula) con la misma regla del script exploratorio y escribe el GeoTIFF y su ficha completa. Se ejecuta donde estén las máscaras del motor (no hacen falta las escenas RTC):
+
+```bash
+.venv/bin/python scripts/combinar_vv_vh.py \
+    --vv data/analisis/cambio_VV_20260924_20261006_mascara.tif \
+    --vh data/analisis/cambio_VH_20260924_20261006_mascara.tif \
+    --zona "Chigorodó, Antioquia" \
+    --comparar data/analisis/coincidencia_VV_VH_Chigorodo.tif
+```
+
+Produce `coincidencia_VV_VH_20260924_20261006.tif` y `.json` (no sobrescribe el exploratorio) e indica si ambos son **EQUIVALENTES** píxel a píxel. Para que la ficha quede como REAL SIN VALIDAR, junto a cada máscara debe estar su informe del motor (`…_analisis.json`), de donde se lee el satélite. Para solo resumir un GeoTIFF de clases existente: `--describir data/analisis/coincidencia_VV_VH_Chigorodo.tif`.
 
 ## Sistema cartográfico multicapa
 
@@ -183,7 +224,7 @@ Motor independiente (`utils/analisis_sar.py`) que compara dos productos **RTC de
 ### Cómo ejecutarlo con los GeoTIFF reales
 
 1. Copiar a `data/sar/` los GeoTIFF ya descomprimidos de las dos fechas. Basta con los archivos `…_VV.tif` (y `…_VH.tif` si se quiere analizar también VH). Esa carpeta está excluida de Git: **no subir estos archivos a GitHub**.
-2. **Desde la app:** Run, y en la barra lateral abrir la página **Analisis SAR**. Elegir imagen anterior y posterior, la zona y los parámetros, y pulsar *Ejecutar análisis*.
+2. **Desde la app:** Run, y abrir la página **Analisis SAR** añadiendo `/Analisis_SAR` a la dirección de la app (la interfaz principal no muestra la barra lateral). Elegir imagen anterior y posterior, la zona y los parámetros, y pulsar *Ejecutar análisis*.
 3. **O desde la Shell:**
 
    ```bash
@@ -237,6 +278,7 @@ actualizar.sh           Actualización segura desde GitHub
 pages/1_Analisis_SAR.py  Página para ejecutar y ver el análisis SAR
 components/
   interfaz.py           Barra superior, paneles flotantes, Herramientas SAR, línea temporal
+  resultados.py         Ficha científica y leyenda de los resultados SAR activos
   barra_lateral.py      Fenómeno, configuración cartográfica, leyendas, créditos
   mapa.py               Mapa Folium por grupos de capas independientes
   leyenda.py            Leyenda SAR (continua o por clases) y de contexto
@@ -248,12 +290,16 @@ utils/
   capas_contexto.py     Hidrografía y vías: lectura, caché, fuentes
   geotiff.py            Lectura de GeoTIFF: CRS, NoData, caché, colores
   analisis_sar.py       Motor de análisis temporal SAR (RTC de HyP3)
+  combinacion_sar.py    Combinación VV/VH de máscaras del motor + ficha de procedencia
+  procedencia.py        Estados DEMO / NO DECLARADA / REAL SIN VALIDAR / VALIDADO
+  resultados.py         Resultados de data/analisis/ como capas opcionales
   geo.py                Utilidades GeoPandas
 assets/style.css        Tema clásico (páginas experimentales)
 assets/mission_control.css  Interfaz Mission Control: vidrio adaptativo y disposición
 data/                   GeoTIFF ligeros · data/contexto/ GeoJSON de contexto
-scripts/                generar_datos_demo.py · preparar_contexto.py · analizar_sar.py
-tests/                  test_geotiff.py · test_cartografia.py · test_replit.py · test_analisis_sar.py
+scripts/                generar_datos_demo.py · preparar_contexto.py · analizar_sar.py · combinar_vv_vh.py
+tests/                  test_geotiff.py · test_cartografia.py · test_replit.py · test_analisis_sar.py ·
+                        test_interfaz.py · test_procedencia.py · test_combinacion_sar.py · test_resultados.py
 .github/                Plantilla de Pull Request y pruebas automáticas
 ```
 
