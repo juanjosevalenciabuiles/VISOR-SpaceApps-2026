@@ -85,6 +85,14 @@ Replit no ofrece una sincronización automática al recibir commits: hay que ped
 | Carga real de teselas (CARTO con la clave del equipo, OpenTopoMap, Sentinel-2) | **Pendiente** en la v1.1 |
 | Despliegue público | **Pendiente** |
 
+## Verificación automática
+
+```bash
+bash verificar.sh
+```
+
+Una sola ejecución comprueba entorno, Git (cambios locales, p. ej. del agente de Replit), pytest, ruff, navegador (si Playwright está instalado), la app con los datos reales y cada GeoTIFF de `data/analisis/` (clases, NoData, superficies, procedencia, SHA-256, paquete QGIS) frente a la referencia verificada de Chigorodó, sin modificar `data/`. Termina con un veredicto (**APTO**, **APTO CON ADVERTENCIAS** o **NO APTO**) y un informe en `informes/`. GitHub Actions ejecuta lo mismo, más las pruebas de navegador, en cada push y pull request. Detalle: `docs/pruebas.md`.
+
 ## Interfaz Mission Control Earth Explorer
 
 Un **único mapa a pantalla completa** con superficies de vidrio flotantes. No hay páginas separadas: todo ocurre sobre el mismo mapa.
@@ -319,7 +327,9 @@ assets/mission_control.css  Interfaz Mission Control: vidrio adaptativo y dispos
 data/                   GeoTIFF ligeros · data/contexto/ GeoJSON de contexto
 scripts/                generar_datos_demo.py · preparar_contexto.py · analizar_sar.py · combinar_vv_vh.py ·
                         auditar_geotiff.py · exportar_qgis.py
-docs/                   qgis.md · fase_d_earthdata_hyp3.md
+docs/                   qgis.md · fase_d_earthdata_hyp3.md · pruebas.md
+tests/e2e/              Pruebas de navegador (Playwright) de Mission Control
+verificar.sh            Verificación integral con informe y veredicto
 tests/                  test_geotiff.py · test_cartografia.py · test_replit.py · test_analisis_sar.py ·
                         test_interfaz.py · test_procedencia.py · test_combinacion_sar.py · test_resultados.py
 .github/                Plantilla de Pull Request y pruebas automáticas
