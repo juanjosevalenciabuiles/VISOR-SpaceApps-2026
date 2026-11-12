@@ -212,11 +212,12 @@ def destino_vista(vista: dict | None) -> tuple[list[float] | None, float | None]
 
 
 def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | None = None,
-           resultados: list[ResultadoSAR] | tuple = ()) -> None:
+           resultados: list[ResultadoSAR] | tuple = (), extras: list[folium.FeatureGroup] | tuple = ()) -> None:
+    """`extras`: grupos adicionales encima de todo (p. ej. AOI y huellas de Herramientas SAR)."""
     centro, zoom = destino_vista(vista)
     st_folium(
         mapa_fijo(),
-        feature_group_to_add=construir_capas(fenomeno, capa, c, resultados),
+        feature_group_to_add=[*construir_capas(fenomeno, capa, c, resultados), *extras],
         height=720,                   # inicial; ESTILO_LIENZO lo lleva a pantalla completa
         use_container_width=True,
         returned_objects=[],          # el mapa no provoca recargas de la app al moverlo

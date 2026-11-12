@@ -52,11 +52,6 @@ def _controles_resultados(resultados: list, centrar=None) -> dict[str, float]:
     activos: dict[str, float] = {}
     for res in resultados:
         if not res.dibujable:
-            st.markdown(
-                f'<div class="mc-resultado mc-resultado-off"><code>{escape(res.ruta.name)}</code>'
-                f'<div class="visor-leyenda-nota">{escape(res.error or "No se puede mostrar.")}</div></div>',
-                unsafe_allow_html=True,
-            )
             continue
         visible = st.toggle(res.nombre, value=False, key=f"res_{res.id}",
                             help=f"{res.archivo}. Capa opcional: se superpone a la del fenómeno sin reemplazarla.")
@@ -72,6 +67,14 @@ def _controles_resultados(resultados: list, centrar=None) -> dict[str, float]:
                       type="tertiary", on_click=centrar, args=(res.capa.limites,))
         if visible:
             activos[res.id] = opacidad
+    ocultos = [r for r in resultados if not r.dibujable]
+    if ocultos:
+        # Agrupados para no llenar el panel (p. ej. las diferencias continuas en dB del motor).
+        st.markdown(
+            f'<details class="mc-detalles mc-resultado-off"><summary>{len(ocultos)} archivo(s) no se muestran'
+            "</summary>" + "".join(f'<div class="visor-leyenda-nota"><code>{escape(r.ruta.name)}</code> · '
+                                   f"{escape(r.error or 'No se puede mostrar.')}</div>" for r in ocultos)
+            + "</details>", unsafe_allow_html=True)
     return activos
 
 

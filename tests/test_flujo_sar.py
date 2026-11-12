@@ -138,3 +138,56 @@ def test_prefijo_libre(tmp_path):
     assert flujo.prefijo_libre(tmp_path, "a") == "a_r2"
     (tmp_path / "a_r2.json").write_text("x")
     assert flujo.prefijo_libre(tmp_path, "a") == "a_r3"
+
+
+def test_app_busca_analiza_y_muestra_el_resultado(tmp_path, monkeypatch):
+    from streamlit.testing.v1 import AppTest
+
+    from utils import resultados
+
+    sar, salida = tmp_path / "sar", tmp_path / "analisis"
+    sar.mkdir()
+    for pol, baja in (("VV", (10, 20)), ("VH", (15, 30))):
+        rtc(sar, "20260924T232218", pol)
+        rtc(sar, "20261006T232218", pol, baja=baja, ident="3C4D")
+    monkeypatch.setattr(bus, "consultar_asf", lambda parametros, **k: REAL)        # sin red
+    monkeypatch.setattr(flujo, "CARPETA_SAR", sar)
+    monkeypatch.setattr(flujo, "CARPETA_ANALISIS", salida)
+    monkeypatch.setattr(resultados, "CARPETA_ANALISIS", salida)
+    monkeypatch.chdir(RAIZ)
+
+    at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=180).run()
+    at.button(key="btn_sar").click().run()
+    assert at.text_input(key="sar_oeste").value == "-76.8000"
+    at.button(key="sar_buscar").click().run()
+    assert not at.exception and at.session_state["sar_busqueda"] is not None
+    par = at.selectbox(key="sar_par")
+    assert par.value == 0 and par.options[0].startswith("★ 2026-09-24 → 2026-10-06 · S1C")
+    texto = " ".join(m.value for m in at.markdown)
+    assert "RECOMENDADO (SIN VALIDAR)" in texto and "S1C_IW_20260924T232218_DVP_RTC30" in texto
+
+    at.slider(key="sar_umbral_VV").set_value(7.5)
+    at.select_slider(key="sar_ventana").set_value(1)
+    at.button(key="sar_analizar").click().run()
+    assert not at.exception, at.exception
+    inf = at.session_state["sar_informe"]
+    assert "coincidencia_VV_VH_20260924_20261006.tif" in inf["archivos"]
+    # El resultado nuevo aparece en el explorador, con ficha REAL SIN VALIDAR y umbrales por polarización.
+    at.toggle(key="res_coincidencia_vv_vh_20260924_20261006").set_value(True).run()
+    texto = " ".join(m.value for m in at.markdown)
+    assert "REAL SIN VALIDAR" in texto and "VV −7,5 dB · VH −3 dB" in texto
+    assert len(at.warning) == 0
+
+
+def test_app_informa_error_de_conexion_sin_romperse(monkeypatch):
+    from streamlit.testing.v1 import AppTest
+
+    def sin_red(parametros, **k):
+        raise bus.ErrorConexion("No se pudo conectar con el catálogo de ASF. Revisa la conexión a internet.")
+    monkeypatch.setattr(bus, "consultar_asf", sin_red)
+    monkeypatch.chdir(RAIZ)
+    at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=180).run()
+    at.button(key="btn_sar").click().run()
+    at.button(key="sar_buscar").click().run()
+    assert not at.exception
+    assert "No se pudo conectar" in " ".join(m.value for m in at.markdown)

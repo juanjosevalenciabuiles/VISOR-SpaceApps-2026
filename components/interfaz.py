@@ -21,6 +21,7 @@ from html import escape
 import streamlit as st
 
 from components import barra_lateral, panel_info
+from components import herramientas_sar as herramientas
 from components import resultados as ui_resultados
 from components.barra_lateral import Controles
 from components.panel_info import insignia
@@ -299,16 +300,6 @@ def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, 
             st.markdown("".join(ui_resultados.leyenda_html(r) for r in activos), unsafe_allow_html=True)
 
 
-def _paso_pendiente(titulo: str, texto: str, fuente: str) -> None:
-    st.markdown(
-        f'<div class="mc-paso"><div class="mc-paso-titulo">{escape(titulo)}</div>'
-        f'<p>{escape(texto)}</p>'
-        f'<div class="mc-paso-fuente">{escape(fuente)}</div>'
-        '<span class="mc-insignia mc-insignia-tenue">AÚN NO CONECTADO</span></div>',
-        unsafe_allow_html=True,
-    )
-
-
 def herramientas_sar() -> None:
     with st.container(key="panel_sar"):
         with st.container(horizontal=True, vertical_alignment="center", key="cabecera_sar"):
@@ -318,40 +309,12 @@ def herramientas_sar() -> None:
             st.button("Cerrar", key="cerrar_sar", icon=":material/close:", type="tertiary",
                       on_click=cerrar_sar)
         st.markdown(
-            '<div class="mc-aviso">Este panel prepara el flujo de búsqueda y análisis. Todavía no ejecuta '
-            "consultas ni procesamientos: ningún resultado de aquí es real.</div>",
+            '<div class="mc-aviso">Búsqueda de solo lectura en ASF y análisis de productos RTC ya presentes en '
+            "<code>data/sar/</code>. No descarga ni procesa en HyP3. Los resultados son indicios de cambio de "
+            "radar, no inundaciones confirmadas.</div>",
             unsafe_allow_html=True,
         )
-        area, escenas, analisis, resultados = st.tabs(list(PASOS_SAR), key="sar_paso")
-        with area:
-            _paso_pendiente(
-                "Área y período",
-                "Definir la región de interés por coordenadas (ejemplo inicial: Chigorodó) y las fechas "
-                "de búsqueda, y verla sobre este mismo mapa.",
-                "Validación de coordenadas y fechas del buscador de V.I.S.O.R.",
-            )
-        with escenas:
-            _paso_pendiente(
-                "Escenas Sentinel-1",
-                "Consultar el catálogo de ASF y elegir el par antes/después que recomienda V.I.S.O.R. "
-                "(sin validar), con su cobertura, fechas, órbita, dirección y polarizaciones.",
-                "Buscador de catálogo ASF (PR #3). Solo lectura: no descarga imágenes.",
-            )
-        with analisis:
-            _paso_pendiente(
-                "Cambio de retrodispersión",
-                "Comparar dos productos RTC del par elegido: polarización, recorte, filtro de speckle y "
-                "umbrales. Es el único método disponible en el motor. Las escenas GRD del catálogo deben "
-                "procesarse antes a RTC; esa conversión no se hace aquí.",
-                "Motor de análisis temporal SAR (PR #2).",
-            )
-        with resultados:
-            _paso_pendiente(
-                "Resultados en el mapa",
-                "Mostrar la máscara y la diferencia en dB como capas de este mapa, con interruptor, "
-                "opacidad, leyenda, procedencia y descarga. Se conservan al cerrar el panel.",
-                "Resultados de data/analisis/ con su ficha de procedencia.",
-            )
+        herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
     with st.container(key="sar_minimizado"):
         st.button("Herramientas SAR · restaurar", key="restaurar_sar", icon=":material/open_in_full:",
                   on_click=abrir_sar)

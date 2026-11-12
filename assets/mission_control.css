@@ -152,6 +152,7 @@ button:focus-visible { outline: 2px solid var(--theme-accent) !important; outlin
 [class*="st-key-panel_"] .visor-procedencia { margin: 0.2rem 0 0.4rem; }
 [class*="st-key-panel_"] .visor-procedencia p.visor-texto { margin: 0.45rem 0 0.25rem; font-size: 0.8rem; line-height: 1.45; }
 [class*="st-key-panel_"] p.visor-nota-procedencia { font-size: 0.72rem; color: var(--mc-tenue); margin: 0.35rem 0 0; line-height: 1.4; }
+[class*="st-key-panel_"] p.visor-texto { font-size: 0.86rem; line-height: 1.5; }
 [class*="st-key-panel_"] .visor-lista li { font-size: 0.78rem; line-height: 1.5; }
 [class*="st-key-panel_"] .mc-res p.visor-texto { font-size: 0.8rem; line-height: 1.5; margin: 0.5rem 0; color: #d1d1d6; }
 
@@ -178,6 +179,10 @@ i.mc-transparente { background: repeating-conic-gradient(rgba(255, 255, 255, 0.2
 .mc-res-leyenda-titulo { font-size: 0.72rem; font-weight: 650; margin-bottom: 0.35rem; color: var(--mc-texto); }
 .mc-linea-fechada .mc-linea-punto { color: var(--mc-texto); }
 .mc-linea-fechada .mc-linea-barra { background: linear-gradient(90deg, rgba(var(--theme-rgb), 0.7), rgba(var(--theme-rgb), 0.25)); }
+
+.mc-falta { color: #ff9f0a; font-size: 0.66rem; }
+.mc-tabla-rtc td { text-align: left !important; }
+.mc-tabla-rtc code { font-size: 0.6rem; overflow-wrap: anywhere; background: transparent; padding: 0; }
 
 /* Barras de desplazamiento discretas */
 [class*="st-key-panel_"]::-webkit-scrollbar { width: 8px; }

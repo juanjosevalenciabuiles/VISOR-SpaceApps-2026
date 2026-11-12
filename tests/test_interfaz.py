@@ -209,11 +209,11 @@ def test_ayuda_explica_etiquetas_nisar_e_ia():
 
 
 def test_herramientas_sar_no_simulan_resultados():
-    texto = inspect.getsource(interfaz.herramientas_sar)
-    assert "AÚN NO CONECTADO" in inspect.getsource(interfaz._paso_pendiente)
-    assert "ningún resultado de aquí es real" in texto
-    for falso in ("DEMO-S1", "Coherencia InSAR", "Cambio de cobertura", "progress"):
+    from components import herramientas_sar
+    texto = inspect.getsource(herramientas_sar) + inspect.getsource(interfaz.herramientas_sar)
+    for falso in ("DEMO-S1", "Coherencia InSAR", "Cambio de cobertura", "st.progress", "time.sleep"):
         assert falso not in texto
+    assert "No descarga ni procesa en HyP3" in texto and "sin porcentaje" in texto
 
 
 # ---------------------------------------------------------------------------
