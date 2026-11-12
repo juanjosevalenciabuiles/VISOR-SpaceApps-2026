@@ -10,6 +10,7 @@ from __future__ import annotations
 from html import escape
 
 from components.panel_info import insignia
+from utils.combinacion_sar import umbrales_por_polarizacion
 from utils.resultados import ResultadoSAR
 
 NO_DECLARADO = "No declarado en el archivo"
@@ -48,13 +49,10 @@ def datos_declarados(res: ResultadoSAR) -> dict[str, tuple[str, str | None]]:
 
     clases = " ".join(tags.get(f"CLASE_{i}", "") for i in (1, 2, 3)).upper()
     pols_tags = tags.get("POLARIZACION") or ("VV y VH" if "VV" in clases and "VH" in clases else "")
-    parametros = (res.ficha or {}).get("parametros") if real else None
-    umbral = None
-    if isinstance(parametros, dict):
-        umbrales = {p.get("umbral_disminucion_db") for p in parametros.values() if isinstance(p, dict)}
-        umbrales.discard(None)
-        if len(umbrales) == 1:
-            umbral = f"−{umbrales.pop():g} dB (disminución)"
+    # Un umbral por polarización: el producto reproducible usa VV −7,5 dB y VH −3 dB.
+    umbrales = umbrales_por_polarizacion(res.ficha) if real else {}
+    umbral = (" · ".join(f"{pol} −{u:g} dB".replace(".", ",") for pol, u in umbrales.items())
+              + " (disminución)") if umbrales else None
     return {
         "producto": elegir((res.ficha or {}).get("producto") if real else None,
                            tags.get("PRODUCTO") or tags.get("DESCRIPCION")),

@@ -113,7 +113,8 @@ def test_combinacion_desde_el_motor_con_ficha_completa(tmp_path):
     assert b["estado"] == procedencia.REAL_SIN_VALIDAR and "faltantes" not in b
     assert b["sensor"].startswith("Sentinel-1C") and "banda C" in b["sensor"] and "NISAR" not in b["sensor"]
     assert b["fechas"] == ["2026-09-24", "2026-10-06"] and b["polarizaciones"] == ["VV", "VH"]
-    assert "≤ −3 dB" in b["metodo"]
+    assert "VV: disminución significativa si la diferencia ≤ −3 dB" in b["metodo"]
+    assert "VH: disminución significativa si la diferencia ≤ −3 dB" in b["metodo"]
     assert [e["sha256"] for e in b["entradas"]] == [procedencia.sha256_archivo(vv), procedencia.sha256_archivo(vh)]
     assert b["entradas"][0]["rtc_antes"].startswith("S1C_IW_20260924") and b["entradas"][1]["polarizacion"] == "VH"
     assert b["archivo"]["sha256"] == procedencia.sha256_archivo(r.geotiff)

@@ -53,7 +53,8 @@ def reproducible(carpeta: Path) -> Path:
     entradas = carpeta / "entradas"
     entradas.mkdir(parents=True, exist_ok=True)
     rutas = {}
-    for pol, cl in (("VV", (1, 3)), ("VH", (2, 3))):
+    # Umbrales distintos por polarización, como el producto reproducible de Chigorodó.
+    for pol, cl, umbral in (("VV", (1, 3), 7.5), ("VH", (2, 3), 3.0)):
         m = np.where(np.isin(c, cl), 1, 0).astype("uint8")
         m[c == 255] = 255
         ruta = entradas / f"cambio_{pol}_20260924_20261006_mascara.tif"
@@ -63,7 +64,7 @@ def reproducible(carpeta: Path) -> Path:
             dst.update_tags(VISOR_ANALISIS="1", MOTOR_VERSION="1.0", POLARIZACION=pol, UNIDADES="clase",
                             FUENTE="Sentinel-1 (S1C), ASF HyP3 RTC gamma0 · derivado por V.I.S.O.R.",
                             FECHA="2026-09-24 / 2026-10-06", ENTRADA_ANTES=f"a_{pol}.tif",
-                            ENTRADA_DESPUES=f"d_{pol}.tif", PARAMETROS=json.dumps({"umbral_disminucion_db": 3.0}))
+                            ENTRADA_DESPUES=f"d_{pol}.tif", PARAMETROS=json.dumps({"umbral_disminucion_db": umbral}))
         rutas[pol] = ruta
     return combinar_vv_vh(rutas["VV"], rutas["VH"], carpeta).geotiff
 
@@ -184,7 +185,11 @@ def test_ficha_reproducible_muestra_todo_y_su_origen(tmp_path):
     d = ui.datos_declarados(res)
     assert d["sensor"][0].startswith("Sentinel-1C") and d["sensor"][1] == "según la ficha de procedencia"
     assert d["fechas"][0] == "2026-09-24 → 2026-10-06" and d["polarizaciones"][0] == "VV y VH"
-    assert d["umbral"][0] == "−3 dB (disminución)" and "Combinación píxel a píxel" in d["metodo"][0]
+    assert d["umbral"][0] == "VV −7,5 dB · VH −3 dB (disminución)"
+    assert "VV: disminución significativa si la diferencia ≤ −7.5 dB" in d["metodo"][0]
+    assert "VH: disminución significativa si la diferencia ≤ −3 dB" in d["metodo"][0]
+    assert "Combinación píxel a píxel" in d["metodo"][0]
+    assert any("parámetros distintos" in a for a in res.ficha["avisos"])
     html = ui.ficha_html(res)
     assert "REAL SIN VALIDAR" in html and "SHA-256" in html and "No es una inundación confirmada" in html
     assert "NISAR" not in html
