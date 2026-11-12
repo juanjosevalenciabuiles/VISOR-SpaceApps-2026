@@ -85,6 +85,26 @@ Replit no ofrece una sincronización automática al recibir commits: hay que ped
 | Carga real de teselas (CARTO con la clave del equipo, OpenTopoMap, Sentinel-2) | **Pendiente** en la v1.1 |
 | Despliegue público | **Pendiente** |
 
+## Interfaz Mission Control Earth Explorer
+
+Un **único mapa a pantalla completa** con superficies de vidrio flotantes. No hay páginas separadas: todo ocurre sobre el mismo mapa.
+
+| Superficie | Qué hace |
+| --- | --- |
+| Barra superior | Fenómeno activo y etiqueta de procedencia (DEMO…), botones Explorador, Información, Ir a…, Herramientas SAR y Ayuda |
+| Explorador (izquierda) | Fenómeno, mapa base, capa SAR y opacidad, hidrografía, vías, cobertura, área de referencia |
+| Información (derecha) | Descripción, producto, procedencia, cómo interpretar, leyenda y créditos |
+| Herramientas SAR | Panel que se abre, minimiza y cierra, con cuatro pasos: Área, Escenas, Análisis, Resultados. **Aún no ejecuta nada**: se conectará a los motores reales en una fase posterior |
+| Línea temporal | Conceptual y deshabilitada hasta que existan dos productos fechados y comparables |
+
+- **El mapa no se reinicia.** Cambiar de fenómeno, de fondo, abrir o cerrar paneles conserva centro, zoom y capas. "Ir a…" mueve el mapa existente.
+- **Modo inmersivo.** Cerrar el explorador y la información deja solo el mapa, la barra superior y la línea temporal.
+- **Paneles cerrados no pierden nada.** Se ocultan con CSS pero siguen dibujados, así que sus controles conservan su valor.
+- **Tema adaptativo por fenómeno.** Inundaciones `#4FDCF4`, deslizamientos `#F4A463`, deforestación `#64DFA7`. Tiñe paneles, bordes y foco; no cambia los colores de los datos.
+- **Móvil (≤ 720 px).** Los paneles pasan a hojas inferiores que dejan visible la atribución del mapa; la barra superior muestra solo iconos.
+
+Archivos: `components/interfaz.py` (superficies y estado), `assets/mission_control.css` (vidrio y disposición), `components/mapa.py` (pantalla completa y "Ir a…"). Las páginas de análisis y búsqueda siguen usando `assets/style.css`.
+
 ## Sistema cartográfico multicapa
 
 El mapa tiene capas independientes, de abajo hacia arriba: **mapa base → capa SAR → hidrografía y carreteras → cobertura y área de referencia**. Cambiar el fondo, el fenómeno o la opacidad no reinicia el mapa: se conservan la ubicación, el zoom y la capa SAR.
@@ -157,10 +177,11 @@ No subir productos crudos de varios GB: la app no los procesa.
 ## Estructura
 
 ```
-app.py                  Punto de entrada: solo orquesta
+app.py                  Punto de entrada: mapa único y superficies flotantes
 start.sh                Arranque único: entorno .venv, Expat y Streamlit
 actualizar.sh           Actualización segura desde GitHub
 components/
+  interfaz.py           Barra superior, paneles flotantes, Herramientas SAR, línea temporal
   barra_lateral.py      Fenómeno, configuración cartográfica, leyendas, créditos
   mapa.py               Mapa Folium por grupos de capas independientes
   leyenda.py            Leyenda SAR (continua o por clases) y de contexto
@@ -172,7 +193,8 @@ utils/
   capas_contexto.py     Hidrografía y vías: lectura, caché, fuentes
   geotiff.py            Lectura de GeoTIFF: CRS, NoData, caché, colores
   geo.py                Utilidades GeoPandas
-assets/style.css        Tema oscuro / glassmorphism
+assets/style.css        Tema clásico (páginas experimentales)
+assets/mission_control.css  Interfaz Mission Control: vidrio adaptativo y disposición
 data/                   GeoTIFF ligeros · data/contexto/ GeoJSON de contexto
 scripts/                generar_datos_demo.py · preparar_contexto.py
 tests/                  test_geotiff.py · test_cartografia.py · test_replit.py
