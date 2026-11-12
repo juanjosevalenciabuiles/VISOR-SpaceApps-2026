@@ -22,6 +22,13 @@ ANTIOQUIA_BBOX = (-77.20, 5.40, -73.80, 8.90)
 MAPA_CENTRO = (7.0, -75.5)  # (lat, lon)
 MAPA_ZOOM = 8
 
+# Área de interés del primer análisis real (Chigorodó, Urabá antioqueño):
+# el AOI con que se generaron las máscaras VV/VH (oeste, sur, este, norte).
+# Es el destino predeterminado de «Ir a…».
+AOI_CHIGORODO = (-76.80, 7.55, -76.55, 7.80)
+CHIGORODO_CENTRO = ((AOI_CHIGORODO[1] + AOI_CHIGORODO[3]) / 2, (AOI_CHIGORODO[0] + AOI_CHIGORODO[2]) / 2)
+CHIGORODO_ZOOM = 11
+
 # --- Clave de CARTO -------------------------------------------------------
 # Los mapas base de CARTO exigen una API key gratuita; sin ella las teselas
 # llegan con la marca de agua "API KEY REQUIRED". La clave vive SOLO en la

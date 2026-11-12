@@ -159,6 +159,16 @@ def test_ir_a_coordenadas_y_volver(estado):
     assert estado["vista"]["n"] == 3
 
 
+def test_leer_coordenada():
+    assert interfaz.leer_coordenada(" 7.675 ", -85, 85, "latitud") == 7.675
+    assert interfaz.leer_coordenada("-76,675", -180, 180, "longitud") == -76.675
+    for malo in ("", "abc", "7.6.7", "1,234.5"):
+        with pytest.raises(ValueError):
+            interfaz.leer_coordenada(malo, -85, 85, "latitud")
+    with pytest.raises(ValueError, match="entre -85 y 85"):
+        interfaz.leer_coordenada("85.5", -85, 85, "latitud")
+
+
 def test_insignias_de_procedencia():
     from utils import procedencia as p
 
@@ -243,11 +253,23 @@ def test_app_flujo_sar_e_ir_a(app):
     app.button(key="cerrar_sar").click().run()
     assert app.session_state["ui_sar"] == "cerrado" and app.session_state["ui_explorador"] is True
 
-    app.number_input(key="ir_lat").set_value(7.67)
-    app.number_input(key="ir_lon").set_value(-76.68)
+    # Los campos arrancan en Chigorodó, no en el centro de Antioquia ni en los límites.
+    assert app.text_input(key="ir_lat").value == "7.6750" and app.text_input(key="ir_lon").value == "-76.6750"
+    assert app.slider(key="ir_zoom").value == 11
+
+    app.text_input(key="ir_lat").input("7,67")                     # coma decimal aceptada
+    app.text_input(key="ir_lon").input("-76.68")
     app.slider(key="ir_zoom").set_value(12)
     app.button(key="btn_ir").click().run()
     assert not app.exception
     assert app.session_state["vista"] == {"centro": [7.67, -76.68], "zoom": 12.0, "n": 1}
     app.button(key="btn_inicio").click().run()
     assert app.session_state["vista"]["centro"] == list(MAPA_CENTRO) and app.session_state["vista"]["n"] == 2
+
+    # Un valor fuera de rango no mueve el mapa y se explica.
+    app.text_input(key="ir_lat").input("850").run()
+    app.button(key="btn_ir").click().run()
+    assert app.session_state["vista"]["n"] == 2 and "entre -85 y 85" in app.session_state["ir_error"]
+    app.button(key="btn_chigorodo").click().run()
+    assert app.session_state["ir_error"] is None and app.text_input(key="ir_lat").value == "7.6750"
+    assert app.session_state["vista"]["centro"] == [7.675, -76.675] and app.session_state["vista"]["zoom"] == 11

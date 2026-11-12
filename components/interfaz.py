@@ -23,7 +23,7 @@ from components import barra_lateral, panel_info
 from components import resultados as ui_resultados
 from components.barra_lateral import Controles
 from components.panel_info import insignia
-from utils.config import MAPA_CENTRO, MAPA_ZOOM, Fenomeno
+from utils.config import CHIGORODO_CENTRO, CHIGORODO_ZOOM, MAPA_CENTRO, MAPA_ZOOM, Fenomeno
 from utils import procedencia
 from utils.geotiff import Capa
 
@@ -33,7 +33,11 @@ ESTADO_INICIAL = {
     "ui_sar": "cerrado",                # "cerrado" | "abierto" | "minimizado"
     "ui_explorador_previo": True,       # cómo estaba el explorador antes de abrir SAR
     "vista": None,                      # {"centro": [lat, lon], "zoom": z, "n": k}
+    "ir_error": None,                   # mensaje si las coordenadas de «Ir a…» no son válidas
 }
+# Valores iniciales de «Ir a…»: centro del AOI de Chigorodó.
+IR_A_INICIAL = {"ir_lat": f"{CHIGORODO_CENTRO[0]:.4f}", "ir_lon": f"{CHIGORODO_CENTRO[1]:.4f}",
+                "ir_zoom": CHIGORODO_ZOOM}
 ESTADOS_SAR = ("cerrado", "abierto", "minimizado")
 PASOS_SAR = ("01 · Área", "02 · Escenas", "03 · Análisis", "04 · Resultados")
 
@@ -82,8 +86,35 @@ def ir_a(lat: float, lon: float, zoom: float) -> None:
                                  "n": int(anterior.get("n", 0)) + 1}
 
 
+def leer_coordenada(texto, minimo: float, maximo: float, nombre: str) -> float:
+    """Convierte lo escrito en un número dentro del rango. Acepta coma decimal (7,675)."""
+    limpio = str(texto).strip().replace(" ", "")
+    if limpio.count(",") == 1 and "." not in limpio:
+        limpio = limpio.replace(",", ".")
+    try:
+        valor = float(limpio)
+    except ValueError:
+        raise ValueError(f"La {nombre} «{texto}» no es un número (usa punto decimal, por ejemplo 7.675).") from None
+    if not minimo <= valor <= maximo:
+        raise ValueError(f"La {nombre} debe estar entre {minimo:g} y {maximo:g}; se escribió {valor:g}.")
+    return valor
+
+
 def _ir_a_coordenadas() -> None:
-    ir_a(st.session_state["ir_lat"], st.session_state["ir_lon"], st.session_state["ir_zoom"])
+    try:
+        lat = leer_coordenada(st.session_state["ir_lat"], -85.0, 85.0, "latitud")
+        lon = leer_coordenada(st.session_state["ir_lon"], -180.0, 180.0, "longitud")
+    except ValueError as e:
+        st.session_state["ir_error"] = str(e)
+        return
+    st.session_state["ir_error"] = None
+    ir_a(lat, lon, st.session_state["ir_zoom"])
+
+
+def ir_a_chigorodo() -> None:
+    """Restablece los campos al AOI de Chigorodó y lleva el mapa allí."""
+    st.session_state.update(IR_A_INICIAL, ir_error=None)
+    ir_a(CHIGORODO_CENTRO[0], CHIGORODO_CENTRO[1], CHIGORODO_ZOOM)
 
 
 def volver_al_inicio() -> None:
@@ -133,7 +164,10 @@ def mostrar_ayuda() -> None:
 - El mapa ocupa toda la pantalla. Arrástralo y usa la rueda o los botones **+ / −** para el zoom.
 - **Explorador** (izquierda): fenómeno, mapa base, capas y opacidad.
 - **Información** (derecha): qué muestra la capa, de dónde viene, leyenda y créditos.
-- **Ir a…**: lleva el mapa a unas coordenadas o de vuelta al área inicial.
+- **Ir a…**: lleva el mapa a unas coordenadas (por defecto, el AOI de Chigorodó), a Chigorodó o
+  de vuelta a la vista general de Antioquia.
+- **Resultados SAR** (explorador): capas opcionales de `data/analisis/` que se superponen a la del
+  fenómeno, cada una con su interruptor, opacidad, leyenda y ficha científica.
 - **Herramientas SAR**: flujo de búsqueda y análisis de imágenes de radar. Puedes minimizarlo o
   cerrarlo sin perder el mapa ni sus capas.
 - Cierra los paneles para ver el mapa completo; vuelve a abrirlos desde la barra superior.
@@ -179,12 +213,21 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None) -> None:
         st.button("Información", key="btn_info", icon=":material/info:", on_click=alternar_info,
                   type="primary" if st.session_state["ui_info"] else "secondary")
         with st.popover("Ir a…", icon=":material/my_location:", key="popover_ir"):
-            st.number_input("Latitud", -85.0, 85.0, float(MAPA_CENTRO[0]), 0.05, format="%.4f", key="ir_lat")
-            st.number_input("Longitud", -180.0, 180.0, float(MAPA_CENTRO[1]), 0.05, format="%.4f", key="ir_lon")
-            st.slider("Zoom", 3, 18, 11, key="ir_zoom")
+            # Campos de texto, no numéricos: la rueda del ratón o del panel táctil no los altera.
+            for clave, valor in IR_A_INICIAL.items():
+                st.session_state.setdefault(clave, valor)
+            st.text_input("Latitud (−85 a 85)", key="ir_lat", placeholder="7.6750")
+            st.text_input("Longitud (−180 a 180)", key="ir_lon", placeholder="-76.6750")
+            st.slider("Zoom", 3, 18, key="ir_zoom")
+            if st.session_state.get("ir_error"):
+                st.markdown(f'<div class="mc-aviso">{escape(st.session_state["ir_error"])}</div>',
+                            unsafe_allow_html=True)
             with st.container(horizontal=True):
                 st.button("Ir", key="btn_ir", type="primary", on_click=_ir_a_coordenadas)
-                st.button("Área inicial", key="btn_inicio", icon=":material/home:", on_click=volver_al_inicio)
+                st.button("Chigorodó", key="btn_chigorodo", icon=":material/location_on:", on_click=ir_a_chigorodo,
+                          help="Centro del AOI del análisis VV/VH (−76,80 a −76,55; 7,55 a 7,80).")
+                st.button("Área inicial", key="btn_inicio", icon=":material/home:", on_click=volver_al_inicio,
+                          help="Vista general de Antioquia.")
         st.button("Herramientas SAR", key="btn_sar", icon=":material/satellite_alt:", on_click=abrir_sar,
                   type="primary" if st.session_state["ui_sar"] == "abierto" else "secondary")
         if st.button("Ayuda", key="btn_ayuda", icon=":material/help:"):
