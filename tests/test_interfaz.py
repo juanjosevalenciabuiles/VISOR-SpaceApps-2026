@@ -290,3 +290,31 @@ def test_app_flujo_sar_e_ir_a(app):
     assert not app.exception and len(app.warning) == 0
     assert app.session_state["ir_error"] is None
     assert app.session_state["vista"]["centro"] == [7.675, -76.675] and app.session_state["vista"]["zoom"] == 11
+
+
+def test_barra_superior_separa_fenomeno_demo_de_resultado_real():
+    from types import SimpleNamespace
+
+    from utils import procedencia as p
+    from utils.config import FENOMENOS
+
+    demo = SimpleNamespace(es_demo=True, procedencia=None)
+    real = SimpleNamespace(nombre="Coincidencia VV/VH",
+                           capa=SimpleNamespace(procedencia=p.Procedencia(p.REAL_SIN_VALIDAR, "x")))
+    solo = interfaz.estado_html(FENOMENOS["inundacion"], demo)
+    assert "DEMO · DATOS SINTÉTICOS" in solo and "Resultado SAR" not in solo
+    ambos = interfaz.estado_html(FENOMENOS["inundacion"], demo, [real])
+    # Las dos insignias aparecen, cada una en su grupo rotulado, y en ese orden.
+    i_fen, i_demo = ambos.index(">Fenómeno<"), ambos.index("DEMO · DATOS SINTÉTICOS")
+    i_res, i_real = ambos.index(">Resultado SAR<"), ambos.index("REAL SIN VALIDAR")
+    assert i_fen < i_demo < i_res < i_real
+    assert "capa oculta" in interfaz.estado_html(FENOMENOS["inundacion"], demo, [real], capa_visible=False)
+    tres = interfaz.estado_html(FENOMENOS["inundacion"], demo, [real, real, real])
+    assert tres.count("REAL SIN VALIDAR") == 2 and "+1" in tres
+
+
+def test_insignias_demo_y_real_no_comparten_color():
+    css = open(RAIZ / "assets" / "mission_control.css", encoding="utf-8").read()
+    demo = css.split(".mc-insignia-demo {")[1].split("}")[0]
+    real = css.split(".mc-insignia-real {")[1].split("}")[0]
+    assert "#ffd60a" in demo and "ffd" not in real and "212" not in real

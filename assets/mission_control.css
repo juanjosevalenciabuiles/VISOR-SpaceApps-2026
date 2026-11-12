@@ -73,6 +73,11 @@ header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecor
 }
 .mc-marca-sub { font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mc-tenue); }
 .mc-estado { display: flex; gap: 0.4rem; align-items: center; margin-left: 0.6rem; white-space: nowrap; }
+.mc-grupo { display: inline-flex; gap: 0.35rem; align-items: center; }
+.mc-grupo-rot { font-size: 0.56rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mc-tenue); }
+.mc-grupo-nota { font-size: 0.62rem; color: var(--mc-tenue); }
+.mc-separador { width: 1px; height: 1.3rem; background: var(--mc-borde); margin: 0 0.2rem; }
+.mc-chip-res { border-style: dashed; }
 .mc-chip {
   padding: 0.28rem 0.75rem; border-radius: 999px; font-size: 0.78rem;
   border: 1px solid rgba(var(--theme-rgb), 0.6); color: var(--theme-accent);
@@ -84,7 +89,7 @@ header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecor
 }
 .mc-insignia-demo { color: #1a1300; background: #ffd60a; }
 .mc-insignia-nodeclarada { color: #d1d1d6; border: 1px dashed rgba(209, 209, 214, 0.7); }
-.mc-insignia-real { color: #ffd479; border: 1px solid rgba(255, 212, 121, 0.75); background: rgba(255, 212, 121, 0.10); }
+.mc-insignia-real { color: #f2f2f7; border: 1.5px solid rgba(242, 242, 247, 0.85); background: rgba(242, 242, 247, 0.08); }
 .mc-insignia-validado { color: #04140a; background: #30d158; }
 .mc-insignia-tenue { color: var(--mc-tenue); border: 1px solid var(--mc-borde); }
 
@@ -210,12 +215,19 @@ i.mc-transparente { background: repeating-conic-gradient(rgba(255, 255, 255, 0.2
 .mc-linea-nota { font-size: 0.68rem; color: var(--mc-tenue); line-height: 1.35; }
 
 /* ---------- Pantallas medianas ---------- */
+/* Con un resultado activo la barra tiene dos grupos de estado: los botones pasan a solo iconos. */
+@media (max-width: 1680px) {
+  .st-key-barra_superior:has(.mc-separador) .mc-marca-sub { display: none; }
+  .st-key-barra_superior:has(.mc-separador) button p { display: none; }
+}
 @media (max-width: 1180px) {
-  .mc-marca-sub, .mc-estado .mc-insignia { display: none; }
+  .mc-marca-sub, .mc-grupo-rot, .mc-grupo-nota, .mc-chip-res { display: none; }
   .st-key-linea_temporal { display: none !important; }
 }
 @media (max-width: 980px) {
   .st-key-barra_superior button p { display: none; }       /* solo iconos */
+  .mc-estado .mc-chip { display: none; }                    /* quedan las dos insignias */
+  .mc-estado .mc-insignia { font-size: 0.56rem; padding: 0.14rem 0.45rem; }
   .st-key-panel_info { top: auto; bottom: 20px; max-height: 42vh; }
 }
 

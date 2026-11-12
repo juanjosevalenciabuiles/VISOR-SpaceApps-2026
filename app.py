@@ -40,7 +40,8 @@ with st.container(key="lienzo_mapa"):
     mapa.render(fenomeno, capa, controles, st.session_state["vista"], resultados)
 
 # 3. Superficies flotantes.
-interfaz.barra_superior(fenomeno, capa)
+activos = [r for r in resultados if r.dibujable and r.id in controles.resultados]
+interfaz.barra_superior(fenomeno, capa, activos, controles.mostrar_capa)
 interfaz.panel_informacion(fenomeno, capa, error, controles, resultados)
 interfaz.herramientas_sar()
 interfaz.linea_temporal(ui_resultados.fechas_activas(resultados, controles.resultados))
