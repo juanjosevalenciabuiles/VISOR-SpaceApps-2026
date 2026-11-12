@@ -20,7 +20,9 @@ VENV="${VISOR_VENV:-.venv}"
 ALMACEN_NIX="${VISOR_NIX_STORE:-/nix/store}"
 ARCHIVO_PID="$VENV/.visor.pid"
 # Ruta comprobada el 11-nov-2026. Solo es el último recurso si la búsqueda falla.
-EXPAT_RESPALDO="/nix/store/b56ind0m3byv7pzby5mwsn5qsy1g6lqf-expat-2.8.5/lib"
+# Se construye desde ALMACEN_NIX (en Replit, /nix/store: la misma carpeta de siempre)
+# para que una simulación con otro almacén no vea la Expat real del sistema.
+EXPAT_RESPALDO="$ALMACEN_NIX/b56ind0m3byv7pzby5mwsn5qsy1g6lqf-expat-2.8.5/lib"
 
 fallo() { echo "ERROR: $*" >&2; exit 1; }
 
