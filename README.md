@@ -76,7 +76,7 @@ Replit no ofrece una sincronización automática al recibir commits: hay que ped
 | Qué | Estado |
 | --- | --- |
 | v1.0 en el Replit del equipo (app, CARTO, Rasterio 1.5.2) | Comprobado por el equipo |
-| v1.1: 82 pruebas con Python 3.12 y las versiones de `requirements.txt` | Comprobado fuera de Replit y en GitHub Actions |
+| v1.1: 121 pruebas (82 anteriores + 39 del motor SAR) con Python 3.12 y las versiones de `requirements.txt` | Comprobado fuera de Replit y en GitHub Actions |
 | Instalación desde cero, segundo arranque sin reinstalar, cambio de `requirements.txt`, reparación de `.venv` | Comprobado fuera de Replit |
 | Tres fenómenos y cinco mapas base en navegador | Comprobado fuera de Replit (sin ver las teselas) |
 | `actualizar.sh` contra el repositorio real de GitHub | Comprobado fuera de Replit |
@@ -174,12 +174,67 @@ Son datos reales pero de escala general. `python scripts/preparar_contexto.py` l
 
 No subir productos crudos de varios GB: la app no los procesa.
 
+## Análisis temporal SAR (datos reales)
+
+Motor independiente (`utils/analisis_sar.py`) que compara dos productos **RTC de Sentinel-1 procesados con ASF HyP3** y calcula el cambio de retrodispersión entre fechas. No descarga datos, no envía trabajos a HyP3 y no usa credenciales: trabaja con GeoTIFF que ya están en disco.
+
+> El resultado muestra **cambios de la señal de radar**. Una disminución de retrodispersión no es una inundación confirmada: requiere validación independiente.
+
+### Cómo ejecutarlo con los GeoTIFF reales
+
+1. Copiar a `data/sar/` los GeoTIFF ya descomprimidos de las dos fechas. Basta con los archivos `…_VV.tif` (y `…_VH.tif` si se quiere analizar también VH). Esa carpeta está excluida de Git: **no subir estos archivos a GitHub**.
+2. **Desde la app:** Run, y en la barra lateral abrir la página **Analisis SAR**. Elegir imagen anterior y posterior, la zona y los parámetros, y pulsar *Ejecutar análisis*.
+3. **O desde la Shell:**
+
+   ```bash
+   .venv/bin/python scripts/analizar_sar.py \
+       data/sar/S1C_IW_20260924T…_VV.tif data/sar/S1C_IW_20261006T…_VV.tif \
+       --aoi -76.80 7.55 -76.55 7.80
+   ```
+
+   `--aoi` es oeste, sur, este, norte en grados. `--help` muestra el resto de opciones.
+
+Los resultados quedan en `data/analisis/` (también fuera de Git):
+
+| Archivo | Contenido |
+| --- | --- |
+| `cambio_VV_<antes>_<después>_dif_db.tif` | Diferencia en dB, posterior − anterior. Negativo = la señal disminuyó |
+| `…_mascara.tif` | 0 sin cambio · 1 disminución significativa · 2 aumento significativo · 3 señal baja en ambas fechas · 255 sin dato |
+| `…_analisis.json` | Procedencia: archivos, fechas, satélite, polarización, cuadrícula, alineación, parámetros, estadísticas, avisos y limitaciones |
+| `…_dif_db.json`, `…_mascara.json` | Metadatos que muestra el visor (fuente, fecha, producto, unidades) |
+
+Para ver un resultado en el mapa principal como capa de un fenómeno, copiar el `.tif` y su `.json` a `data/` con el nombre del fenómeno (por ejemplo `inundacion.tif`) y ajustar su perfil en `utils/config.py`.
+
+### Qué hace el motor
+
+1. **Valida** cada escena: CRS, transformación, tamaño, NoData y polarización. Lee fecha, satélite, radiometría y escala del nombre de HyP3 (`S1C_IW_20260924T…_RTC30_G_gpuned_XXXX_VV.tif`); si el nombre es otro, se indican a mano.
+2. **Valida el par:** misma polarización, escala y radiometría; fechas distintas y en orden.
+3. **Alinea:** usa la cuadrícula de la imagen anterior, recortada a la zona común y al AOI. Si la posterior ya está en esa cuadrícula se lee tal cual; si no (otro CRS, otra resolución o desfase de fracción de píxel) se remuestrea, y queda anotado. Nunca se restan píxeles que no coinciden en el terreno.
+4. **Filtra el speckle** con una media móvil en potencia (por defecto 5×5 px).
+5. **Convierte a dB:** 10·log10(potencia). Nulos, no finitos y no positivos quedan sin dato.
+6. **Resta:** posterior − anterior, solo donde ambas fechas tienen dato.
+7. **Clasifica** con umbrales configurables (por defecto ±3 dB).
+
+Una escena completa a 30 m supera el límite de 16 millones de píxeles: hay que indicar un AOI.
+
+### Limitaciones
+
+- Una disminución puede deberse a agua en superficie, pero también a cambios de humedad del suelo, cosechas, quemas o viento.
+- **Vegetación:** bajo dosel denso el agua puede no oscurecer la señal en banda C; la vegetación inundada puede incluso aumentarla.
+- **Humedad:** la lluvia reciente cambia la retrodispersión sin que haya inundación.
+- **Relieve:** en sombra y layover el radar no observa bien el terreno.
+- **Speckle:** produce falsos cambios píxel a píxel; el filtro lo reduce a costa de detalle.
+- **Agua permanente:** ríos y ciénagas son oscuros en ambas fechas y no aparecen como cambio.
+- Solo se comparan dos fechas y los umbrales no están calibrados para la zona.
+- El motor se probó con rásteres sintéticos; **aún no se ha ejecutado con las escenas reales**.
+
 ## Estructura
 
 ```
 app.py                  Punto de entrada: mapa único y superficies flotantes
 start.sh                Arranque único: entorno .venv, Expat y Streamlit
 actualizar.sh           Actualización segura desde GitHub
+pages/1_Analisis_SAR.py  Página para ejecutar y ver el análisis SAR
 components/
   interfaz.py           Barra superior, paneles flotantes, Herramientas SAR, línea temporal
   barra_lateral.py      Fenómeno, configuración cartográfica, leyendas, créditos
@@ -192,12 +247,13 @@ utils/
   mapas_base.py         Catálogo de fondos: proveedor, licencia, atribución
   capas_contexto.py     Hidrografía y vías: lectura, caché, fuentes
   geotiff.py            Lectura de GeoTIFF: CRS, NoData, caché, colores
+  analisis_sar.py       Motor de análisis temporal SAR (RTC de HyP3)
   geo.py                Utilidades GeoPandas
 assets/style.css        Tema clásico (páginas experimentales)
 assets/mission_control.css  Interfaz Mission Control: vidrio adaptativo y disposición
 data/                   GeoTIFF ligeros · data/contexto/ GeoJSON de contexto
-scripts/                generar_datos_demo.py · preparar_contexto.py
-tests/                  test_geotiff.py · test_cartografia.py · test_replit.py
+scripts/                generar_datos_demo.py · preparar_contexto.py · analizar_sar.py
+tests/                  test_geotiff.py · test_cartografia.py · test_replit.py · test_analisis_sar.py
 .github/                Plantilla de Pull Request y pruebas automáticas
 ```
 
@@ -231,7 +287,7 @@ Tareas, estados y roles se gestionan **solo en Notion**.
 
 ## Limitaciones actuales
 
-- Solo hay datos SAR sintéticos; no existe ningún resultado científico todavía.
+- En el repositorio solo hay datos SAR sintéticos; el motor de análisis aún no se ha ejecutado con escenas reales y no existe ningún resultado científico todavía.
 - Los perfiles de visualización no están calibrados con productos reales.
 - Hidrografía y vías son de escala general; sin quebradas, cuencas ni vías secundarias.
 - Sin capa de precipitación.
