@@ -22,8 +22,9 @@ from components.barra_lateral import Controles
 from utils import geo
 from utils.capas_contexto import CAPAS_CONTEXTO, cargar_contexto
 from utils.config import MAPA_CENTRO, MAPA_ZOOM, Fenomeno
-from utils.geotiff import Capa, a_web_mercator, colorizar_capa
+from utils.geotiff import Capa, a_web_mercator, colorizar_capa, colorizar_categorico
 from utils.mapas_base import MapaBase, obtener, url_teselas
+from utils.resultados import ResultadoSAR
 
 
 # Estilo que viaja dentro del marco del mapa. Debe ser constante: si cambiara,
@@ -93,6 +94,21 @@ def grupo_sar(fenomeno: Fenomeno, capa: Capa, opacidad: float) -> folium.Feature
     return grupo
 
 
+def grupo_resultado(res: ResultadoSAR, opacidad: float) -> folium.FeatureGroup:
+    """Resultado de data/analisis/ coloreado por su perfil. Solo cambia la
+    presentación: las clases transparentes (y NoData) no se dibujan, pero los
+    valores del archivo no se alteran."""
+    oeste, sur, este, norte = res.capa.limites
+    grupo = folium.FeatureGroup(name=f"Resultado · {res.nombre}")
+    folium.raster_layers.ImageOverlay(
+        image=a_web_mercator(colorizar_categorico(res.capa.datos, res.perfil.clases), sur, norte),
+        bounds=[[sur, oeste], [norte, este]],
+        opacity=opacidad,
+        name=res.nombre,
+    ).add_to(grupo)
+    return grupo
+
+
 def grupo_contexto(clave: str) -> folium.FeatureGroup | None:
     """Hidrografía, vías u otra capa vectorial. None si no hay datos."""
     datos = cargar_contexto(clave)
@@ -119,13 +135,18 @@ def _grupo_rectangulo(gdf, nombre: str, estilo: dict) -> folium.FeatureGroup:
 
 
 def construir_capas(
-    fenomeno: Fenomeno, capa: Capa | None, c: Controles
+    fenomeno: Fenomeno, capa: Capa | None, c: Controles, resultados: list[ResultadoSAR] | tuple = ()
 ) -> list[folium.FeatureGroup]:
     """Grupos de capas activos, de abajo hacia arriba."""
     grupos = [grupo_mapa_base(obtener(c.mapa_base))]
 
     if capa is not None and c.mostrar_capa:
         grupos.append(grupo_sar(fenomeno, capa, c.opacidad))
+
+    # Resultados de análisis encima de la capa del fenómeno (no la reemplazan).
+    for res in resultados:
+        if res.dibujable and res.id in c.resultados:
+            grupos.append(grupo_resultado(res, c.resultados[res.id]))
 
     for clave, activa in (("hidrografia", c.hidrografia), ("vias", c.vias)):
         if activa:
@@ -160,10 +181,10 @@ def construir_capas(
     return grupos
 
 
-def construir(fenomeno: Fenomeno, capa: Capa | None, c: Controles) -> folium.Map:
+def construir(fenomeno: Fenomeno, capa: Capa | None, c: Controles, resultados=()) -> folium.Map:
     """Mapa completo y autónomo (para exportar a HTML o para pruebas)."""
     m = mapa_fijo()
-    for grupo in construir_capas(fenomeno, capa, c):
+    for grupo in construir_capas(fenomeno, capa, c, resultados):
         grupo.add_to(m)
     return m
 
@@ -184,11 +205,12 @@ def destino_vista(vista: dict | None) -> tuple[list[float] | None, float | None]
     return [float(lat) + n * 1e-9, float(lon)], float(vista["zoom"]) + n * 1e-6
 
 
-def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | None = None) -> None:
+def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | None = None,
+           resultados: list[ResultadoSAR] | tuple = ()) -> None:
     centro, zoom = destino_vista(vista)
     st_folium(
         mapa_fijo(),
-        feature_group_to_add=construir_capas(fenomeno, capa, c),
+        feature_group_to_add=construir_capas(fenomeno, capa, c, resultados),
         height=720,                   # inicial; ESTILO_LIENZO lo lleva a pantalla completa
         use_container_width=True,
         returned_objects=[],          # el mapa no provoca recargas de la app al moverlo

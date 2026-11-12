@@ -4,12 +4,15 @@ Por defecto se dibuja en la barra lateral de Streamlit; la app principal lo
 dibuja dentro de un panel flotante pasando `contenedor`. Cada control tiene
 una clave estable para que su valor se conserve aunque el panel se oculte.
 """
-from dataclasses import dataclass
+from __future__ import annotations
+
+from dataclasses import dataclass, field
 from html import escape
 
 import streamlit as st
 
 from components import leyenda
+from components.panel_info import insignia
 from utils.capas_contexto import CAPAS_CONTEXTO, disponibles
 from utils.config import FENOMENOS, Fenomeno, carto_estado
 from utils.geotiff import Capa
@@ -26,6 +29,8 @@ class Controles:
     mapa_base: str = MAPA_BASE_PREDETERMINADO
     hidrografia: bool = False
     vias: bool = False
+    # Resultados de data/analisis/ activos: id → opacidad. Independientes del fenómeno.
+    resultados: dict[str, float] = field(default_factory=dict)
 
 
 def _interruptor_contexto(clave: str, hay_datos: bool) -> bool:
@@ -36,7 +41,38 @@ def _interruptor_contexto(clave: str, hay_datos: bool) -> bool:
     return st.toggle(capa.nombre, value=False, disabled=not hay_datos, help=ayuda, key=f"ctx_{clave}") and hay_datos
 
 
-def render(contenedor=None, titulo: bool = True) -> Controles:
+def _controles_resultados(resultados: list) -> dict[str, float]:
+    """Un interruptor y una opacidad por resultado. La opacidad se dibuja siempre
+    (deshabilitada si la capa está apagada) para que conserve su valor."""
+    st.caption("RESULTADOS SAR · DATA/ANALISIS")
+    if not resultados:
+        st.markdown('<div class="visor-leyenda-nota">No hay resultados en <code>data/analisis/</code>.</div>',
+                    unsafe_allow_html=True)
+        return {}
+    activos: dict[str, float] = {}
+    for res in resultados:
+        if not res.dibujable:
+            st.markdown(
+                f'<div class="mc-resultado mc-resultado-off"><code>{escape(res.ruta.name)}</code>'
+                f'<div class="visor-leyenda-nota">{escape(res.error or "No se puede mostrar.")}</div></div>',
+                unsafe_allow_html=True,
+            )
+            continue
+        visible = st.toggle(res.nombre, value=False, key=f"res_{res.id}",
+                            help=f"{res.archivo}. Capa opcional: se superpone a la del fenómeno sin reemplazarla.")
+        st.markdown(
+            f'<div class="mc-resultado">{insignia(res.capa.procedencia)}'
+            f'<code>{escape(res.ruta.name)}</code></div>',
+            unsafe_allow_html=True,
+        )
+        opacidad = st.slider(f"Opacidad · {res.nombre}", 0.0, 1.0, 0.85, 0.05, disabled=not visible,
+                             key=f"res_op_{res.id}", label_visibility="collapsed")
+        if visible:
+            activos[res.id] = opacidad
+    return activos
+
+
+def render(contenedor=None, titulo: bool = True, resultados: list | None = None) -> Controles:
     with contenedor if contenedor is not None else st.sidebar:
         if titulo:
             st.markdown('<div class="visor-lateral-titulo">🛰️ V.I.S.O.R.</div>', unsafe_allow_html=True)
@@ -74,9 +110,11 @@ def render(contenedor=None, titulo: bool = True) -> Controles:
         mostrar_huella = st.toggle("Cobertura de la capa", value=True, key="huella")
         mostrar_referencia = st.toggle("Área de referencia", value=False, key="referencia")
 
+        activos = _controles_resultados(resultados) if resultados is not None else {}
+
     return Controles(
         clave, mostrar_capa, opacidad, mostrar_huella, mostrar_referencia,
-        mapa_base, hidrografia, vias,
+        mapa_base, hidrografia, vias, activos,
     )
 
 
