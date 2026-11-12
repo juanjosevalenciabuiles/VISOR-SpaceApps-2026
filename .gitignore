@@ -18,3 +18,6 @@ data/sar/
 data/analisis/
 *.zip
 *.SAFE
+
+# Paquetes de exportación (QGIS)
+exportaciones/

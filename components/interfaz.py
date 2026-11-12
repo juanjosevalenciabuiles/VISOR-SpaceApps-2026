@@ -289,6 +289,7 @@ def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, 
         for res in activos:
             st.caption("RESULTADO SAR ACTIVO")
             st.markdown(ui_resultados.ficha_html(res), unsafe_allow_html=True)
+            ui_resultados.boton_qgis(res)
         if activos:
             st.caption("CAPA DEL FENÓMENO")
         panel_info.render(fenomeno, capa, error)

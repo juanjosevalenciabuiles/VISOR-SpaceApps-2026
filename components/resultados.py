@@ -9,9 +9,12 @@ from __future__ import annotations
 
 from html import escape
 
+import streamlit as st
+
 from components.panel_info import insignia
 from utils.combinacion_sar import umbrales_por_polarizacion
-from utils.resultados import ResultadoSAR
+from utils import qgis
+from utils.resultados import ResultadoSAR, _firma
 
 NO_DECLARADO = "No declarado en el archivo"
 AVISO = ("Indicio de cambio en la señal de radar. No es una inundación confirmada ni ningún otro "
@@ -179,3 +182,25 @@ def fechas_activas(resultados: list[ResultadoSAR], activos: dict[str, float]) ->
         return None
     fechas = ((elegidos[0].ficha or {}).get("procedencia") or {}).get("fechas")
     return list(fechas) if isinstance(fechas, list) and len(fechas) == 2 else None
+
+
+@st.cache_data(show_spinner=False, max_entries=8)
+def _paquete_qgis(ruta: str, firma: tuple, clases: tuple, nombre: str) -> tuple[str, bytes]:
+    return qgis.exportar(ruta, clases, nombre)
+
+
+def boton_qgis(res: ResultadoSAR) -> None:
+    """Descarga del paquete QGIS del resultado (GeoTIFF original + estilo + ficha + manifiesto).
+    No escribe nada en el servidor ni modifica el archivo."""
+    if not res.dibujable:
+        return
+    try:
+        nombre, datos = _paquete_qgis(str(res.ruta), _firma(res.ruta), tuple(res.perfil.clases), res.nombre)
+    except qgis.ErrorExportacion as e:
+        st.caption(str(e))
+        return
+    st.download_button(
+        "Exportar para QGIS", datos, file_name=nombre, mime="application/zip", key=f"qgis_{res.id}",
+        icon=":material/download:", on_click="ignore", type="tertiary",
+        help="ZIP con el GeoTIFF original (mismo SHA-256), estilo .qml, ficha, leyenda y manifiesto.",
+    )
