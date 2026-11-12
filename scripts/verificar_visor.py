@@ -35,6 +35,8 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
+# Sin avisos de caché de Streamlit al leer resultados fuera de la app (ruido en el informe).
+os.environ.setdefault("STREAMLIT_LOGGER_LEVEL", "error")
 
 from utils.verificacion import (  # noqa: E402
     ADVERTENCIA, APROBADA, CRITICO, FALLIDA, IMPORTANTE, INFORMATIVO, NO_APTO, OMITIDA,
@@ -239,6 +241,11 @@ def main(argumentos=None) -> int:
     a = p.parse_args(argumentos)
 
     logging.getLogger("streamlit").setLevel(logging.ERROR)   # sin avisos de caché fuera de la app
+    try:
+        import streamlit.logger as registro_streamlit
+        registro_streamlit.set_log_level("error")
+    except (ImportError, AttributeError):
+        pass
     from utils.config import DATA_DIR
     inf = Informe()
     inf.contexto.update({"Fecha": datetime.now().strftime("%Y-%m-%d %H:%M"), "Python": platform.python_version(),

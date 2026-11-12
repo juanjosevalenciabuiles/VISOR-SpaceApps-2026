@@ -135,6 +135,7 @@ Cada GeoTIFF de `data/analisis/` aparece en el explorador, en **Resultados SAR**
 | --- | --- |
 | Coincidencia VV/VH | 1 solo VV (cian `#00F0FF`) · 2 solo VH (naranja `#FF9F0A`) · 3 VV y VH (violeta `#7D7AFF`) · 0 y 255 transparentes |
 | Máscara del motor (una polarización) | Clases de `utils/analisis_sar.CLASES_MASCARA` |
+| Diferencia del motor en dB (`…_dif_db.tif`) | Continua, sin umbral: rampa divergente fija de ±10 dB (azul disminución, naranja-rojo aumento), opacidad según \|Δ\|, NoData transparente |
 
 La clase 0 de la coincidencia **no significa «sin cambios»**: incluye aumentos significativos y señal baja en ambas fechas; solo indica que no hubo disminución significativa en ninguna polarización. La visualización solo cambia colores: los valores del GeoTIFF no se tocan, y las estadísticas (píxeles, % de válidos, hectáreas) se calculan a resolución completa desde el archivo.
 

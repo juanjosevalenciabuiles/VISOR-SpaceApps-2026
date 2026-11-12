@@ -94,6 +94,29 @@ Variables solo para pruebas (la app las rotula si están activas):
 - `VISOR_ASF_SIMULADO`: respuesta de ASF guardada; el paso 02 muestra «CATÁLOGO SIMULADO».
 - `VISOR_E2E_RECURSOS`: Leaflet y jQuery locales para entornos sin Internet.
 
+## Actualizar Replit y verificar sin el botón Stop
+
+```bash
+git status --short                          # debe salir vacío (data/ e informes/ están ignorados)
+bash actualizar.sh feature/qgis-fase-c      # trae la versión; no toca data/
+bash verificar.sh                           # no necesita detener la app
+bash start.sh                               # opcional: recarga la app con la versión nueva
+```
+
+`verificar.sh` no usa el puerto de la app: las pruebas de navegador levantan su propio
+servidor en un puerto libre sobre una copia temporal de datos. `start.sh` cierra solo la
+instancia anterior de V.I.S.O.R. (comprueba PID, carpeta y comando) y arranca la nueva;
+nunca cierra procesos ajenos. Se detiene con Ctrl+C.
+
+## Productos continuos (diferencia en dB)
+
+`…_dif_db.tif` del motor (Δ = posterior − anterior, NoData −9999) se reconoce como
+**Diferencia de retrodispersión (dB)**: rampa divergente fija de ±10 dB, sin umbral,
+estadísticas de la distribución y exportación QGIS en pseudocolor. El verificador comprueba
+unidades, NoData, coherencia de conteos, estadísticas finitas, ficha y paquete QGIS. Las
+retrodispersiones de cada fecha (`…_antes_db.tif`, `…_despues_db.tif`) siguen sin perfil:
+se listan como «no se muestran».
+
 ## Lo que sigue siendo manual
 
 - Abrir el ZIP exportado en **QGIS Desktop** (la estructura del `.qml` sí se verifica).
