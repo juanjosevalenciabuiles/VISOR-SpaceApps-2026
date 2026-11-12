@@ -179,6 +179,51 @@ tests/                  test_geotiff.py · test_cartografia.py · test_replit.py
 .github/                Plantilla de Pull Request y pruebas automáticas
 ```
 
+## Buscador de escenas Sentinel-1
+
+Encuentra en el catálogo de **Alaska Satellite Facility (ASF)** las escenas Sentinel-1 que cubren una región y propone pares antes/después comparables, sin tener que buscar a mano en ASF Vertex.
+
+> Es **solo consulta**: no descarga imágenes, no envía trabajos a HyP3, no consume créditos y no usa credenciales. Un par **recomendado** es el mejor candidato por órbita, polarización, cobertura y fechas; **no es un par validado científicamente**.
+
+### Cómo usarlo
+
+1. Run, y en la barra lateral abrir la página **Buscador SAR**.
+2. Indicar la región: un recuadro (oeste, sur, este, norte en grados) o un punto con radio. Los valores iniciales son los de Chigorodó.
+3. Elegir el período y, si se conoce, una fecha de interés (por ejemplo el día de una lluvia fuerte).
+4. Pulsar **Buscar imágenes**.
+5. Revisar la tabla de escenas y la de pares, elegir un par y ver sus metadatos, sus huellas en el mapa y el enlace a ASF Vertex.
+
+Límites por consulta: 5° de lado y 366 días. Descargar o procesar las escenas requiere una cuenta gratuita de NASA Earthdata y se hace en ASF.
+
+### Qué hace (`utils/buscador_sar.py`)
+
+| Paso | Función | Qué hace |
+| --- | --- | --- |
+| Validación | `validar_region`, `region_desde_punto`, `validar_fechas` | Rechaza coordenadas, fechas y tamaños inválidos antes de consultar |
+| Consulta | `construir_consulta`, `consultar_asf` | Una petición GET al SearchAPI público de ASF, con 30 s de espera |
+| Filtrado | `interpretar_respuesta` | Deja solo Sentinel-1 GRD de alta resolución en modo IW; descarta productos de solo metadatos, SLC, otros modos y escenas sin órbita, polarización o huella; agrupa duplicados |
+| Emparejado | `emparejar` | Pares con la misma órbita relativa y dirección, alguna polarización en común, fechas distintas y cobertura conjunta suficiente |
+| Todo junto | `buscar` | Devuelve escenas, pares y la consulta exacta que se hizo |
+
+- **Orden de los pares:** se prefiere mayor cobertura de la región, mismo satélite, más polarizaciones en común y fechas cercanas (y, si se indica, que encierren la fecha de interés).
+- **Versiones repetidas:** ASF publica a veces la misma adquisición con dos identificadores. Se muestra una y se anotan las otras; conviene usar la misma que se procese en HyP3.
+- **Errores:** sin conexión, tiempo agotado, servicio caído o respuesta inesperada se muestran con un mensaje claro y no detienen la app.
+- **Dependencias:** ninguna nueva. Usa `urllib` de Python y Shapely, que ya llega con GeoPandas. No se usa el paquete `asf_search` para no ampliar la instalación en Replit.
+
+### Caso de prueba: Chigorodó
+
+Consulta real hecha el 12-nov-2026 (recuadro −76.85, 7.40, −76.40, 7.95; del 20-sep al 10-oct-2026):
+
+- ASF devolvió 13 productos, que corresponden a 10 adquisiciones (3 están publicadas dos veces).
+- Par recomendado: `S1C_IW_GRDH_1SDV_20260924T232218_…_1338` → `S1C_IW_GRDH_1SDV_20261006T232218_…_116E`. Sentinel-1C, órbita relativa 48 ascendente, VV+VH, 12 días, 100 % de la región. Coincide con el par que el equipo ya había elegido a mano.
+- Otros 5 pares compatibles en las órbitas 48 y 142. La órbita 40 solo cubre hasta el 29 % de la región y queda fuera.
+
+Esa respuesta está guardada en `tests/datos/asf_chigorodo_20260920_20261010.json` (solo metadatos) y la usan las pruebas, que nunca tocan la red.
+
+### Integración con el motor de análisis
+
+Todavía no están conectados. `ParEscenas.para_motor()` entrega los identificadores y metadatos del par (escenas, fechas, órbita, polarizaciones, huellas) en un diccionario serializable. Falta el paso intermedio: el buscador encuentra productos **GRD**, y el motor de análisis trabaja con productos **RTC** ya procesados por HyP3.
+
 ## Trabajo colaborativo (5 integrantes)
 
 **GitHub es la fuente de verdad.** Replit es un lugar donde editar y ejecutar.
