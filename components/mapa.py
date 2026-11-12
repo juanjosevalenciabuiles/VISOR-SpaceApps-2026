@@ -33,8 +33,9 @@ ESTILO_LIENZO = """<style id="visor-lienzo">
 html, body { margin: 0; height: 100%; overflow: hidden; background: #06121e; }
 #map_div, #map_div2 { width: 100vw !important; height: 100vh !important; height: 100dvh !important; }
 .leaflet-container { background: #06121e; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-/* El zoom pasa a la derecha, encima de la atribución, para no quedar bajo los paneles. */
-.leaflet-top.leaflet-left { top: auto; left: auto; right: 14px; bottom: 132px; }
+/* El zoom pasa a la esquina inferior derecha, justo encima de la atribución: por debajo
+   del panel de información (que termina a 190 px del borde) y lejos de la línea temporal. */
+.leaflet-top.leaflet-left { top: auto; left: auto; right: 14px; bottom: 40px; }
 .leaflet-bar { border: 1px solid rgba(255,255,255,.16) !important; border-radius: 12px !important; overflow: hidden;
                box-shadow: 0 8px 24px rgba(0,0,0,.35) !important; }
 .leaflet-bar a, .leaflet-bar a:hover { background: rgba(8,22,36,.78); color: #f5f5f7; border-bottom-color: rgba(255,255,255,.12);
@@ -44,7 +45,12 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #06121e; }
                border-radius: 8px 0 0 0; font-size: 10px; }
 .leaflet-control-attribution a { color: #8fd3ff !important; }
 .leaflet-control-scale-line { background: rgba(6,18,30,.6); color: #e5e5ea; border-color: #c7c7cc; }
-.leaflet-bottom.leaflet-left { left: 340px; }
+/* La escala queda en la esquina inferior izquierda, bajo el explorador (que termina a
+   118 px del borde) y fuera del recorrido de la línea temporal. */
+@media (max-width: 980px) {
+  /* El panel de información baja a la esquina inferior derecha: el zoom sube. */
+  .leaflet-top.leaflet-left { bottom: auto; top: 88px; }
+}
 @media (max-width: 720px) {
   .leaflet-top.leaflet-left { bottom: auto; top: 76px; right: 10px; }
   .leaflet-control-scale { display: none; }
