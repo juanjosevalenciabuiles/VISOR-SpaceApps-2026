@@ -225,6 +225,11 @@ i.mc-transparente { background: repeating-conic-gradient(rgba(255, 255, 255, 0.2
   .st-key-barra_superior:has(.mc-separador) .mc-marca-sub { display: none; }
   .st-key-barra_superior:has(.mc-separador) button p { display: none; }
 }
+@media (max-width: 1366px) {
+  /* Con resultado activo quedan las insignias; los rótulos van en la descripción emergente. */
+  .st-key-barra_superior:has(.mc-separador) .mc-grupo-rot,
+  .st-key-barra_superior:has(.mc-separador) .mc-chip-res { display: none; }
+}
 @media (max-width: 1180px) {
   .mc-marca-sub, .mc-grupo-rot, .mc-grupo-nota, .mc-chip-res { display: none; }
   .st-key-linea_temporal { display: none !important; }
