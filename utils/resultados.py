@@ -32,6 +32,7 @@ from utils.combinacion_sar import (
     describir_clases,
 )
 from utils.config import DATA_DIR
+from utils.diferencia_db import RANGO_DB, describir_continuo
 from utils.geotiff import Capa, ErrorCapa, leer_geotiff
 
 CARPETA_ANALISIS = DATA_DIR / "analisis"
@@ -47,9 +48,30 @@ class PerfilResultado:
     clases: tuple[tuple[int, str, str | None], ...]
     nota: str
     limitaciones: tuple[str, ...]
+    continuo: bool = False          # True: valores continuos (dB) con rampa, sin clases
+    unidades: str = "clase"
 
 
 PERFILES: dict[str, PerfilResultado] = {
+    "diferencia_db": PerfilResultado(
+        clave="diferencia_db",
+        nombre="Diferencia de retrodispersión (dB)",
+        descripcion=(
+            "Diferencia continua posterior − anterior en dB de una polarización, sin umbral: es el dato del "
+            "que el motor saca la máscara de cambios. Azul = disminución, naranja-rojo = aumento."
+        ),
+        clases=(),
+        nota=(f"Rampa fija de ±{RANGO_DB:g} dB (fuera de ese rango el color se satura, el valor no cambia). "
+              "La opacidad crece con |Δ|; ningún píxel válido se oculta. No se aplica ningún umbral."),
+        limitaciones=(
+            "Una disminución de retrodispersión no confirma agua ni inundación: también la producen humedad, "
+            "cosechas, labores agrícolas o viento sobre el agua.",
+            "El speckle residual produce variaciones de ±1–2 dB sin cambio real en la superficie.",
+            *LIMITACIONES,
+        ),
+        continuo=True,
+        unidades="dB",
+    ),
     TIPO_PRODUCTO: PerfilResultado(
         clave=TIPO_PRODUCTO,
         nombre="Coincidencia VV/VH",
@@ -92,6 +114,10 @@ def identificar_perfil(etiquetas: dict[str, str], ficha: dict | None = None) -> 
         return TIPO_PRODUCTO
     if etiquetas.get("VISOR_ANALISIS") == "1" and etiquetas.get("UNIDADES", "").lower() == "clase":
         return "mascara_cambios"
+    # Diferencia continua del motor (no las retrodispersiones de cada fecha, que también están en dB).
+    if (etiquetas.get("VISOR_ANALISIS") == "1" and etiquetas.get("UNIDADES", "").lower() == "db"
+            and _normal(etiquetas.get("PRODUCTO", "")).startswith("cambio de retrodispersion")):
+        return "diferencia_db"
     return None
 
 
@@ -148,7 +174,15 @@ def leer_resultado(ruta: str | Path) -> ResultadoSAR:
     if clave is None:
         res.error = "Perfil de producto no reconocido: no se dibuja."
         return res
-    res.perfil, res.capa = PERFILES[clave], capa
+    res.perfil = PERFILES[clave]
+    if res.perfil.continuo:
+        try:
+            res.capa = leer_geotiff(ruta, categorico=False)      # bilineal solo para la imagen del mapa
+            res.estadisticas = describir_continuo(ruta)          # siempre del archivo original
+        except (ErrorCapa, ValueError) as e:
+            res.perfil, res.error = None, str(e)
+        return res
+    res.capa = capa
     try:
         res.estadisticas = describir_clases(ruta, res.perfil.clases)
     except ErrorSAR as e:

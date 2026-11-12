@@ -171,6 +171,9 @@ def auditar_resultados(informe: Informe, carpeta: Path, referencia: dict | None)
                    estado_mal=ADVERTENCIA if res.error and "no reconocido" in res.error else FALLIDA)
         if not res.dibujable:
             continue
+        if res.perfil.continuo:
+            _auditar_continuo(informe, pre, ruta, res)
+            continue
         a = auditar(ruta)
         e = a["clases"]
         otros = e.get("pixeles_otros_valores", 0)
@@ -254,6 +257,44 @@ def auditar_resultados(informe: Informe, carpeta: Path, referencia: dict | None)
             informe.agregar("DAT-CMP", "Referencia", "Diferencia documentada entre los dos productos VV/VH",
                             f"{comp['pixeles_distintos']} píxeles distintos", INFORMATIVO, OMITIDA,
                             "Falta alguno de los dos archivos en data/analisis/")
+
+
+def _auditar_continuo(informe: Informe, pre: str, ruta: Path, res) -> None:
+    """Diferencia en dB: unidades, NoData, distribución finita y coherente, ficha y paquete QGIS."""
+    from utils import procedencia
+    from utils.auditoria import ficha_de
+    from utils.qgis import ErrorExportacion, exportar, verificar_paquete
+
+    cat = "Datos reales"
+    e = res.estadisticas or {}
+    tags = res.capa.metadatos
+    finito = all(isinstance(e.get(k), float) and e.get(k) == e.get(k) for k in ("minimo", "mediana", "maximo"))
+    ok = (tags.get("UNIDADES", "").lower() == "db" and e.get("nodata") is not None and finito
+          and e["pixeles_validos"] + e["pixeles_sin_dato"] == e["pixeles_totales"] and e["pixeles_validos"] > 0)
+    informe.si(ok, f"{pre}b", cat, f"{ruta.name}: diferencia continua en dB coherente",
+               "Unidades dB, NoData declarado, válidos + NoData = total, estadísticas finitas", CRITICO,
+               f"{res.capa.crs_original} · {res.capa.forma_original[1]}×{res.capa.forma_original[0]} · Δ de "
+               f"{e.get('minimo', float('nan')):+.2f} a {e.get('maximo', float('nan')):+.2f} dB, mediana "
+               f"{e.get('mediana', float('nan')):+.2f} · NoData {e.get('pixeles_sin_dato')} px",
+               f"unidades={tags.get('UNIDADES')}, nodata={e.get('nodata')}, estadísticas={e}")
+    sha = procedencia.sha256_archivo(ruta)
+    f = ficha_de(ruta, sha, tags.get("VISOR_DEMO") == "1")
+    if f.get("presente") and f.get("sha256_en_ficha"):
+        informe.si(f["sha256_coincide"], f"{pre}e", "Procedencia", f"{ruta.name}: SHA-256 = el de su ficha",
+                   "Coinciden", CRITICO, f["estado_efectivo"], f.get("motivo", ""))
+    else:
+        informe.agregar(f"{pre}e", "Procedencia", f"{ruta.name}: ficha de procedencia",
+                        "Sin ficha completa → PROCEDENCIA NO DECLARADA", INFORMATIVO,
+                        APROBADA if f["estado_efectivo"] == procedencia.NO_DECLARADA else FALLIDA,
+                        f"estado {f['estado_efectivo']} (el motor no escribe ficha para este producto)")
+    try:
+        _, zip_bytes = exportar(ruta, (), res.nombre, continuo=True)
+        problemas = verificar_paquete(zip_bytes, ruta, (), continuo=True)
+    except ErrorExportacion as err:
+        problemas = [str(err)]
+    problemas += [] if procedencia.sha256_archivo(ruta) == sha else ["la exportación modificó el original"]
+    informe.si(not problemas, f"{pre}f", "QGIS", f"{ruta.name}: paquete QGIS (pseudocolor dB)",
+               "GeoTIFF idéntico, manifiesto y .qml correctos", IMPORTANTE, "correcto", "; ".join(problemas))
 
 
 def leer_referencia(ruta: Path) -> dict | None:

@@ -95,3 +95,28 @@ def test_exportar_para_qgis(abrir, servidor):
     assert hashlib.sha256(origen.read_bytes()).hexdigest() == huella
     p.page.wait_for_timeout(1500)
     assert p.mapa_intacto()
+
+
+def test_diferencia_db_continua(abrir, servidor):
+    origen = servidor.datos / "analisis" / "cambio_VV_20260924_20261006_dif_db.tif"
+    huella = hashlib.sha256(origen.read_bytes()).hexdigest()
+    p = abrir(descargas=True)
+    p.marcar_mapa()
+    mostrar_resultados(p)
+    p.alternar("res_cambio_vv_20260924_20261006_dif_db")
+    capas = capas_imagen(p)
+    assert len(capas) == 2 and p.mapa_intacto()
+    im = np.array(Image.open(io.BytesIO(base64.b64decode(capas[1]["src"].split(",", 1)[1]))).convert("RGBA"))
+    visibles = im[im[..., 3] > 0]
+    azules = (visibles[:, 2] > 200) & (visibles[:, 0] < 120)
+    assert azules.any(), "la disminución (−10 dB) se ve en azul"
+    assert (im[..., 3] == 0).any(), "NoData / fuera de la huella transparente"
+    info = p.texto("panel_info").upper()
+    for frase in ("Diferencia de retrodispersión (dB)", "Estadísticas de Δ", "No aplica: dato continuo sin umbral",
+                  "PROCEDENCIA NO DECLARADA", "No es una inundación confirmada"):
+        assert frase.upper() in info, frase
+    with p.page.expect_download() as d:
+        p.page.locator(".st-key-qgis_cambio_vv_20260924_20261006_dif_db button").first.click()
+    with open(d.value.path(), "rb") as f:
+        assert verificar_paquete(f.read(), origen, (), continuo=True) == []
+    assert hashlib.sha256(origen.read_bytes()).hexdigest() == huella and not p.errores

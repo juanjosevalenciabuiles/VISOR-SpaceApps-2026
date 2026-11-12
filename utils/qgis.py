@@ -68,6 +68,43 @@ def estilo_qml(clases, nodata: int | None = NODATA) -> str:
     )
 
 
+def estilo_qml_continuo() -> str:
+    """Pseudocolor interpolado con la rampa y la opacidad del visor (±10 dB, saturación fuera del rango)."""
+    from utils.diferencia_db import RAMPA, RANGO_DB, alfa
+    items = "\n".join(
+        f'          <item value="{x:g}" color="{c.lower()}" alpha="{round(float(alfa(x)) * 255)}" '
+        f'label={quoteattr(f"{x:+g} dB")}/>' for x, c in RAMPA)
+    return (
+        "<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>\n"
+        f'<qgis version="{VERSION_QGIS_MINIMA}" styleCategories="Symbology">\n'
+        "  <pipe>\n"
+        f'    <rasterrenderer type="singlebandpseudocolor" band="1" opacity="1" alphaBand="-1" '
+        f'classificationMin="{-RANGO_DB:g}" classificationMax="{RANGO_DB:g}" nodataColor="">\n'
+        "      <rasterTransparency/>\n"
+        "      <rastershader>\n"
+        f'        <colorrampshader colorRampType="INTERPOLATED" classificationMode="1" clip="0" '
+        f'minimumValue="{-RANGO_DB:g}" maximumValue="{RANGO_DB:g}">\n'
+        f"{items}\n"
+        "        </colorrampshader>\n"
+        "      </rastershader>\n"
+        "    </rasterrenderer>\n"
+        '    <resampler zoomedInResampler="" zoomedOutResampler="" maxOversampling="2"/>\n'
+        "  </pipe>\n"
+        "</qgis>\n"
+    )
+
+
+def leyenda_csv_continua() -> str:
+    from utils.diferencia_db import RAMPA, alfa
+    salida = io.StringIO()
+    w = csv.writer(salida, lineterminator="\r\n")
+    w.writerow(["delta_db", "color", "opacidad"])
+    for x, c in RAMPA:
+        w.writerow([f"{x:g}", c, f"{float(alfa(x)):.2f}"])
+    w.writerow(["NoData", "", "0"])
+    return salida.getvalue()
+
+
 def leyenda_csv(clases, nodata: int | None = NODATA) -> str:
     salida = io.StringIO()
     w = csv.writer(salida, lineterminator="\r\n")          # CRLF: Excel en Windows lo abre bien
@@ -99,7 +136,8 @@ def aoi_geojson(ficha: dict | None) -> str | None:
     }, ensure_ascii=False, indent=2)
 
 
-def _leeme(nombre: str, estado: procedencia.Procedencia, con_aoi: bool, con_ficha: bool) -> str:
+def _leeme(nombre: str, estado: procedencia.Procedencia, con_aoi: bool, con_ficha: bool,
+           continuo: bool = False) -> str:
     return "\r\n".join([
         "V.I.S.O.R. · Paquete para QGIS Desktop",
         "",
@@ -110,7 +148,9 @@ def _leeme(nombre: str, estado: procedencia.Procedencia, con_aoi: bool, con_fich
         f"  1. Descomprimir la carpeta completa y arrastrar {nombre}.tif a QGIS ({VERSION_QGIS_MINIMA} o posterior).",
         f"     QGIS aplica {nombre}.qml automaticamente (si no: Propiedades > Simbologia > Estilo > Cargar estilo).",
         "  2. Propiedades > Informacion: comprobar CRS, tamano, resolucion y NoData.",
-        "  3. Clases 0 y NoData (255) son transparentes. No representan zonas sin cambio garantizado ni zonas inundadas.",
+        ("  3. Diferencia continua en dB (posterior - anterior), sin umbral: pseudocolor fijo de -10 a +10 dB "
+         "(azul disminucion, rojo aumento), NoData transparente." if continuo else
+         "  3. Clases 0 y NoData (255) son transparentes. No representan zonas sin cambio garantizado ni zonas inundadas."),
         *([f"  4. {nombre}_aoi.geojson es la AOI declarada en la ficha."] if con_aoi else
           ["  4. Sin AOI: la ficha no declara una geometria valida, asi que no se genero ninguna."]),
         "",
@@ -127,8 +167,10 @@ def _leeme(nombre: str, estado: procedencia.Procedencia, con_aoi: bool, con_fich
     ])
 
 
-def exportar(ruta_tif: str | Path, clases, nombre_producto: str, nodata: int | None = NODATA) -> tuple[str, bytes]:
-    """Devuelve (nombre_zip, contenido). Lee el GeoTIFF y su ficha sin modificarlos."""
+def exportar(ruta_tif: str | Path, clases, nombre_producto: str, nodata: int | None = NODATA,
+             continuo: bool = False) -> tuple[str, bytes]:
+    """Devuelve (nombre_zip, contenido). Lee el GeoTIFF y su ficha sin modificarlos.
+    `continuo=True`: diferencia en dB, con estilo de pseudocolor en vez de paleta."""
     ruta = Path(ruta_tif)
     if not ruta.is_file():
         raise ErrorExportacion(f"No se encontró `{ruta.name}`.")
@@ -155,15 +197,16 @@ def exportar(ruta_tif: str | Path, clases, nombre_producto: str, nodata: int | N
     base = nombre_seguro(ruta.stem)
     archivos: dict[str, bytes] = {
         f"{base}.tif": bytes_tif,
-        f"{base}.qml": estilo_qml(clases, nodata).encode("utf-8"),
-        f"{base}_leyenda.csv": leyenda_csv(clases, nodata).encode("utf-8-sig"),
+        f"{base}.qml": (estilo_qml_continuo() if continuo else estilo_qml(clases, nodata)).encode("utf-8"),
+        f"{base}_leyenda.csv": (leyenda_csv_continua() if continuo else leyenda_csv(clases, nodata)).encode("utf-8-sig"),
     }
     if bytes_ficha is not None:
         archivos[f"{base}.json"] = bytes_ficha
     geojson = aoi_geojson(ficha if isinstance(ficha, dict) else None)
     if geojson is not None:
         archivos[f"{base}_aoi.geojson"] = geojson.encode("utf-8")
-    archivos["LEEME_QGIS.txt"] = _leeme(base, estado, geojson is not None, bytes_ficha is not None).encode("utf-8")
+    archivos["LEEME_QGIS.txt"] = _leeme(base, estado, geojson is not None, bytes_ficha is not None,
+                                        continuo).encode("utf-8")
     manifiesto = {
         "generado_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "producto": nombre_producto,
@@ -182,7 +225,8 @@ def exportar(ruta_tif: str | Path, clases, nombre_producto: str, nodata: int | N
     return f"{base}_QGIS.zip", buffer.getvalue()
 
 
-def verificar_paquete(datos_zip: bytes, ruta_tif_original: str | Path, clases, nodata: int | None = NODATA) -> list[str]:
+def verificar_paquete(datos_zip: bytes, ruta_tif_original: str | Path, clases, nodata: int | None = NODATA,
+                      continuo: bool = False) -> list[str]:
     """Comprueba un paquete exportado. Devuelve la lista de problemas (vacía = correcto).
 
     - estructura: una sola carpeta, nombres ASCII sin caracteres reservados de Windows;
@@ -239,7 +283,13 @@ def verificar_paquete(datos_zip: bytes, ruta_tif_original: str | Path, clases, n
     try:
         raiz = ET.fromstring(planos[f"{base}.qml"].decode("utf-8").split("\n", 1)[1])
         render = raiz.find("pipe/rasterrenderer")
-        if render is None or render.get("type") != "paletted" or render.get("band") != "1":
+        if continuo:
+            esperado_qml = ET.fromstring(estilo_qml_continuo().split("\n", 1)[1]).find("pipe/rasterrenderer")
+            items = [(e.get("value"), e.get("color"), e.get("alpha")) for e in render.iter("item")] if render is not None else []
+            esperados = [(e.get("value"), e.get("color"), e.get("alpha")) for e in esperado_qml.iter("item")]
+            if render is None or render.get("type") != "singlebandpseudocolor" or items != esperados:
+                problemas.append("El .qml no es el pseudocolor ±10 dB del visor.")
+        elif render is None or render.get("type") != "paletted" or render.get("band") != "1":
             problemas.append("El .qml no es un estilo de paleta sobre la banda 1.")
         else:
             entradas = {int(e.get("value")): (e.get("color"), e.get("alpha")) for e in render.iter("paletteEntry")}
@@ -260,7 +310,7 @@ def verificar_paquete(datos_zip: bytes, ruta_tif_original: str | Path, clases, n
                     problemas.append(f"{n}: polígono no cerrado o fuera de rango.")
             except (ValueError, KeyError, IndexError, TypeError):
                 problemas.append(f"{n}: GeoJSON inválido.")
-    for requerido in ("LEEME_QGIS.txt", f"{base}_leyenda.csv"):
+    for requerido in ("LEEME_QGIS.txt", f"{base}_leyenda.csv"):  # leyenda continua o por clases
         if requerido not in planos:
             problemas.append(f"Falta {requerido}.")
     return problemas

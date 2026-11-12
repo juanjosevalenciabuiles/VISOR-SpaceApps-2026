@@ -75,6 +75,14 @@ def preparar_datos(destino: Path) -> Path:
     for pol, baja in (("VV", (10, 20)), ("VH", (15, 30))):
         rtc(sar, "20260924T232218", pol)
         rtc(sar, "20261006T232218", pol, baja=baja, ident="3C4D")
+    # Diferencia continua en dB generada por el motor (como cambio_VV_…_dif_db.tif en Replit).
+    from utils.analisis_sar import ParametrosCambio, analizar_par
+    temporal = destino.parent / "motor_tmp"
+    r = analizar_par(sar / "S1C_IW_20260924T232218_DVP_RTC30_G_gpuned_1A2B_VV.tif",
+                     sar / "S1C_IW_20261006T232218_DVP_RTC30_G_gpuned_3C4D_VV.tif", temporal,
+                     parametros=ParametrosCambio(ventana_speckle=1))
+    for p in (r.diferencia, r.diferencia.with_suffix(".json")):
+        shutil.copy2(p, analisis / p.name)
     return destino
 
 

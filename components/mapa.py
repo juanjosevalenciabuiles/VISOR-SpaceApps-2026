@@ -24,6 +24,7 @@ from utils.capas_contexto import CAPAS_CONTEXTO, cargar_contexto
 from utils.config import MAPA_CENTRO, MAPA_ZOOM, Fenomeno
 from utils.geotiff import Capa, a_web_mercator, colorizar_capa, colorizar_categorico
 from utils.mapas_base import MapaBase, obtener, url_teselas
+from utils.diferencia_db import colorizar_diferencia
 from utils.resultados import ResultadoSAR
 
 
@@ -106,8 +107,10 @@ def grupo_resultado(res: ResultadoSAR, opacidad: float) -> folium.FeatureGroup:
     valores del archivo no se alteran."""
     oeste, sur, este, norte = res.capa.limites
     grupo = folium.FeatureGroup(name=f"Resultado · {res.nombre}")
+    rgba = (colorizar_diferencia(res.capa.datos) if res.perfil.continuo
+            else colorizar_categorico(res.capa.datos, res.perfil.clases))
     folium.raster_layers.ImageOverlay(
-        image=a_web_mercator(colorizar_categorico(res.capa.datos, res.perfil.clases), sur, norte),
+        image=a_web_mercator(rgba, sur, norte),
         bounds=[[sur, oeste], [norte, este]],
         opacity=opacidad,
         name=res.nombre,

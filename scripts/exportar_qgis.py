@@ -25,7 +25,7 @@ def main(argumentos=None) -> int:
         print(f"ERROR: {res.error or 'resultado no reconocido'}", file=sys.stderr)
         return 1
     try:
-        nombre, datos = exportar(a.geotiff, res.perfil.clases, res.nombre)
+        nombre, datos = exportar(a.geotiff, res.perfil.clases, res.nombre, continuo=res.perfil.continuo)
     except ErrorExportacion as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1

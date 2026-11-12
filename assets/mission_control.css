@@ -184,6 +184,10 @@ i.mc-transparente { background: repeating-conic-gradient(rgba(255, 255, 255, 0.2
 .mc-tabla-rtc td { text-align: left !important; }
 .mc-tabla-rtc code { font-size: 0.6rem; overflow-wrap: anywhere; background: transparent; padding: 0; }
 
+.mc-rampa { height: 10px; border-radius: 5px; margin: 0.2rem 0 0.15rem; border: 1px solid rgba(255, 255, 255, 0.15); }
+.mc-rampa-marcas { display: flex; justify-content: space-between; font-size: 0.62rem; color: var(--mc-tenue); margin-bottom: 0.3rem; }
+.mc-tabla-db td:last-child { font-variant-numeric: tabular-nums; }
+
 /* Barras de desplazamiento discretas */
 [class*="st-key-panel_"]::-webkit-scrollbar { width: 8px; }
 [class*="st-key-panel_"]::-webkit-scrollbar-thumb { background: rgba(var(--theme-rgb), 0.28); border-radius: 8px; }
