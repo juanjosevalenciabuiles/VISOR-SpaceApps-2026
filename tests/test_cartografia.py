@@ -254,21 +254,21 @@ def test_app_cambia_de_fondo_y_de_capas_sin_errores(monkeypatch):
     assert not at.exception
 
     def textos():
-        return " ".join(m.value for m in at.sidebar.markdown)
+        return " ".join(m.value for m in at.markdown)
 
     assert "CARTO_API_KEY" in textos()                 # fondo CARTO sin clave: se avisa
     for clave, m in MAPAS_BASE.items():
-        at.sidebar.selectbox[0].set_value(clave).run()
+        at.selectbox(key="mapa_base").set_value(clave).run()
         assert not at.exception and len(at.error) == 0
         assert m.proveedor.split(" ")[0] in textos()   # créditos del fondo activo
         assert ("CARTO_API_KEY" in textos()) == m.usa_clave_carto
 
-    at.sidebar.toggle(key="ctx_hidrografia").set_value(True).run()
-    at.sidebar.toggle(key="ctx_vias").set_value(True).run()
+    at.toggle(key="ctx_hidrografia").set_value(True).run()
+    at.toggle(key="ctx_vias").set_value(True).run()
     assert not at.exception and textos().count("Natural Earth") == 2
 
     for fenomeno in FENOMENOS:                         # el fondo elegido se conserva
-        at.sidebar.radio[0].set_value(fenomeno).run()
-        assert not at.exception and at.sidebar.selectbox[0].value == "satelital"
-    at.sidebar.toggle[0].set_value(False).run()        # capa SAR apagada
-    assert not at.exception and at.sidebar.selectbox[0].value == "satelital"
+        at.radio(key="fenomeno").set_value(fenomeno).run()
+        assert not at.exception and at.selectbox(key="mapa_base").value == "satelital"
+    at.toggle(key="capa_sar").set_value(False).run()   # capa SAR apagada
+    assert not at.exception and at.selectbox(key="mapa_base").value == "satelital"
