@@ -41,7 +41,7 @@ def _interruptor_contexto(clave: str, hay_datos: bool) -> bool:
     return st.toggle(capa.nombre, value=False, disabled=not hay_datos, help=ayuda, key=f"ctx_{clave}") and hay_datos
 
 
-def _controles_resultados(resultados: list) -> dict[str, float]:
+def _controles_resultados(resultados: list, centrar=None) -> dict[str, float]:
     """Un interruptor y una opacidad por resultado. La opacidad se dibuja siempre
     (deshabilitada si la capa está apagada) para que conserve su valor."""
     st.caption("RESULTADOS SAR · DATA/ANALISIS")
@@ -67,12 +67,15 @@ def _controles_resultados(resultados: list) -> dict[str, float]:
         )
         opacidad = st.slider(f"Opacidad · {res.nombre}", 0.0, 1.0, 0.85, 0.05, disabled=not visible,
                              key=f"res_op_{res.id}", label_visibility="collapsed")
+        if centrar is not None:
+            st.button("Centrar en el mapa", key=f"res_ir_{res.id}", icon=":material/center_focus_strong:",
+                      type="tertiary", on_click=centrar, args=(res.capa.limites,))
         if visible:
             activos[res.id] = opacidad
     return activos
 
 
-def render(contenedor=None, titulo: bool = True, resultados: list | None = None) -> Controles:
+def render(contenedor=None, titulo: bool = True, resultados: list | None = None, centrar=None) -> Controles:
     with contenedor if contenedor is not None else st.sidebar:
         if titulo:
             st.markdown('<div class="visor-lateral-titulo">🛰️ V.I.S.O.R.</div>', unsafe_allow_html=True)
@@ -110,7 +113,7 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None)
         mostrar_huella = st.toggle("Cobertura de la capa", value=True, key="huella")
         mostrar_referencia = st.toggle("Área de referencia", value=False, key="referencia")
 
-        activos = _controles_resultados(resultados) if resultados is not None else {}
+        activos = _controles_resultados(resultados, centrar) if resultados is not None else {}
 
     return Controles(
         clave, mostrar_capa, opacidad, mostrar_huella, mostrar_referencia,

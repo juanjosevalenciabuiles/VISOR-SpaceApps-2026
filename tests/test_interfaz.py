@@ -159,6 +159,15 @@ def test_ir_a_coordenadas_y_volver(estado):
     assert estado["vista"]["n"] == 3
 
 
+def test_centrar_en_una_extension(monkeypatch):
+    estado = {"vista": None}
+    monkeypatch.setattr(interfaz.st, "session_state", estado)
+    interfaz.centrar_en((-76.80, 7.55, -76.55, 7.80))              # AOI de Chigorodó (0,25°)
+    assert estado["vista"]["centro"] == [7.675, -76.675] and estado["vista"]["zoom"] == 11
+    interfaz.centrar_en((-77.2, 5.4, -73.8, 8.9))                  # Antioquia (3,5°)
+    assert estado["vista"]["zoom"] == 7
+
+
 def test_leer_coordenada():
     assert interfaz.leer_coordenada(" 7.675 ", -85, 85, "latitud") == 7.675
     assert interfaz.leer_coordenada("-76,675", -180, 180, "longitud") == -76.675

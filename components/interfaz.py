@@ -15,6 +15,7 @@ Reglas de diseño que este módulo respeta:
 """
 from __future__ import annotations
 
+import math
 from html import escape
 
 import streamlit as st
@@ -109,6 +110,14 @@ def _ir_a_coordenadas() -> None:
         return
     st.session_state["ir_error"] = None
     ir_a(lat, lon, st.session_state["ir_zoom"])
+
+
+def centrar_en(limites: tuple[float, float, float, float]) -> None:
+    """Centra el mapa en una extensión (oeste, sur, este, norte) con un zoom que la abarca."""
+    oeste, sur, este, norte = limites
+    lado = max(este - oeste, norte - sur, 1e-6)
+    zoom = max(3, min(14, int(math.log2(360.0 / lado)) + 1))
+    ir_a((sur + norte) / 2, (oeste + este) / 2, zoom)
 
 
 def ir_a_chigorodo() -> None:
@@ -242,7 +251,7 @@ def panel_explorador(resultados: list | None = None) -> Controles:
             st.markdown('<div class="mc-titulo-panel">Explorador</div>', unsafe_allow_html=True)
             st.button("Contraer", key="cerrar_explorador", icon=":material/chevron_left:", type="tertiary",
                       on_click=alternar_explorador)
-    return barra_lateral.render(panel, titulo=False, resultados=resultados or [])
+    return barra_lateral.render(panel, titulo=False, resultados=resultados or [], centrar=centrar_en)
 
 
 def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, controles: Controles,

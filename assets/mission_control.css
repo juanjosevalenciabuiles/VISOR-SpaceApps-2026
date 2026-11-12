@@ -144,17 +144,21 @@ button:focus-visible { outline: 2px solid var(--theme-accent) !important; outlin
 .st-key-panel_explorador [data-testid="stSliderThumbValue"], .st-key-panel_explorador [role="slider"] { color: var(--theme-accent); }
 .visor-aviso-general { border-color: rgba(var(--theme-rgb), 0.5) !important; }
 
-.visor-procedencia { margin: 0.2rem 0 0.4rem; }
-.visor-procedencia .visor-texto { margin: 0.45rem 0 0.25rem; font-size: 0.8rem; }
-.visor-nota-procedencia { font-size: 0.72rem; color: var(--mc-tenue); margin: 0; line-height: 1.4; }
+[class*="st-key-panel_"] .visor-procedencia { margin: 0.2rem 0 0.4rem; }
+[class*="st-key-panel_"] .visor-procedencia p.visor-texto { margin: 0.45rem 0 0.25rem; font-size: 0.8rem; line-height: 1.45; }
+[class*="st-key-panel_"] p.visor-nota-procedencia { font-size: 0.72rem; color: var(--mc-tenue); margin: 0.35rem 0 0; line-height: 1.4; }
+[class*="st-key-panel_"] .visor-lista li { font-size: 0.78rem; line-height: 1.5; }
+[class*="st-key-panel_"] .mc-res p.visor-texto { font-size: 0.8rem; line-height: 1.5; margin: 0.5rem 0; color: #d1d1d6; }
 
 /* ---------- Resultados SAR (data/analisis/) ---------- */
 .mc-resultado { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin: -0.35rem 0 0.1rem; }
 .mc-resultado code, .mc-res-archivo code { font-size: 0.68rem; color: var(--mc-tenue); background: transparent; padding: 0; overflow-wrap: anywhere; }
 .mc-resultado .mc-insignia { font-size: 0.58rem; padding: 0.14rem 0.5rem; }
 .mc-resultado-off { margin: 0.2rem 0 0.4rem; }
+.st-key-panel_explorador [class*="st-key-res_ir_"] button { padding: 0.1rem 0.3rem !important; min-height: 0; color: var(--mc-tenue) !important; }
+.st-key-panel_explorador [class*="st-key-res_ir_"] button p { font-size: 0.7rem; }
 .mc-res-titulo { font-size: 1rem; font-weight: 650; color: var(--mc-texto); }
-.mc-res-archivo { margin-bottom: 0.4rem; }
+.mc-res-archivo { margin-bottom: 0.4rem; line-height: 1.2; }
 .mc-origen { display: block; font-style: normal; font-size: 0.64rem; color: var(--mc-tenue); font-weight: 400; }
 .mc-tabla { width: 100%; border-collapse: collapse; font-size: 0.7rem; color: #d1d1d6; margin-bottom: 0.3rem; }
 .mc-tabla th { font-weight: 600; color: var(--mc-tenue); text-align: right; padding: 0.2rem 0.15rem; border-bottom: 1px solid var(--mc-borde); }
