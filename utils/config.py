@@ -6,6 +6,7 @@ Para agregar o ajustar un caso de uso solo se edita este archivo.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import quote
@@ -100,6 +101,11 @@ class Fenomeno:
     transparencia: str = "gradual"    # "gradual" (de alfa_min a 1) o "nodata" (todo opaco)
     alfa_min: float = 0.25            # opacidad mínima de un dato válido en modo gradual
 
+    # --- Tema de la interfaz (Mission Control Earth Explorer) ---
+    # Tiñe paneles, bordes y controles. NO cambia los colores de los datos
+    # (`colores`, `clases`): esos describen valores, no estética.
+    tema: str = "#4FDCF4"
+
     def __post_init__(self) -> None:
         if self.tipo_valores not in ("continuo", "categorico"):
             raise ValueError(f"{self.clave}: tipo_valores inválido")
@@ -109,6 +115,8 @@ class Fenomeno:
             raise ValueError(f"{self.clave}: un producto categórico necesita `clases`")
         if self.vmin is not None and self.vmax is not None and self.vmax <= self.vmin:
             raise ValueError(f"{self.clave}: vmax debe ser mayor que vmin")
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", self.tema):
+            raise ValueError(f"{self.clave}: tema debe ser un color #RRGGBB")
 
     @property
     def categorico(self) -> bool:
@@ -120,8 +128,13 @@ class Fenomeno:
 
     @property
     def color(self) -> str:
-        """Color de acento de la interfaz."""
+        """Color más intenso de la rampa de datos (contorno de cobertura)."""
         return self.colores[-1]
+
+    @property
+    def tema_rgb(self) -> tuple[int, int, int]:
+        """Componentes RGB exactos del color de tema, para las variables CSS."""
+        return tuple(int(self.tema[i:i + 2], 16) for i in (1, 3, 5))
 
 
 # PERFILES ACTUALES: pensados para los GeoTIFF sintéticos (índice 0–1 sin
@@ -132,6 +145,7 @@ class Fenomeno:
 FENOMENOS: dict[str, Fenomeno] = {
     "inundacion": Fenomeno(
         clave="inundacion",
+        tema="#4FDCF4",
         nombre="Inundaciones",
         icono="🌊",
         archivo="inundacion.tif",
@@ -160,6 +174,7 @@ FENOMENOS: dict[str, Fenomeno] = {
     ),
     "deslizamiento": Fenomeno(
         clave="deslizamiento",
+        tema="#F4A463",
         nombre="Deslizamientos",
         icono="⛰️",
         archivo="deslizamiento.tif",
@@ -188,6 +203,7 @@ FENOMENOS: dict[str, Fenomeno] = {
     ),
     "deforestacion": Fenomeno(
         clave="deforestacion",
+        tema="#64DFA7",
         nombre="Deforestación",
         icono="🌳",
         archivo="deforestacion.tif",
