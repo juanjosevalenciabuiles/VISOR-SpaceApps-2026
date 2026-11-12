@@ -91,11 +91,11 @@ Un **único mapa a pantalla completa** con superficies de vidrio flotantes. No h
 
 | Superficie | Qué hace |
 | --- | --- |
-| Barra superior | Fenómeno activo y su estado de procedencia, botones Explorador, Información, Ir a…, Herramientas SAR y Ayuda |
+| Barra superior | Dos grupos rotulados: **Fenómeno** (con su insignia, p. ej. DEMO) y **Resultado SAR** (cada resultado activo con la suya, p. ej. REAL SIN VALIDAR); botones Explorador, Información, Ir a…, Herramientas SAR y Ayuda |
 | Explorador (izquierda) | Fenómeno, mapa base, capa SAR y opacidad, hidrografía, vías, cobertura, área de referencia y **Resultados SAR** de `data/analisis/` |
 | Información (derecha) | Ficha científica del resultado SAR activo (si hay) y, debajo, la del fenómeno: descripción, producto, procedencia, cómo interpretar, leyendas y créditos |
 | Ir a… | Coordenadas validadas (por defecto, el centro del AOI de Chigorodó, zoom 11), botón Chigorodó y Área inicial (vista de Antioquia) |
-| Herramientas SAR | Panel que se abre, minimiza y cierra, con cuatro pasos: Área, Escenas, Análisis, Resultados. **Aún no ejecuta nada**: se conectará a los motores reales en una fase posterior |
+| Herramientas SAR | Panel que se abre, minimiza y cierra, con cuatro pasos conectados: Área (AOI y fechas), Escenas (catálogo ASF y par recomendado sin validar), Análisis (RTC de `data/sar/` con el motor) y Resultados. Ver «Flujo de Herramientas SAR» |
 | Línea temporal | De solo lectura. Muestra T₁ y T₂ cuando hay un único resultado activo con ficha de procedencia válida; si no, es conceptual |
 
 - **El mapa no se reinicia.** Cambiar de fenómeno, de fondo, abrir o cerrar paneles conserva centro, zoom y capas. "Ir a…" mueve el mapa existente.
@@ -131,6 +131,21 @@ Cada GeoTIFF de `data/analisis/` aparece en el explorador, en **Resultados SAR**
 La clase 0 de la coincidencia **no significa «sin cambios»**: incluye aumentos significativos y señal baja en ambas fechas; solo indica que no hubo disminución significativa en ninguna polarización. La visualización solo cambia colores: los valores del GeoTIFF no se tocan, y las estadísticas (píxeles, % de válidos, hectáreas) se calculan a resolución completa desde el archivo.
 
 La ficha científica del panel de información dice de dónde sale cada dato (ficha de procedencia o etiquetas del GeoTIFF). Lo que no está declarado aparece como «No declarado en el archivo». Por eso el GeoTIFF exploratorio `coincidencia_VV_VH_Chigorodo.tif`, que no tiene ficha, se muestra como **PROCEDENCIA NO DECLARADA** y sin sensor, fechas ni método.
+
+### Flujo de Herramientas SAR (`components/herramientas_sar.py`, `utils/flujo_sar.py`)
+
+1. **Área:** AOI en grados (por defecto Chigorodó) y período; se dibuja en el mapa.
+2. **Escenas:** consulta de solo lectura a ASF; par recomendado **sin validar** y alternativas; huellas en el mapa.
+3. **Análisis:** busca en `data/sar/` los RTC de HyP3 que derivan de cada escena del par. Asociación **exacta** (mismo satélite y hora de inicio) o **mismo día** (se marca para verificar); nunca entre satélites. Umbral por polarización y filtro de speckle; corre el motor y, con VV y VH, la combinación.
+4. **Resultados:** lo generado aparece en el explorador. **Nunca se sobrescribe** un archivo de `data/analisis/`: si el nombre existe se usa `_r2`, `_r3`… Un registro `flujo_…_registro.json` enlaza escenas GRD, RTC, AOI, parámetros y salidas.
+
+Si faltan RTC, el panel lo dice: convertir GRD → RTC requiere HyP3 (Fase D, plan en `docs/fase_d_earthdata_hyp3.md`, sin implementar).
+
+### QGIS (opcional) y auditoría
+
+- **Exportar para QGIS** (ficha del resultado o `scripts/exportar_qgis.py`): ZIP con el GeoTIFF original byte a byte, estilo `.qml`, ficha, leyenda, AOI declarada y manifiesto con SHA-256.
+- **Auditoría** (`scripts/auditar_geotiff.py`): cuadrícula, clases, SHA-256 frente a la ficha, comparación con otra versión (matriz de transiciones) y reconstrucción desde VV/VH. Solo lectura.
+- Guía completa: `docs/qgis.md`.
 
 ### Combinación VV/VH reproducible (`utils/combinacion_sar.py`)
 
@@ -279,6 +294,7 @@ pages/1_Analisis_SAR.py  Página para ejecutar y ver el análisis SAR
 pages/2_Buscador_SAR.py  Página del buscador de escenas Sentinel-1 en ASF
 components/
   interfaz.py           Barra superior, paneles flotantes, Herramientas SAR, línea temporal
+  herramientas_sar.py   Pasos 01–04 de Herramientas SAR
   resultados.py         Ficha científica y leyenda de los resultados SAR activos
   barra_lateral.py      Fenómeno, configuración cartográfica, leyendas, créditos
   mapa.py               Mapa Folium por grupos de capas independientes
@@ -294,12 +310,16 @@ utils/
   buscador_sar.py       Búsqueda de escenas Sentinel-1 en ASF y emparejado
   combinacion_sar.py    Combinación VV/VH de máscaras del motor + ficha de procedencia
   procedencia.py        Estados DEMO / NO DECLARADA / REAL SIN VALIDAR / VALIDADO
+  flujo_sar.py          Catálogo ASF → RTC locales → motor → resultados
+  qgis.py · auditoria.py  Exportación para QGIS y auditoría de GeoTIFF
   resultados.py         Resultados de data/analisis/ como capas opcionales
   geo.py                Utilidades GeoPandas
 assets/style.css        Tema clásico (páginas experimentales)
 assets/mission_control.css  Interfaz Mission Control: vidrio adaptativo y disposición
 data/                   GeoTIFF ligeros · data/contexto/ GeoJSON de contexto
-scripts/                generar_datos_demo.py · preparar_contexto.py · analizar_sar.py · combinar_vv_vh.py
+scripts/                generar_datos_demo.py · preparar_contexto.py · analizar_sar.py · combinar_vv_vh.py ·
+                        auditar_geotiff.py · exportar_qgis.py
+docs/                   qgis.md · fase_d_earthdata_hyp3.md
 tests/                  test_geotiff.py · test_cartografia.py · test_replit.py · test_analisis_sar.py ·
                         test_interfaz.py · test_procedencia.py · test_combinacion_sar.py · test_resultados.py
 .github/                Plantilla de Pull Request y pruebas automáticas
@@ -348,7 +368,7 @@ Esa respuesta está guardada en `tests/datos/asf_chigorodo_20260920_20261010.jso
 
 ### Integración con el motor de análisis
 
-Todavía no están conectados. `ParEscenas.para_motor()` entrega los identificadores y metadatos del par (escenas, fechas, órbita, polarizaciones, huellas) en un diccionario serializable. Falta el paso intermedio: el buscador encuentra productos **GRD**, y el motor de análisis trabaja con productos **RTC** ya procesados por HyP3.
+Conectados en Herramientas SAR (ver «Flujo de Herramientas SAR»). `utils/flujo_sar.py` asocia el par GRD del catálogo con los RTC de HyP3 presentes en `data/sar/`. La conversión GRD → RTC sigue fuera de la app (Fase D, sin implementar).
 
 ## Trabajo colaborativo (5 integrantes)
 
