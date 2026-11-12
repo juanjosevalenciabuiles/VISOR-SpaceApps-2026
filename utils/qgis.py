@@ -180,3 +180,87 @@ def exportar(ruta_tif: str | Path, clases, nombre_producto: str, nodata: int | N
         for n, b in archivos.items():
             z.writestr(f"{base}/{n}", b)
     return f"{base}_QGIS.zip", buffer.getvalue()
+
+
+def verificar_paquete(datos_zip: bytes, ruta_tif_original: str | Path, clases, nodata: int | None = NODATA) -> list[str]:
+    """Comprueba un paquete exportado. Devuelve la lista de problemas (vacía = correcto).
+
+    - estructura: una sola carpeta, nombres ASCII sin caracteres reservados de Windows;
+    - el .tif es idéntico al original (SHA-256) y la ficha .json, si existe, también;
+    - el manifiesto declara la huella correcta de cada archivo y del GeoTIFF original;
+    - el .qml es un estilo de paleta con exactamente las clases, colores y transparencias del perfil;
+    - el GeoJSON, si existe, es un polígono válido en grados.
+    """
+    import xml.etree.ElementTree as ET
+
+    problemas: list[str] = []
+    original = Path(ruta_tif_original)
+    sha_original = hashlib.sha256(original.read_bytes()).hexdigest()
+    try:
+        with zipfile.ZipFile(io.BytesIO(datos_zip)) as z:
+            contenido = {n: z.read(n) for n in z.namelist() if not n.endswith("/")}
+    except zipfile.BadZipFile:
+        return ["El paquete no es un ZIP válido."]
+    carpetas = {n.split("/", 1)[0] for n in contenido}
+    if len(carpetas) != 1 or any(n.count("/") != 1 for n in contenido):
+        problemas.append(f"Estructura inesperada: {sorted(contenido)}")
+    for n in contenido:
+        if any(ord(c) > 127 or c in '<>:"\\|?*' for c in n):
+            problemas.append(f"Nombre no portable a Windows: {n}")
+    planos = {n.split("/", 1)[-1]: b for n, b in contenido.items()}
+    base = nombre_seguro(original.stem)
+
+    tif = planos.get(f"{base}.tif")
+    if tif is None:
+        problemas.append("Falta el GeoTIFF.")
+    elif hashlib.sha256(tif).hexdigest() != sha_original:
+        problemas.append("El GeoTIFF del paquete no es idéntico al original (SHA-256 distinto).")
+    lateral = original.with_suffix(".json")
+    if lateral.is_file() and planos.get(f"{base}.json") != lateral.read_bytes():
+        problemas.append("La ficha .json del paquete no es idéntica a la original.")
+    if not lateral.is_file() and f"{base}.json" in planos:
+        problemas.append("El paquete trae una ficha .json que no existe junto al original.")
+
+    try:
+        manifiesto = json.loads(planos["manifiesto.json"])
+        if manifiesto.get("geotiff_original_sha256") != sha_original:
+            problemas.append("El manifiesto declara otra huella para el GeoTIFF original.")
+        declarados = manifiesto.get("archivos", {})
+        for n, b in planos.items():
+            if n == "manifiesto.json":
+                continue
+            if declarados.get(n) != hashlib.sha256(b).hexdigest():
+                problemas.append(f"Huella del manifiesto incorrecta o ausente: {n}")
+        if set(declarados) - set(planos):
+            problemas.append(f"El manifiesto lista archivos inexistentes: {sorted(set(declarados) - set(planos))}")
+    except (KeyError, ValueError):
+        problemas.append("Falta el manifiesto o no es JSON válido.")
+
+    try:
+        raiz = ET.fromstring(planos[f"{base}.qml"].decode("utf-8").split("\n", 1)[1])
+        render = raiz.find("pipe/rasterrenderer")
+        if render is None or render.get("type") != "paletted" or render.get("band") != "1":
+            problemas.append("El .qml no es un estilo de paleta sobre la banda 1.")
+        else:
+            entradas = {int(e.get("value")): (e.get("color"), e.get("alpha")) for e in render.iter("paletteEntry")}
+            esperadas = {int(v): ((c or "#000000").lower(), "255" if c else "0") for v, _, c in clases}
+            if nodata is not None:
+                esperadas[int(nodata)] = ("#000000", "0")
+            if entradas != esperadas:
+                problemas.append(f"Paleta del .qml distinta del perfil: {entradas} ≠ {esperadas}")
+    except (KeyError, IndexError, ET.ParseError, ValueError):
+        problemas.append("Falta el .qml o no es XML válido.")
+
+    for n, b in planos.items():
+        if n.endswith(".geojson"):
+            try:
+                g = json.loads(b)
+                anillo = g["features"][0]["geometry"]["coordinates"][0]
+                if anillo[0] != anillo[-1] or not all(-180 <= x <= 180 and -90 <= y <= 90 for x, y in anillo):
+                    problemas.append(f"{n}: polígono no cerrado o fuera de rango.")
+            except (ValueError, KeyError, IndexError, TypeError):
+                problemas.append(f"{n}: GeoJSON inválido.")
+    for requerido in ("LEEME_QGIS.txt", f"{base}_leyenda.csv"):
+        if requerido not in planos:
+            problemas.append(f"Falta {requerido}.")
+    return problemas

@@ -183,3 +183,26 @@ def test_cuadricula_distinta_no_se_compara(tmp_path):
                        crs="EPSG:32618", transform=from_origin(0, 0, 30, 30), nodata=255) as dst:
         dst.write(np.zeros((40, 40), "uint8"), 1)
     assert auditar(a, comparar=b)["comparacion"]["misma_cuadricula"] is False
+
+
+def test_verificar_paquete_detecta_manipulaciones(tmp_path):
+    ruta = reproducible(tmp_path)
+    _, datos = qgis.exportar(ruta, CLASES_COINCIDENCIA, "Coincidencia VV/VH")
+    assert qgis.verificar_paquete(datos, ruta, CLASES_COINCIDENCIA) == []
+
+    def rehacer(cambio):
+        archivos = abrir_zip(datos)
+        cambio(archivos)
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            for n, b in archivos.items():
+                z.writestr(n, b)
+        return qgis.verificar_paquete(buf.getvalue(), ruta, CLASES_COINCIDENCIA)
+
+    base = f"{ruta.stem}/{ruta.stem}"
+    tif_cambiado = rehacer(lambda a: a.__setitem__(f"{base}.tif", a[f"{base}.tif"][:-1] + bytes([a[f"{base}.tif"][-1] ^ 1])))
+    assert any("no es idéntico" in p for p in tif_cambiado) and any("manifiesto" in p for p in tif_cambiado)
+    qml = rehacer(lambda a: a.__setitem__(f"{base}.qml", a[f"{base}.qml"].replace(b'alpha="0"', b'alpha="255"', 1)))
+    assert any("Paleta" in p or "manifiesto" in p for p in qml)
+    assert any("Falta el .qml" in p for p in rehacer(lambda a: a.pop(f"{base}.qml")))
+    assert qgis.verificar_paquete(b"no es zip", ruta, CLASES_COINCIDENCIA) == ["El paquete no es un ZIP válido."]
