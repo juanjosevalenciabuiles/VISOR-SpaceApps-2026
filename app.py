@@ -7,8 +7,10 @@ interfaz vive en components/ y la lógica de datos en utils/.
 import streamlit as st
 
 from components import estilos, interfaz, mapa
+from components import resultados as ui_resultados
 from utils.config import FENOMENOS
 from utils.geotiff import ErrorCapa, cargar_capa
+from utils.resultados import cargar_resultados
 
 st.set_page_config(
     page_title="V.I.S.O.R.",
@@ -19,8 +21,10 @@ st.set_page_config(
 
 interfaz.inicializar_estado()
 
-# 1. Controles del explorador (se dibujan siempre; si el panel está cerrado, solo se ocultan).
-controles = interfaz.panel_explorador()
+# 1. Resultados de data/analisis/ y controles del explorador (se dibujan siempre;
+#    si el panel está cerrado, solo se ocultan).
+resultados = cargar_resultados()
+controles = interfaz.panel_explorador(resultados)
 fenomeno = FENOMENOS[controles.clave]
 estilos.inyectar_tema(fenomeno)
 interfaz.aplicar_css_estado()
@@ -33,10 +37,10 @@ except ErrorCapa as e:
 
 # 2. El mapa único, detrás de todo.
 with st.container(key="lienzo_mapa"):
-    mapa.render(fenomeno, capa, controles, st.session_state["vista"])
+    mapa.render(fenomeno, capa, controles, st.session_state["vista"], resultados)
 
 # 3. Superficies flotantes.
 interfaz.barra_superior(fenomeno, capa)
-interfaz.panel_informacion(fenomeno, capa, error, controles)
+interfaz.panel_informacion(fenomeno, capa, error, controles, resultados)
 interfaz.herramientas_sar()
-interfaz.linea_temporal()
+interfaz.linea_temporal(ui_resultados.fechas_activas(resultados, controles.resultados))

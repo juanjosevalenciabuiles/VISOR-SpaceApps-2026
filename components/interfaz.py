@@ -20,6 +20,7 @@ from html import escape
 import streamlit as st
 
 from components import barra_lateral, panel_info
+from components import resultados as ui_resultados
 from components.barra_lateral import Controles
 from components.panel_info import insignia
 from utils.config import MAPA_CENTRO, MAPA_ZOOM, Fenomeno
@@ -190,25 +191,36 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None) -> None:
             mostrar_ayuda()
 
 
-def panel_explorador() -> Controles:
+def panel_explorador(resultados: list | None = None) -> Controles:
     panel = st.container(key="panel_explorador")
     with panel:
         with st.container(horizontal=True, vertical_alignment="center", key="cabecera_explorador"):
             st.markdown('<div class="mc-titulo-panel">Explorador</div>', unsafe_allow_html=True)
             st.button("Contraer", key="cerrar_explorador", icon=":material/chevron_left:", type="tertiary",
                       on_click=alternar_explorador)
-    return barra_lateral.render(panel, titulo=False)
+    return barra_lateral.render(panel, titulo=False, resultados=resultados or [])
 
 
-def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, controles: Controles) -> None:
+def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, controles: Controles,
+                      resultados: list | None = None) -> None:
+    activos = [r for r in (resultados or []) if r.dibujable and r.id in controles.resultados]
     panel = st.container(key="panel_info")
     with panel:
         with st.container(horizontal=True, vertical_alignment="center", key="cabecera_info"):
             st.markdown('<div class="mc-titulo-panel">Información</div>', unsafe_allow_html=True)
             st.button("Cerrar", key="cerrar_info", icon=":material/close:", type="tertiary",
                       on_click=alternar_info)
+        # El resultado activo va primero: es lo último que encendió la persona usuaria.
+        for res in activos:
+            st.caption("RESULTADO SAR ACTIVO")
+            st.markdown(ui_resultados.ficha_html(res), unsafe_allow_html=True)
+        if activos:
+            st.caption("CAPA DEL FENÓMENO")
         panel_info.render(fenomeno, capa, error)
     barra_lateral.render_leyenda(fenomeno, capa, controles, panel)
+    if activos:
+        with panel:
+            st.markdown("".join(ui_resultados.leyenda_html(r) for r in activos), unsafe_allow_html=True)
 
 
 def _paso_pendiente(titulo: str, texto: str, fuente: str) -> None:
@@ -269,15 +281,26 @@ def herramientas_sar() -> None:
                   on_click=abrir_sar)
 
 
-def linea_temporal() -> None:
+def linea_temporal(fechas: list[str] | None = None) -> None:
+    """Línea temporal de solo lectura. Con un resultado activo cuya ficha válida
+    declara dos fechas, las muestra; nunca interpola ni sugiere estados intermedios."""
+    if fechas:
+        titulo = "LÍNEA TEMPORAL · FECHAS DEL RESULTADO ACTIVO"
+        t1, t2 = f"T₁ · {escape(fechas[0])}", f"T₂ · {escape(fechas[1])}"
+        nota = "Comparación de dos fechas. No hay observaciones intermedias en este producto."
+        clase = " mc-linea-fechada"
+    else:
+        titulo = "LÍNEA TEMPORAL · CONCEPTUAL"
+        t1, t2 = "T₁ · sin producto", "T₂ · sin producto"
+        nota = ("Se completa al activar un resultado con ficha de procedencia válida. "
+                "No interpola imágenes ni sugiere cambios.")
+        clase = ""
     with st.container(key="linea_temporal"):
-        # Solo visual y deshabilitada: no hay control que mover hasta tener dos productos fechados.
         st.markdown(
-            '<div class="mc-linea" aria-disabled="true">'
-            '<div class="mc-linea-titulo">LÍNEA TEMPORAL · CONCEPTUAL</div>'
-            '<div class="mc-linea-pista"><span class="mc-linea-punto">T₁ · sin producto</span>'
-            '<span class="mc-linea-barra"></span><span class="mc-linea-punto">T₂ · sin producto</span></div>'
-            '<div class="mc-linea-nota">Se habilitará cuando haya dos productos fechados y comparables. '
-            "No interpola imágenes ni sugiere cambios.</div></div>",
+            f'<div class="mc-linea{clase}" aria-disabled="true">'
+            f'<div class="mc-linea-titulo">{titulo}</div>'
+            f'<div class="mc-linea-pista"><span class="mc-linea-punto">{t1}</span>'
+            f'<span class="mc-linea-barra"></span><span class="mc-linea-punto">{t2}</span></div>'
+            f'<div class="mc-linea-nota">{nota}</div></div>',
             unsafe_allow_html=True,
         )
