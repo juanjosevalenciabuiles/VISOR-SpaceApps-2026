@@ -214,7 +214,7 @@ def _auditar_archivo(informe: Informe, pre: str, ruta: Path, ref: dict, cuadricu
     if res.perfil.continuo:
         _auditar_continuo(informe, pre, ruta, res)
         return
-    a = auditar(ruta)
+    a = auditar(ruta, clases=res.perfil.clases)
     e = a["clases"]
     otros = e.get("pixeles_otros_valores", 0)
     suma = sum(c["pixeles"] for c in e["clases"].values()) + otros

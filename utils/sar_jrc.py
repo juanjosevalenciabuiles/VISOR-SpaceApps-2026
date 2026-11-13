@@ -598,7 +598,10 @@ def estado_habilitacion(carpeta: Path | None = None, carpeta_sar: Path | None = 
     if reg.get("resultado") != "APROBADA":
         return False, "La reproducción de Chigorodó NO coincide con QGIS: " + "; ".join(reg.get("diferencias", [])[:3])
     sar = reg.get("entradas", {}).get("sar", {})
+    if sar.get("procedencia") == procedencia.DEMO:
+        return False, "La reproducción se hizo con una máscara DEMO: no habilita el análisis con datos reales."
     ruta = (Path(carpeta_sar) if carpeta_sar is not None else CARPETA_ANALISIS) / str(sar.get("archivo"))
     if not ruta.is_file() or procedencia.sha256_archivo(ruta) != sar.get("sha256"):
         return False, f"La máscara usada en la reproducción (`{sar.get('archivo')}`) ya no está o cambió."
-    return True, f"Reproducción de Chigorodó APROBADA el {reg.get('fecha_utc', '?')[:10]}."
+    return True, (f"Reproducción de Chigorodó APROBADA el {reg.get('fecha_utc', '?')[:10]} con "
+                  f"`{sar.get('archivo')}` (procedencia: {sar.get('procedencia', 'no registrada')}).")

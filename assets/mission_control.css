@@ -267,3 +267,7 @@ i.mc-transparente { background: repeating-conic-gradient(rgba(255, 255, 255, 0.2
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* Paso 05 · Regional: tabla por municipio (porcentaje y, debajo, coincidentes / total) */
+.mc-tabla-regional td { font-variant-numeric: tabular-nums; line-height: 1.25; }
+.mc-tabla-regional td:nth-child(2) { text-align: right; }

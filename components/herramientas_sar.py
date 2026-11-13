@@ -62,9 +62,11 @@ def grupos_mapa() -> list[folium.FeatureGroup]:
     """AOI y huellas del par elegido sobre el mapa principal, solo con el panel SAR abierto."""
     if st.session_state.get("ui_sar") != "abierto":
         return []
+    from components import regional as panel_regional
+    regional = [g for g in (panel_regional.grupo_mapa(),) if g is not None]
     region, _ = region_actual()
     if region is None:
-        return []
+        return regional
     grupo = folium.FeatureGroup(name="Herramientas SAR · AOI y par")
     o, s, e, n = region.oeste, region.sur, region.este, region.norte
     folium.Rectangle([[s, o], [n, e]], color="#ffffff", weight=2, dash_array="6 6", fill=False,
@@ -78,7 +80,7 @@ def grupos_mapa() -> list[folium.FeatureGroup]:
                 folium.Polygon([[y, x] for x, y in pol.exterior.coords], color=color, weight=1.5, fill=False,
                                dash_array="2 6", tooltip=f"Huella {escena.inicio:%Y-%m-%d} · {escena.plataforma}"
                                ).add_to(grupo)
-    return [grupo]
+    return [grupo, *regional]
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +294,10 @@ def paso_resultados(abrir_explorador) -> None:
 
 
 def render(centrar, abrir_explorador, pasos) -> None:
-    area, escenas, analisis, resultados = st.tabs(list(pasos), key="sar_paso")
+    area, escenas, analisis, resultados, regional = st.tabs(list(pasos), key="sar_paso")
+    with regional:
+        from components import regional as panel_regional
+        panel_regional.render(centrar, abrir_explorador)
     with area:
         paso_area(centrar)
     with escenas:
