@@ -317,7 +317,8 @@ def area_pixel_ha(crs: CRS | None, transform: Affine) -> float | None:
         return None
     if not factor or not math.isfinite(factor):
         return None
-    return abs(transform.a * transform.e) * factor * factor / 10_000.0
+    # Determinante de la transformada: correcto también con rotación o cizalla.
+    return abs(transform.a * transform.e - transform.b * transform.d) * factor * factor / 10_000.0
 
 
 def _interseccion(a, b):
