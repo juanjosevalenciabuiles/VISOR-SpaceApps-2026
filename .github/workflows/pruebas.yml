@@ -102,10 +102,10 @@ jobs:
         run: |
           python scripts/nisar.py buscar --inicio 2026-10-21 | tee informe_nisar.txt
           { echo '### Catálogo NISAR GCOV VALIDATED · Chigorodó'; echo '```'; cat informe_nisar.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-      - name: Registro JSON completo (evidencia)
-        run: cat "$VISOR_DATA_DIR"/nisar/catalogo/busqueda_*.json
         env:
           VISOR_DATA_DIR: ${{ runner.temp }}/datos
+      - name: Registro JSON completo (evidencia)
+        run: cat "$VISOR_DATA_DIR"/nisar/catalogo/busqueda_*.json
         env:
           VISOR_DATA_DIR: ${{ runner.temp }}/datos
       - uses: actions/upload-artifact@v4
