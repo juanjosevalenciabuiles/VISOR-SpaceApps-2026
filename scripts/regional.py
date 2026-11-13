@@ -16,6 +16,12 @@
    .venv/bin/python scripts/regional.py cruzar --sar data/analisis/coincidencia_….tif \\
        --jrc data/jrc/JRC_….tif --aoi data/aoi/aoi_Piloto….geojson
 
+5) Cobertura de escenas Sentinel-1 sobre un AOI (solo metadatos de ASF; no descarga nada):
+   .venv/bin/python scripts/regional.py cobertura --aoi data/aoi/aoi_Piloto….geojson --inicio 2026-09-20 --fin 2026-10-10
+
+6) Mosaico de los RTC de UNA pasada (cuadros consecutivos), para analizar áreas mayores que un cuadro:
+   .venv/bin/python scripts/regional.py mosaico data/sar/S1C_…_VV.tif data/sar/S1C_…_VV.tif
+
 Nada sobrescribe: cada salida nueva lleva _r2, _r3…
 """
 from __future__ import annotations
@@ -28,7 +34,9 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 
-from utils import regiones, sar_jrc  # noqa: E402
+from utils import cobertura, mosaico, regiones, sar_jrc  # noqa: E402
+from utils.analisis_sar import ErrorSAR  # noqa: E402
+from utils.buscador_sar import ErrorBusqueda  # noqa: E402
 from utils.procedencia import sha256_archivo  # noqa: E402
 
 
@@ -120,6 +128,51 @@ def _cruzar(a) -> int:
     return 0
 
 
+def _cobertura(a) -> int:
+    try:
+        aoi = regiones.aoi_desde_geojson(Path(a.aoi), Path(a.aoi).stem)
+        _, c = cobertura.buscar(aoi, a.inicio, a.fin)
+    except (regiones.ErrorAOI, ErrorBusqueda) as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+    nombres = {z.codigo: z.nombre for z in aoi.zonas}
+    print(f"AOI «{aoi.nombre}» ({aoi.area_km2:,.0f} km²): {len(c.escenas)} escenas, {len(c.pasadas)} pasadas, "
+          f"{len(c.pares)} pares comparables (sin validar)")
+    for (orbita, direccion), f in sorted(c.orbitas.items()):
+        print(f"  órbita {orbita} {direccion.lower()}: una pasada cubre como máximo el {f:.0%} del AOI")
+    for p in c.pares[:8]:
+        zonas = ", ".join(f"{nombres[k]} {v:.0%}" for k, v in p.cobertura_zonas.items())
+        print(f"  PAR {p.antes.inicio:%Y-%m-%d} → {p.despues.inicio:%Y-%m-%d} · órbita {p.antes.orbita_relativa} · "
+              f"{len(p.antes.escenas)}+{len(p.despues.escenas)} cuadros · cubre {p.cobertura_comun:.0%} · {zonas}")
+        for av in p.avisos:
+            print(f"      AVISO: {av}")
+    for av in c.avisos:
+        print(f"  AVISO: {av}")
+    if a.guardar:
+        carpeta = sar_jrc.CARPETA_REGIONAL
+        carpeta.mkdir(parents=True, exist_ok=True)
+        from utils.analisis_sar import prefijo_libre
+        destino = carpeta / f"{prefijo_libre(carpeta, 'cobertura_' + regiones.nombre_archivo(aoi.nombre))}.json"
+        with destino.open("x", encoding="utf-8") as f:
+            json.dump({"periodo": [a.inicio, a.fin], **c.resumen()}, f, ensure_ascii=False, indent=2)
+        print(f"Registro: {destino}")
+    return 0
+
+
+def _mosaico(a) -> int:
+    try:
+        m = mosaico.unir(a.rtc)
+    except ErrorSAR as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+    print(f"{'Desde caché: ' if m.desde_cache else ''}{m.ruta}")
+    print(f"  {m.ficha['cuadricula']['ancho']}×{m.ficha['cuadricula']['alto']} px · sin dato: "
+          f"{m.ficha['pixeles_sin_dato']:,} px · solape: {m.ficha['solape']}")
+    for av in m.ficha["avisos"]:
+        print(f"  AVISO: {av}")
+    return 0
+
+
 def main(argumentos=None) -> int:
     p = argparse.ArgumentParser(description="Análisis regional SAR × JRC de V.I.S.O.R.")
     sub = p.add_subparsers(dest="accion", required=True)
@@ -143,8 +196,16 @@ def main(argumentos=None) -> int:
     c.add_argument("--aoi")
     c.add_argument("--umbrales", default="1,10,25,50")
     c.add_argument("--version-jrc", default=None, help="p. ej. «GSW v1.5 (1984–2024)»")
+    k = sub.add_parser("cobertura", help="cobertura de escenas Sentinel-1 sobre un AOI (solo metadatos)")
+    k.add_argument("--aoi", required=True)
+    k.add_argument("--inicio", required=True)
+    k.add_argument("--fin", required=True)
+    k.add_argument("--guardar", action="store_true", help="guardar el registro en data/analisis/regional/")
+    mo = sub.add_parser("mosaico", help="unir los RTC de una misma pasada (no mezcla fechas ni órbitas)")
+    mo.add_argument("rtc", nargs="+")
     a_ = p.parse_args(argumentos)
-    return {"reproducir": _reproducir, "limites": _limites, "aoi": _aoi, "cruzar": _cruzar}[a_.accion](a_)
+    return {"reproducir": _reproducir, "limites": _limites, "aoi": _aoi, "cruzar": _cruzar,
+            "cobertura": _cobertura, "mosaico": _mosaico}[a_.accion](a_)
 
 
 if __name__ == "__main__":
