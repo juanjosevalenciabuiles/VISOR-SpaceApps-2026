@@ -170,7 +170,7 @@ def test_app_busca_analiza_y_muestra_el_resultado(tmp_path, monkeypatch):
     at.select_slider(key="sar_ventana").set_value(1)
     at.button(key="sar_analizar").click().run()
     assert not at.exception, at.exception
-    inf = at.session_state["sar_informe"]
+    inf = at.session_state["mc_informe_sar"]
     assert "coincidencia_VV_VH_20260924_20261006.tif" in inf["archivos"]
     # El resultado nuevo aparece en el explorador, con ficha REAL SIN VALIDAR y umbrales por polarización.
     at.toggle(key="res_coincidencia_vv_vh_20260924_20261006").set_value(True).run()
@@ -191,3 +191,140 @@ def test_app_informa_error_de_conexion_sin_romperse(monkeypatch):
     at.button(key="sar_buscar").click().run()
     assert not at.exception
     assert "No se pudo conectar" in " ".join(m.value for m in at.markdown)
+
+
+# ---------------------------------------------------------------------------
+# Casos excepcionales de la Fase C
+# ---------------------------------------------------------------------------
+
+def _carpeta_mismo_dia(tmp_path):
+    sar = tmp_path / "sar"
+    sar.mkdir()
+    rtc(sar, "20260924T232218", "VV")
+    rtc(sar, "20261006T231500", "VV", baja=(10, 20), ident="3C4D")    # mismo día, 7 min antes
+    return sar
+
+
+def test_mismo_dia_no_se_analiza_sin_aceptacion_expresa(tmp_path, par):
+    sar, salida = _carpeta_mismo_dia(tmp_path), tmp_path / "analisis"
+    disp = flujo.disponibilidad(par, flujo.rtc_locales(sar)[0])
+    vv = disp[0]
+    assert vv.completa and vv.verificar and not vv.confirmada
+    with pytest.raises(ErrorSAR, match="no es una coincidencia confirmada|No es una coincidencia confirmada"):
+        flujo.analizar_disponibles(par, disp, AOI_CHIGORODO, {"VV": 3.0}, carpeta_salida=salida)
+    assert not salida.exists() or not any(salida.iterdir())            # nada escrito
+
+
+def test_mismo_dia_aceptado_queda_registrado_como_no_confirmado(tmp_path, par):
+    sar, salida = _carpeta_mismo_dia(tmp_path), tmp_path / "analisis"
+    disp = flujo.disponibilidad(par, flujo.rtc_locales(sar)[0])
+    inf = flujo.analizar_disponibles(par, disp, AOI_CHIGORODO, {"VV": 3.0}, ventana_speckle=1,
+                                     carpeta_salida=salida, aceptar_mismo_dia=True)
+    registro = json.loads(inf.registro.read_text(encoding="utf-8"))
+    assert registro["asociaciones_no_confirmadas"] == ["VV"]
+    vv = next(r for r in registro["rtc"] if r["polarizacion"] == "VV")
+    assert vv["asociacion_despues"] == flujo.MISMO_DIA and vv["asociacion_confirmada"] is False
+    assert any("NO confirmada" in a for a in inf.avisos)
+
+
+def test_asociacion_exacta_queda_confirmada(tmp_path, par):
+    sar = tmp_path / "sar"
+    sar.mkdir()
+    rtc(sar, "20260924T232218", "VV")
+    rtc(sar, "20261006T232219", "VV", ident="3C4D")                   # 1 s: dentro de la tolerancia
+    vv = flujo.disponibilidad(par, flujo.rtc_locales(sar)[0])[0]
+    assert vv.confirmada and not vv.verificar
+    assert vv.resumen()["asociacion_confirmada"] is True
+
+
+@pytest.mark.parametrize("horas", [("20261006T231500", "20261006T233000"),    # dos del mismo día
+                                   ("20261006T232218", "20261006T232218")])   # dos exactos (dos trabajos)
+def test_varios_candidatos_no_se_elige_ninguno_al_azar(tmp_path, par, horas):
+    sar = tmp_path / "sar"
+    sar.mkdir()
+    rtc(sar, "20260924T232218", "VV")
+    rtc(sar, horas[0], "VV", ident="AAAA")
+    rtc(sar, horas[1], "VV", ident="BBBB")
+    vv = flujo.disponibilidad(par, flujo.rtc_locales(sar)[0])[0]
+    assert vv.tipo_despues == flujo.AMBIGUA and vv.despues is None and not vv.completa
+    assert len(vv.empatados_despues) == 2
+    with pytest.raises(ErrorSAR, match="faltan productos"):
+        flujo.analizar_disponibles(par, [vv], AOI_CHIGORODO, {"VV": 3.0}, carpeta_salida=tmp_path / "a")
+
+
+def test_archivos_danados_o_sin_georreferencia_se_informan_y_no_se_asocian(tmp_path, par):
+    sar = tmp_path / "sar"
+    sar.mkdir()
+    rtc(sar, "20260924T232218", "VV")
+    (sar / "S1C_IW_20261006T232218_DVP_RTC30_G_gpuned_3C4D_VV.tif").write_bytes(b"II*\x00corrupto")
+    rtcs, avisos = flujo.rtc_locales(sar)
+    assert len(rtcs) == 1
+    assert any(a.startswith("S1C_IW_20261006T232218") for a in avisos)
+    vv = flujo.disponibilidad(par, rtcs)[0]
+    assert vv.despues is None and not vv.completa
+
+
+def test_escenas_incompatibles_no_producen_resultado(tmp_path, par):
+    """RTC de las fechas correctas pero que no se superponen con el AOI."""
+    sar = tmp_path / "sar"
+    sar.mkdir()
+    for inicio in ("20260924T232218", "20261006T232218"):
+        ruta = sar / f"S1C_IW_{inicio}_DVP_RTC30_G_gpuned_1A2B_VV.tif"
+        with rasterio.open(ruta, "w", driver="GTiff", height=20, width=20, count=1, dtype="float32",
+                           crs="EPSG:32618", transform=from_origin(800_000, 300_000, 300, 300), nodata=0.0) as f:
+            f.write(np.full((20, 20), 0.1, dtype="float32"), 1)
+    disp = flujo.disponibilidad(par, flujo.rtc_locales(sar)[0])
+    with pytest.raises(ErrorSAR, match="fuera|superponen"):
+        flujo.analizar_disponibles(par, disp, AOI_CHIGORODO, {"VV": 3.0}, carpeta_salida=tmp_path / "a")
+
+
+def _app(tmp_path, monkeypatch, sar):
+    from streamlit.testing.v1 import AppTest
+
+    from utils import resultados
+    salida = tmp_path / "analisis"
+    monkeypatch.setattr(bus, "consultar_asf", lambda parametros, **k: REAL)
+    monkeypatch.setattr(flujo, "CARPETA_SAR", sar)
+    monkeypatch.setattr(flujo, "CARPETA_ANALISIS", salida)
+    monkeypatch.setattr(resultados, "CARPETA_ANALISIS", salida)
+    monkeypatch.chdir(RAIZ)
+    at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=180).run()
+    at.button(key="btn_sar").click().run()
+    at.button(key="sar_buscar").click().run()
+    return at, salida
+
+
+def test_app_exige_aceptar_la_asociacion_por_dia(tmp_path, monkeypatch):
+    at, salida = _app(tmp_path, monkeypatch, _carpeta_mismo_dia(tmp_path))
+    assert "no confirmada" in " ".join(m.value for m in at.markdown)
+    assert at.button(key="sar_analizar").disabled
+    at.checkbox(key="sar_aceptar_mismo_dia").check().run()
+    assert not at.button(key="sar_analizar").disabled
+    at.button(key="sar_analizar").click().run()
+    assert not at.exception, at.exception
+    registro = json.loads(next(salida.glob("flujo_*_registro.json")).read_text(encoding="utf-8"))
+    assert registro["asociaciones_no_confirmadas"] == ["VV"]
+
+
+def test_app_busqueda_vacia_no_rompe(tmp_path, monkeypatch):
+    sar = tmp_path / "sar"
+    sar.mkdir()
+    at, _ = _app(tmp_path, monkeypatch, sar)
+    monkeypatch.setattr(bus, "consultar_asf", lambda parametros, **k: {"type": "FeatureCollection", "features": []})
+    at.button(key="sar_buscar").click().run()
+    assert not at.exception
+    assert at.session_state["mc_informe_sar"] is None
+    assert at.session_state["sar_busqueda"] is not None and not at.session_state["sar_busqueda"].pares
+    assert not any(b.key == "sar_analizar" for b in at.button)
+
+
+def test_estado_de_otra_pagina_no_rompe_mission_control(tmp_path, monkeypatch):
+    """La página «Analisis SAR» guarda `sar_informe` como texto; Mission Control
+    usa su propia clave y no debe fallar al compartir la sesión."""
+    from streamlit.testing.v1 import AppTest
+    monkeypatch.chdir(RAIZ)
+    at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=180)
+    at.session_state["sar_informe"] = "cambio_VV_20260924_20261006_analisis.json"
+    at.run()
+    at.button(key="btn_sar").click().run()
+    assert not at.exception, at.exception

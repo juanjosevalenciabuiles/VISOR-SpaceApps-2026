@@ -144,7 +144,7 @@ def _buscar() -> None:
     except bus.ErrorBusqueda as e:
         st.session_state.update(sar_busqueda=None, sar_error_busqueda=str(e))
         return
-    st.session_state.update(sar_busqueda=r, sar_error_busqueda=None, sar_par=0, sar_informe=None)
+    st.session_state.update(sar_busqueda=r, sar_error_busqueda=None, sar_par=0, mc_informe_sar=None)
 
 
 def etiqueta_par(p: bus.ParEscenas) -> str:
@@ -189,6 +189,25 @@ def paso_escenas() -> None:
     st.link_button("Ver el par en ASF Vertex", p.enlace_vertex, icon=":material/open_in_new:", type="tertiary")
 
 
+def _celda_rtc(e, tipo, empatados) -> str:
+    if tipo == flujo_sar.AMBIGUA:
+        return f'<span class="mc-falta">ambiguo: {len(empatados)} candidatos</span>'
+    if e is None:
+        return '<span class="mc-falta">falta</span>'
+    marca = "" if tipo == flujo_sar.EXACTA else ' <span class="mc-falta">(solo mismo día: no confirmada)</span>'
+    return f"<code>{escape(e.ruta.name)}</code>{marca}"
+
+
+def _clave_par(p) -> str | None:
+    return None if p is None else f"{p.antes.nombre}|{p.despues.nombre}"
+
+
+def _informe_del_par(p) -> dict | None:
+    """El informe del último análisis, solo si corresponde al par elegido ahora."""
+    inf = st.session_state.get("mc_informe_sar")
+    return inf if isinstance(inf, dict) and inf.get("par") == _clave_par(p) else None
+
+
 def paso_analisis() -> None:
     p = par_elegido()
     if p is None:
@@ -196,20 +215,18 @@ def paso_analisis() -> None:
         return
     rtcs, avisos = flujo_sar.rtc_locales()
     disp = flujo_sar.disponibilidad(p, rtcs)
-    filas = []
-    for d in disp:
-        def celda(e, tipo):
-            if e is None:
-                return '<span class="mc-falta">falta</span>'
-            marca = "" if tipo == flujo_sar.EXACTA else ' <span class="mc-falta">(mismo día: verificar)</span>'
-            return f"<code>{escape(e.ruta.name)}</code>{marca}"
-        filas.append(f"<tr><td>{d.polarizacion}</td><td>{celda(d.antes, d.tipo_antes)}</td>"
-                     f"<td>{celda(d.despues, d.tipo_despues)}</td></tr>")
+    filas = [f"<tr><td>{d.polarizacion}</td><td>{_celda_rtc(d.antes, d.tipo_antes, d.empatados_antes)}</td>"
+             f"<td>{_celda_rtc(d.despues, d.tipo_despues, d.empatados_despues)}</td></tr>" for d in disp]
     st.markdown('<div class="visor-seccion">Productos RTC en data/sar/</div>'
                 '<table class="mc-tabla mc-tabla-rtc"><thead><tr><th>Pol.</th><th>Antes</th><th>Después</th>'
                 f'</tr></thead><tbody>{"".join(filas)}</tbody></table>', unsafe_allow_html=True)
     for a in avisos[:4]:
         _nota(a)
+    for d in disp:
+        for fecha, empatados in (("antes", d.empatados_antes), ("después", d.empatados_despues)):
+            if empatados:
+                _nota(f"{d.polarizacion} {fecha}: {len(empatados)} RTC empatan para la misma escena "
+                      f"({', '.join(empatados)}). Deja solo el correcto en data/sar/.", "mc-aviso")
     completas = [d for d in disp if d.completa]
     if not completas:
         _nota("Faltan productos RTC para este par. El catálogo entrega escenas GRD; convertirlas a RTC requiere "
@@ -226,20 +243,30 @@ def paso_analisis() -> None:
     if error:
         _nota(error, "mc-aviso")
         return
-    if st.button("Analizar RTC disponibles", key="sar_analizar", type="primary", icon=":material/play_arrow:"):
+    por_dia = [d.polarizacion for d in completas if d.verificar]
+    aceptar = False
+    if por_dia:
+        aceptar = st.checkbox(
+            f"Acepto analizar {', '.join(por_dia)} con RTC que solo coinciden en el día (asociación NO confirmada)",
+            value=False, key="sar_aceptar_mismo_dia",
+            help="El RTC es del mismo satélite y día, pero no de la misma hora de adquisición: podría venir de "
+                 "otra escena. Quedará registrado como asociación no confirmada.")
+    if st.button("Analizar RTC disponibles", key="sar_analizar", type="primary", icon=":material/play_arrow:",
+                 disabled=bool(por_dia) and not aceptar):
         with st.spinner("Analizando con el motor SAR… (sin porcentaje: depende del tamaño del AOI)"):
             try:
                 inf = flujo_sar.analizar_disponibles(
                     p, disp, (region.oeste, region.sur, region.este, region.norte),
                     {d.polarizacion: st.session_state[f"sar_umbral_{d.polarizacion}"] for d in completas},
-                    st.session_state["sar_ventana"])
+                    st.session_state["sar_ventana"], aceptar_mismo_dia=aceptar)
             except ErrorSAR as e:
-                st.session_state.update(sar_informe={"error": str(e)})
+                st.session_state.update(mc_informe_sar={"error": str(e), "par": _clave_par(p)})
             else:
-                st.session_state.update(sar_informe={"archivos": [x.name for x in inf.archivos],
-                                                     "registro": inf.registro.name, "avisos": inf.avisos})
+                st.session_state.update(mc_informe_sar={"archivos": [x.name for x in inf.archivos],
+                                                     "registro": inf.registro.name, "avisos": inf.avisos,
+                                                     "par": _clave_par(p)})
                 st.rerun()   # el explorador (dibujado antes) debe listar los resultados nuevos
-    inf = st.session_state.get("sar_informe")
+    inf = _informe_del_par(p)
     if inf and inf.get("error"):
         _nota(inf["error"], "mc-aviso")
     elif inf:
@@ -247,7 +274,7 @@ def paso_analisis() -> None:
 
 
 def paso_resultados(abrir_explorador) -> None:
-    inf = st.session_state.get("sar_informe")
+    inf = _informe_del_par(par_elegido())
     if not inf or inf.get("error"):
         _nota("Aún no hay resultados de este panel. Los resultados existentes de data/analisis/ se activan "
               "en Explorador → Resultados SAR.")

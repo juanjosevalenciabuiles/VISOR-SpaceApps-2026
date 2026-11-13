@@ -36,7 +36,10 @@ from utils.config import DATA_DIR
 CARPETA_SAR = DATA_DIR / "sar"
 CARPETA_ANALISIS = DATA_DIR / "analisis"
 TOLERANCIA_S = 2
-EXACTA, MISMO_DIA = "exacta", "mismo día"
+EXACTA, MISMO_DIA, AMBIGUA = "exacta", "mismo día", "ambigua"
+# Una asociación «mismo día» (mismo satélite y fecha, otra hora) NO es una
+# coincidencia confirmada: el analista debe aceptarla expresamente y queda
+# registrada como no confirmada. Si varios RTC empatan, no se elige ninguno.
 
 
 def _utc_ingenua(fecha: datetime) -> datetime:
@@ -72,13 +75,18 @@ def coincidencia(rtc: EscenaRTC, plataforma: str, inicio: datetime) -> str | Non
     return MISMO_DIA if a.date() == b.date() else None
 
 
-def _mejor(rtcs: list[EscenaRTC], pol: str, plataforma: str, inicio: datetime) -> tuple[EscenaRTC | None, str | None]:
+def _mejor(rtcs: list[EscenaRTC], pol: str, plataforma: str,
+           inicio: datetime) -> tuple[EscenaRTC | None, str | None, list[str]]:
+    """(RTC, tipo de asociación, candidatos empatados). Con más de un candidato
+    del mejor nivel no se elige ninguno: el tipo es AMBIGUA."""
     candidatos = [(coincidencia(r, plataforma, inicio), r) for r in rtcs if r.polarizacion == pol]
     for tipo in (EXACTA, MISMO_DIA):
-        elegidos = [r for t, r in candidatos if t == tipo]
+        elegidos = sorted((r for t, r in candidatos if t == tipo), key=lambda r: r.ruta.name)
+        if len(elegidos) == 1:
+            return elegidos[0], tipo, []
         if elegidos:
-            return sorted(elegidos, key=lambda r: r.ruta.name)[0], tipo
-    return None, None
+            return None, AMBIGUA, [r.ruta.name for r in elegidos]
+    return None, None, []
 
 
 @dataclass
@@ -88,6 +96,8 @@ class Disponibilidad:
     despues: EscenaRTC | None
     tipo_antes: str | None
     tipo_despues: str | None
+    empatados_antes: list[str] = field(default_factory=list)
+    empatados_despues: list[str] = field(default_factory=list)
 
     @property
     def completa(self) -> bool:
@@ -95,22 +105,30 @@ class Disponibilidad:
 
     @property
     def verificar(self) -> bool:
+        """Alguna fecha se asoció solo por el día: requiere aceptación expresa."""
         return MISMO_DIA in (self.tipo_antes, self.tipo_despues)
+
+    @property
+    def confirmada(self) -> bool:
+        return self.tipo_antes == EXACTA and self.tipo_despues == EXACTA
 
     def resumen(self) -> dict:
         return {"polarizacion": self.polarizacion,
                 "rtc_antes": self.antes.ruta.name if self.antes else None, "asociacion_antes": self.tipo_antes,
                 "rtc_despues": self.despues.ruta.name if self.despues else None,
-                "asociacion_despues": self.tipo_despues}
+                "asociacion_despues": self.tipo_despues,
+                "asociacion_confirmada": self.confirmada,
+                **({"empatados_antes": self.empatados_antes} if self.empatados_antes else {}),
+                **({"empatados_despues": self.empatados_despues} if self.empatados_despues else {})}
 
 
 def disponibilidad(par: ParEscenas, rtcs: list[EscenaRTC]) -> list[Disponibilidad]:
     """Para cada polarización común del par: qué RTC locales corresponden a cada fecha."""
     salida = []
     for pol in par.polarizaciones_comunes:
-        a, ta = _mejor(rtcs, pol, par.antes.plataforma, par.antes.inicio)
-        d, td = _mejor(rtcs, pol, par.despues.plataforma, par.despues.inicio)
-        salida.append(Disponibilidad(pol, a, d, ta, td))
+        a, ta, ea = _mejor(rtcs, pol, par.antes.plataforma, par.antes.inicio)
+        d, td, ed = _mejor(rtcs, pol, par.despues.plataforma, par.despues.inicio)
+        salida.append(Disponibilidad(pol, a, d, ta, td, ea, ed))
     return salida
 
 
@@ -134,20 +152,29 @@ def analizar_disponibles(
     ventana_speckle: int = 5,
     carpeta_salida: Path | None = None,
     zona: str | None = None,
+    aceptar_mismo_dia: bool = False,
 ) -> InformeFlujo:
-    """Corre el motor en cada polarización con RTC completos y combina VV/VH si hay ambas."""
+    """Corre el motor en cada polarización con RTC completos y combina VV/VH si hay ambas.
+
+    Si algún RTC se asoció solo por el día, se detiene salvo `aceptar_mismo_dia`;
+    aun aceptada, la asociación queda registrada como NO confirmada."""
     carpeta = CARPETA_ANALISIS if carpeta_salida is None else Path(carpeta_salida)
     carpeta.mkdir(parents=True, exist_ok=True)
     completas = [d for d in disponibles if d.completa]
     if not completas:
         raise ErrorSAR("No hay ningún par RTC completo para este par de escenas: faltan productos en data/sar/.")
+    por_dia = [d.polarizacion for d in completas if d.verificar]
+    if por_dia and not aceptar_mismo_dia:
+        raise ErrorSAR(f"{', '.join(por_dia)}: algún RTC solo coincide en el día con la escena del catálogo, "
+                       "no en la hora de adquisición. No es una coincidencia confirmada: compruébalo y acéptalo "
+                       "expresamente para analizar.")
     informe = InformeFlujo()
     sello = f"{par.antes.inicio:%Y%m%d}_{par.despues.inicio:%Y%m%d}"
     parametros_usados = {}
     for d in completas:
         if d.verificar:
-            informe.avisos.append(f"{d.polarizacion}: la asociación RTC ↔ escena es por día, no por hora exacta; "
-                                  "verifica que el RTC provenga de la escena del par.")
+            informe.avisos.append(f"{d.polarizacion}: asociación RTC ↔ escena NO confirmada (solo coincide el día); "
+                                  "aceptada expresamente por el analista.")
         parametros = ParametrosCambio(umbral_disminucion_db=float(umbrales.get(d.polarizacion, 3.0)),
                                       ventana_speckle=int(ventana_speckle))
         parametros_usados[d.polarizacion] = {"umbral_disminucion_db": parametros.umbral_disminucion_db,
@@ -165,6 +192,7 @@ def analizar_disponibles(
         "generado_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "par_catalogo_asf": par.para_motor(),
         "rtc": [d.resumen() for d in disponibles],
+        "asociaciones_no_confirmadas": por_dia,
         "aoi_lonlat": list(aoi),
         "parametros": parametros_usados,
         "salidas": [p.name for p in informe.archivos],
