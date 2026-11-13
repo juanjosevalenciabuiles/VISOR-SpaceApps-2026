@@ -26,7 +26,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from utils.analisis_sar import ErrorSAR, EscenaRTC, ParametrosCambio, analizar_par, describir_escena
+from utils.analisis_sar import (
+    ErrorSAR, EscenaRTC, ParametrosCambio, analizar_par, describir_escena, prefijo_libre,
+)
 from utils.buscador_sar import ParEscenas
 from utils.combinacion_sar import combinar_vv_vh
 from utils.config import DATA_DIR
@@ -110,18 +112,6 @@ def disponibilidad(par: ParEscenas, rtcs: list[EscenaRTC]) -> list[Disponibilida
         d, td = _mejor(rtcs, pol, par.despues.plataforma, par.despues.inicio)
         salida.append(Disponibilidad(pol, a, d, ta, td))
     return salida
-
-
-def prefijo_libre(carpeta: Path, base: str) -> str:
-    """`base`, o `base_r2`, `base_r3`… si ya hay archivos con ese prefijo."""
-    def ocupado(p: str) -> bool:
-        return any(carpeta.glob(f"{p}.*")) or any(carpeta.glob(f"{p}_*"))
-    if not ocupado(base):
-        return base
-    n = 2
-    while ocupado(f"{base}_r{n}"):
-        n += 1
-    return f"{base}_r{n}"
 
 
 @dataclass

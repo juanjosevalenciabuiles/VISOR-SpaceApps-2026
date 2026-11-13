@@ -23,6 +23,8 @@ import numpy as np
 import rasterio
 from rasterio.errors import RasterioError
 
+from utils.analisis_sar import area_pixel_ha
+
 RANGO_DB = 10.0
 # Por encima de esta cantidad de píxeles, las estadísticas se calculan sobre una lectura
 # reducida (y se marcan como aproximadas) para no agotar la memoria de Replit.
@@ -71,7 +73,7 @@ def describir_continuo(ruta: str | Path) -> dict:
             escala = min(1.0, (MAX_PIXELES_EXACTOS / total) ** 0.5)
             forma = (max(1, int(src.height * escala)), max(1, int(src.width * escala)))
             datos = src.read(1, masked=True, out_shape=forma) if escala < 1 else src.read(1, masked=True)
-            area_m2 = abs(src.transform.a * src.transform.e) if src.crs and src.crs.is_projected else None
+            area_ha = area_pixel_ha(src.crs, src.transform)
             nodata = src.nodata
     except (RasterioError, OSError, ValueError) as e:
         raise ValueError(f"`{ruta.name}` no es un GeoTIFF válido o está dañado.") from e
@@ -85,7 +87,7 @@ def describir_continuo(ruta: str | Path) -> dict:
         n_validos = int(validos.size)
     resumen = {"pixeles_totales": int(total), "pixeles_validos": n_validos,
                "pixeles_sin_dato": int(total) - n_validos, "nodata": nodata,
-               "area_pixel_ha": area_m2 / 10_000 if area_m2 else None, "unidades": "dB",
+               "area_pixel_ha": area_ha, "unidades": "dB",
                "aproximado": aproximado}
     if validos.size:
         p5, p50, p95 = np.percentile(validos, [5, 50, 95])

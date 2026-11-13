@@ -37,9 +37,13 @@ from rasterio.transform import Affine, array_bounds
 from rasterio.vrt import WarpedVRT
 from rasterio.warp import transform_bounds
 
+from utils.procedencia import sha256_archivo
+
 VERSION_MOTOR = "1.0"
 NODATA_DB = -9999.0
 NODATA_MASCARA = 255
+_SUFIJOS_SALIDA = {f"{n}.{e}" for n in ("dif_db", "mascara", "antes_db", "despues_db") for e in ("tif", "json")} \
+    | {"analisis.json"}
 # Tope de píxeles de la cuadrícula de trabajo. Una escena RTC completa a 30 m
 # supera los 60 millones: hay que recortar con un AOI.
 MAX_PIXELES = 16_000_000
@@ -284,10 +288,36 @@ class Cuadricula:
 
     @property
     def area_pixel_ha(self) -> float | None:
-        """Área de un píxel en hectáreas; None si el CRS no está en metros."""
-        if not self.crs.is_projected:
-            return None
-        return abs(self.transform.a * self.transform.e) / 10_000.0
+        return area_pixel_ha(self.crs, self.transform)
+
+
+def prefijo_libre(carpeta: Path, base: str) -> str:
+    """`base`, o `base_r2`, `base_r3`… si ya hay archivos con ese prefijo."""
+    carpeta = Path(carpeta)
+
+    def ocupado(p: str) -> bool:
+        return any(carpeta.glob(f"{p}.*")) or any(carpeta.glob(f"{p}_*"))
+    if not ocupado(base):
+        return base
+    n = 2
+    while ocupado(f"{base}_r{n}"):
+        n += 1
+    return f"{base}_r{n}"
+
+
+def area_pixel_ha(crs: CRS | None, transform: Affine) -> float | None:
+    """Área de un píxel en hectáreas. None si el CRS no es proyectado o sus
+    unidades lineales no se conocen (no se inventan hectáreas). Las unidades
+    distintas del metro (p. ej. pies) se convierten con su factor."""
+    if crs is None or not crs.is_projected:
+        return None
+    try:
+        _, factor = crs.linear_units_factor
+    except Exception:  # noqa: BLE001 — CRS sin unidades lineales declaradas
+        return None
+    if not factor or not math.isfinite(factor):
+        return None
+    return abs(transform.a * transform.e) * factor * factor / 10_000.0
 
 
 def _interseccion(a, b):
@@ -581,6 +611,7 @@ def analizar_par(
     prefijo: str | None = None,
     guardar_db: bool = False,
     max_pixeles: int = MAX_PIXELES,
+    sobrescribir: bool = False,
 ) -> ResultadoAnalisis:
     """Análisis completo de un par de escenas. Escribe en `carpeta_salida`:
 
@@ -588,6 +619,10 @@ def analizar_par(
     - `<prefijo>_mascara.tif`   máscara de cambios significativos
     - `<prefijo>_analisis.json` procedencia, parámetros, estadísticas y limitaciones
     - con `guardar_db=True`, además `<prefijo>_antes_db.tif` y `<prefijo>_despues_db.tif`
+
+    Nunca reemplaza resultados anteriores sin pedirlo: con el prefijo
+    automático se usa `_r2`, `_r3`…; con un prefijo explícito ya ocupado se
+    detiene, salvo `sobrescribir=True`.
     """
     parametros = parametros or ParametrosCambio()
     antes = describir_escena(ruta_antes, polarizacion, fecha_antes, escala)
@@ -616,12 +651,19 @@ def analizar_par(
         return f"{e.fecha:%Y-%m-%d}" if e.fecha else "fecha desconocida"
 
     pol = antes.polarizacion
+    carpeta = Path(carpeta_salida)
     if prefijo is None:
         sello = lambda e: f"{e.fecha:%Y%m%d}" if e.fecha else "sinfecha"  # noqa: E731
         prefijo = f"cambio_{pol}_{sello(antes)}_{sello(despues)}"
+        if not sobrescribir:
+            prefijo = prefijo_libre(carpeta, prefijo)
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", prefijo):
         raise ErrorSAR("El prefijo de salida solo puede tener letras, números, guiones y puntos.")
-    carpeta = Path(carpeta_salida)
+    previos = sorted(q.name for q in carpeta.glob(f"{prefijo}_*")
+                     if q.name.removeprefix(f"{prefijo}_") in _SUFIJOS_SALIDA)
+    if previos and not sobrescribir:
+        raise ErrorSAR(f"Ya existen resultados con el prefijo `{prefijo}` ({', '.join(previos)}). "
+                       "Elige otro prefijo o pide sobrescribirlos expresamente.")
 
     if antes.es_hyp3 and despues.es_hyp3:
         plataformas = " y ".join(sorted({antes.plataforma, despues.plataforma}))
@@ -665,7 +707,8 @@ def analizar_par(
         "version_motor": VERSION_MOTOR,
         "generado_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "advertencia": ADVERTENCIA,
-        "entradas": {"antes": antes.resumen(), "despues": despues.resumen()},
+        "entradas": {"antes": {**antes.resumen(), "sha256": sha256_archivo(antes.ruta)},
+                     "despues": {**despues.resumen(), "sha256": sha256_archivo(despues.ruta)}},
         "aoi_lonlat": list(aoi) if aoi is not None else None,
         "cuadricula": {
             "crs": cuad.crs.to_string(), "transform": list(cuad.transform)[:6],
@@ -683,9 +726,12 @@ def analizar_par(
             f"Disminución significativa: diferencia ≤ −{parametros.umbral_disminucion_db:g} dB."
             + (f" Aumento significativo: diferencia ≥ +{parametros.umbral_aumento_db:g} dB."
                if parametros.umbral_aumento_db is not None else ""),
+            *([f"Señal baja en ambas fechas (sin cambio significativo): < {parametros.umbral_oscuro_db:g} dB "
+               "antes y después."] if parametros.umbral_oscuro_db is not None else []),
         ],
         "salidas": {"diferencia_db": ruta_dif.name, "mascara": ruta_masc.name,
                     **{k: v.name for k, v in extras.items()}},
+        "huellas_sha256": {q.name: sha256_archivo(q) for q in (ruta_dif, ruta_masc, *extras.values())},
         "clases_mascara": {str(v): e for v, e, _ in CLASES_MASCARA},
         "estadisticas": resumen,
         "avisos": avisos,
