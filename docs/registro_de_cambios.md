@@ -29,6 +29,9 @@ historia completa está en `git log`.
 | `coincidencia_VV_VH_Chigorodo.tif` | Script exploratorio del equipo | Resultado exploratorio | Procedencia no declarada; difiere en 15.860 px del reproducible (umbral VV) |
 | Hidrografía y vías | Natural Earth 1:10m v5.1.2, dominio público | Contexto cartográfico | Escala general |
 | `inundacion.tif`, `deslizamiento.tif`, `deforestacion.tif` | Sintéticos | Demostración de la interfaz | Marcados DEMO |
+| Cruce Sentinel-1C × JRC de Chigorodó | Hecho por el equipo en QGIS (13-nov-2026): 40.296 px de detección, 4.004 sobre JRC Occurrence > 0 (360,36 ha) | Referencia para comprobar el cruce automático | Cifras comunicadas; la reproducción con los GeoTIFF reales está pendiente en Replit |
+| JRC Global Surface Water Occurrence (1984–2024) | JRC / Comisión Europea; lo copia el equipo en `data/jrc/` | Agua histórica para el cruce | Fuera de Git; no valida eventos de 2026 |
+| Límites municipales | DANE (MGN) o IGAC; los copia el equipo en `data/limites/` | AOI y estadísticas por municipio | Fuera de Git; la app no trae polígonos inventados |
 
 No se ha descargado ni procesado NISAR. No se han enviado trabajos a HyP3 desde la app.
 
@@ -73,6 +76,29 @@ Validación científica añadida (`tests/test_validacion_cientifica.py`): parche
 recuperado exactamente, detección con speckle gamma (ENL 4,9) con más de 97 % de acierto y
 menos de 2 % de falsos cambios, reducción de varianza del filtro acorde a la teoría,
 reconstrucción de la máscara desde el dB continuo y conversión de unidades del CRS.
+
+### 13-nov-2026 · Alcance regional y cruce SAR × JRC (rama `feature/regional-uraba`)
+
+El equipo decidió que V.I.S.O.R. deje de limitarse a Chigorodó: región piloto Chigorodó, Carepa, Apartadó y
+Turbo, ampliable a Urabá y a otras áreas. Entregó un prototipo independiente del cruce SAR × JRC
+(`VISOR_automatizacion_regional_para_Claude_2026-11-13.zip`, 6 pruebas sintéticas) y sus cifras de QGIS.
+Se revisó y se integró en una rama propia, separada de NISAR (PR #6).
+
+| Commit | Fase | Cambio |
+| --- | --- | --- |
+| `687e2bb` | R1 | AOI configurable: municipios oficiales, uniones y GeoJSON |
+| `6e0287a` | R2 | Cruce SAR × JRC por bloques, por municipio y por umbrales; puerta de reproducción de Chigorodó |
+| `cf12c8c` | R3 | Cobertura sobre el polígono, pasadas, pares comparables y mosaico de una pasada con caché |
+| `0922cfa` | R4 | Paso «05 · Regional» en Mission Control; capas del cruce exportables a QGIS |
+| `dca57ee` | R5 | El verificador reproduce el cruce de Chigorodó cuando los GeoTIFF reales están en `data/` |
+
+Cambios frente al prototipo: el tamaño de bloque se usa de verdad; zonas solapadas cuentan en ambas; se añade
+cobertura por municipio y N/D; se rechazan máscaras NISAR; las salidas llevan ficha de procedencia y entran al
+explorador y a QGIS; hay caché; no se añade ninguna dependencia nueva salvo declarar `pyproj`.
+
+Estado real: probado con datos sintéticos y con el catálogo de ASF guardado. **El cruce no se ha ejecutado con
+los GeoTIFF reales** (están en Replit) y por eso el análisis regional está bloqueado en la app. No existe aún
+ninguna cifra para Carepa, Apartadó ni Turbo. Detalle en `docs/regional.md`.
 
 ## Cómo añadir una entrada
 
