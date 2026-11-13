@@ -34,7 +34,7 @@ from utils.combinacion_sar import (
     describir_clases,
 )
 from utils.config import DATA_DIR
-from utils.diferencia_db import RANGO_DB, describir_continuo
+from utils.diferencia_db import ESCALA_GAMMA0, RANGO_DB, describir_continuo, escala_de
 from utils.geotiff import Capa, ErrorCapa, _firma, _metadatos, leer_geotiff  # noqa: F401 (_firma se reexporta)
 
 CARPETA_ANALISIS = DATA_DIR / "analisis"
@@ -70,6 +70,26 @@ PERFILES: dict[str, PerfilResultado] = {
             "cosechas, labores agrícolas o viento sobre el agua.",
             "El speckle residual produce variaciones de ±1–2 dB sin cambio real en la superficie.",
             *LIMITACIONES,
+        ),
+        continuo=True,
+        unidades="dB",
+    ),
+    "retrodispersion_db": PerfilResultado(
+        clave="retrodispersion_db",
+        nombre="Retrodispersión gamma0 de una fecha (dB)",
+        descripcion=(
+            "Señal de radar de UNA sola fecha en dB (gamma0), sin umbral y sin comparación temporal. "
+            "No muestra ningún cambio: sirve para inspeccionar la escena cuando no hay un par compatible."
+        ),
+        clases=(),
+        nota=(f"Escala fija de {ESCALA_GAMMA0.minimo:g} a {ESCALA_GAMMA0.maximo:g} dB (oscuro = señal baja; fuera "
+              "del rango el color se satura, el valor no cambia). No se aplica ningún umbral."),
+        limitaciones=(
+            "Una sola fecha: no indica cambio, inundación ni ningún fenómeno. Las zonas oscuras pueden ser agua "
+            "en calma, suelo liso, sombra de radar o vías.",
+            "Sin filtro de speckle: el grano de la imagen es ruido propio del radar.",
+            "Banda L (NISAR): la señal no se interpreta igual que la banda C de Sentinel-1.",
+            "Que el producto GCOV sea VALIDATED no valida este mapa derivado.",
         ),
         continuo=True,
         unidades="dB",
@@ -195,7 +215,7 @@ def leer_resultado(ruta: str | Path) -> ResultadoSAR:
     if continuo:
         try:
             res.capa = capa
-            res.estadisticas = describir_continuo(ruta)          # siempre del archivo original
+            res.estadisticas = describir_continuo(ruta, escala_de(perfil.clave))          # siempre del archivo original
         except ValueError as e:
             res.perfil, res.capa, res.error = None, None, str(e)
         return res

@@ -13,7 +13,7 @@ import streamlit as st
 
 from components.panel_info import insignia
 from utils.combinacion_sar import umbrales_por_polarizacion
-from utils.diferencia_db import RANGO_DB, TICKS, leyenda_css
+from utils.diferencia_db import escala_de, leyenda_css
 from utils import qgis
 from utils.resultados import ResultadoSAR, _firma
 
@@ -97,7 +97,7 @@ def ficha_html(res: ResultadoSAR) -> str:
         f'<p class="visor-texto">{escape(metodo_continuo(res) if perfil.continuo and d["metodo"][1] is None else d["metodo"][0])}</p>',
     ]
     if e and perfil.continuo:
-        partes += _estadisticas_continuas(e)
+        partes += _estadisticas_continuas(e, perfil.clave)
     elif e:
         area = e.get("area_pixel_ha")
         filas = []
@@ -135,17 +135,20 @@ def ficha_html(res: ResultadoSAR) -> str:
     return f'<div class="mc-res">{"".join(partes)}</div>'
 
 
-def _estadisticas_continuas(e: dict) -> list[str]:
+def _estadisticas_continuas(e: dict, clave: str = "diferencia_db") -> list[str]:
+    esc = escala_de(clave)
+    una_fecha = clave == "retrodispersion_db"
     def db(v):
         return f"{v:+.2f} dB".replace(".", ",").replace("-", "−")
     filas = "".join(f"<tr><td>{n}</td><td>{db(e[k])}</td></tr>" for n, k in (
         ("Mínimo", "minimo"), ("Percentil 5", "p5"), ("Mediana", "mediana"), ("Media", "media"),
         ("Percentil 95", "p95"), ("Máximo", "maximo")) if k in e)
     partes = [
-        '<div class="visor-seccion">Estadísticas de Δ (posterior − anterior)</div>',
+        '<div class="visor-seccion">' + ("Estadísticas de gamma0 (una fecha)" if una_fecha
+                                         else "Estadísticas de Δ (posterior − anterior)") + "</div>",
         f'<table class="mc-tabla mc-tabla-db"><tbody>{filas}</tbody></table>',
         f'<div class="visor-leyenda-nota">Válidos: {_num(e["pixeles_validos"])} px · sin dato (NoData '
-        f'{e["nodata"]:g}): {_num(e["pixeles_sin_dato"])} px · fuera de ±{RANGO_DB:g} dB: '
+        f'{e["nodata"]:g}): {_num(e["pixeles_sin_dato"])} px · fuera de {esc.minimo:g} a {esc.maximo:g} dB: '
         f'{_num(e.get("fuera_de_rango", 0))} px. '
         + ("APROXIMADO: archivo muy grande, calculado sobre una lectura reducida; "
            if e.get("aproximado") else "Calculado a resolución completa desde el archivo; ")
@@ -157,6 +160,10 @@ def _estadisticas_continuas(e: dict) -> list[str]:
 def metodo_continuo(res: ResultadoSAR) -> str:
     """Método según las etiquetas del motor (ventana de speckle), sin umbral."""
     import json as _json
+    if res.perfil.clave == "retrodispersion_db":
+        return ("Recorte de un producto NISAR L2 GCOV (gamma0 en potencia, con corrección radiométrica del terreno "
+                "ya aplicada por el producto) convertido a dB: 10·log10. Sin filtro, sin umbral y sin "
+                "comparación temporal: es una sola fecha.")
     try:
         ventana = _json.loads(res.capa.metadatos.get("PARAMETROS", "{}")).get("ventana_speckle")
     except ValueError:
@@ -196,11 +203,12 @@ def leyenda_html(res: ResultadoSAR) -> str:
     if not res.dibujable:
         return ""
     if res.perfil.continuo:
-        marcas = "".join(f"<span>{t:+d}</span>".replace("-", "−").replace("+0", "0") for t in TICKS)
+        esc = escala_de(res.perfil.clave)
+        marcas = "".join(f"<span>{t:+d}</span>".replace("-", "−").replace("+0", "0") for t in esc.ticks)
         return (f'<div class="visor-leyenda mc-leyenda-res"><div class="mc-res-leyenda-titulo">{escape(res.nombre)}</div>'
-                f'<div class="mc-rampa" style="background:{leyenda_css()}"></div>'
+                f'<div class="mc-rampa" style="background:{leyenda_css(esc)}"></div>'
                 f'<div class="mc-rampa-marcas">{marcas}</div>'
-                '<div class="visor-leyenda-clase">dB · ← disminución · aumento →</div>'
+                f'<div class="visor-leyenda-clase">{escape(esc.texto_leyenda)}</div>'
                 '<div class="visor-leyenda-clase"><i class="mc-transparente"></i>Sin dato (NoData) (transparente)</div>'
                 f'<div class="visor-leyenda-nota">{escape(res.perfil.nota)}</div></div>')
     filas = []
@@ -228,8 +236,9 @@ def fechas_activas(resultados: list[ResultadoSAR], activos: dict[str, float]) ->
 
 
 @st.cache_data(show_spinner=False, max_entries=8)
-def _paquete_qgis(ruta: str, firma: tuple, clases: tuple, nombre: str, continuo: bool = False) -> tuple[str, bytes]:
-    return qgis.exportar(ruta, clases, nombre, continuo=continuo)
+def _paquete_qgis(ruta: str, firma: tuple, clases: tuple, nombre: str, continuo: bool = False,
+                  clave: str = "diferencia_db") -> tuple[str, bytes]:
+    return qgis.exportar(ruta, clases, nombre, continuo=continuo, escala=escala_de(clave))
 
 
 def boton_qgis(res: ResultadoSAR) -> None:
@@ -239,7 +248,7 @@ def boton_qgis(res: ResultadoSAR) -> None:
         return
     try:
         nombre, datos = _paquete_qgis(str(res.ruta), _firma(res.ruta), tuple(res.perfil.clases), res.nombre,
-                                      res.perfil.continuo)
+                                      res.perfil.continuo, res.perfil.clave)
     except qgis.ErrorExportacion as e:
         st.caption(str(e))
         return

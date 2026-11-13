@@ -75,22 +75,23 @@ def estilo_qml(clases, nodata: int | None = NODATA) -> str:
     )
 
 
-def estilo_qml_continuo() -> str:
-    """Pseudocolor interpolado con la rampa y la opacidad del visor (±10 dB, saturación fuera del rango)."""
-    from utils.diferencia_db import RAMPA, RANGO_DB, alfa
+def estilo_qml_continuo(escala=None) -> str:
+    """Pseudocolor interpolado con la rampa y la opacidad del visor (saturación fuera del rango)."""
+    from utils.diferencia_db import ESCALA_DIFERENCIA, alfa
+    escala = escala or ESCALA_DIFERENCIA
     items = "\n".join(
-        f'          <item value="{x:g}" color="{c.lower()}" alpha="{round(float(alfa(x)) * 255)}" '
-        f'label={quoteattr(f"{x:+g} dB")}/>' for x, c in RAMPA)
+        f'          <item value="{x:g}" color="{c.lower()}" alpha="{round(float(alfa(x, escala)) * 255)}" '
+        f'label={quoteattr(f"{x:+g} dB")}/>' for x, c in escala.rampa)
     return (
         "<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>\n"
         f'<qgis version="{VERSION_QGIS_MINIMA}" styleCategories="Symbology">\n'
         "  <pipe>\n"
         f'    <rasterrenderer type="singlebandpseudocolor" band="1" opacity="1" alphaBand="-1" '
-        f'classificationMin="{-RANGO_DB:g}" classificationMax="{RANGO_DB:g}" nodataColor="">\n'
+        f'classificationMin="{escala.minimo:g}" classificationMax="{escala.maximo:g}" nodataColor="">\n'
         "      <rasterTransparency/>\n"
         "      <rastershader>\n"
         f'        <colorrampshader colorRampType="INTERPOLATED" classificationMode="1" clip="0" '
-        f'minimumValue="{-RANGO_DB:g}" maximumValue="{RANGO_DB:g}">\n'
+        f'minimumValue="{escala.minimo:g}" maximumValue="{escala.maximo:g}">\n'
         f"{items}\n"
         "        </colorrampshader>\n"
         "      </rastershader>\n"
@@ -101,13 +102,14 @@ def estilo_qml_continuo() -> str:
     )
 
 
-def leyenda_csv_continua() -> str:
-    from utils.diferencia_db import RAMPA, alfa
+def leyenda_csv_continua(escala=None) -> str:
+    from utils.diferencia_db import ESCALA_DIFERENCIA, alfa
+    escala = escala or ESCALA_DIFERENCIA
     salida = io.StringIO()
     w = csv.writer(salida, lineterminator="\r\n")
-    w.writerow(["delta_db", "color", "opacidad"])
-    for x, c in RAMPA:
-        w.writerow([f"{x:g}", c, f"{float(alfa(x)):.2f}"])
+    w.writerow(["delta_db" if escala is ESCALA_DIFERENCIA else "valor_db", "color", "opacidad"])
+    for x, c in escala.rampa:
+        w.writerow([f"{x:g}", c, f"{float(alfa(x, escala)):.2f}"])
     w.writerow(["NoData", "", "0"])
     return salida.getvalue()
 
@@ -144,7 +146,9 @@ def aoi_geojson(ficha: dict | None) -> str | None:
 
 
 def _leeme(nombre: str, estado: procedencia.Procedencia, con_aoi: bool, con_ficha: bool,
-           continuo: bool = False) -> str:
+           continuo: bool = False, escala=None) -> str:
+    from utils.diferencia_db import ESCALA_DIFERENCIA
+    escala = escala or ESCALA_DIFERENCIA
     return "\r\n".join([
         "V.I.S.O.R. · Paquete para QGIS Desktop",
         "",
@@ -155,8 +159,7 @@ def _leeme(nombre: str, estado: procedencia.Procedencia, con_aoi: bool, con_fich
         f"  1. Descomprimir la carpeta completa y arrastrar {nombre}.tif a QGIS ({VERSION_QGIS_MINIMA} o posterior).",
         f"     QGIS aplica {nombre}.qml automaticamente (si no: Propiedades > Simbologia > Estilo > Cargar estilo).",
         "  2. Propiedades > Informacion: comprobar CRS, tamano, resolucion y NoData.",
-        ("  3. Diferencia continua en dB (posterior - anterior), sin umbral: pseudocolor fijo de -10 a +10 dB "
-         "(azul disminucion, rojo aumento), NoData transparente." if continuo else
+        (f"  3. {escala.texto_qgis}" if continuo else
          "  3. Clases 0 y NoData (255) son transparentes. No representan zonas sin cambio garantizado ni zonas inundadas."),
         *([f"  4. {nombre}_aoi.geojson es la AOI declarada en la ficha."] if con_aoi else
           ["  4. Sin AOI: la ficha no declara una geometria valida, asi que no se genero ninguna."]),
@@ -175,7 +178,7 @@ def _leeme(nombre: str, estado: procedencia.Procedencia, con_aoi: bool, con_fich
 
 
 def exportar(ruta_tif: str | Path, clases, nombre_producto: str, nodata: int | None = NODATA,
-             continuo: bool = False) -> tuple[str, bytes]:
+             continuo: bool = False, escala=None) -> tuple[str, bytes]:
     """Devuelve (nombre_zip, contenido). Lee el GeoTIFF y su ficha sin modificarlos.
     `continuo=True`: diferencia en dB, con estilo de pseudocolor en vez de paleta."""
     ruta = Path(ruta_tif)
@@ -204,8 +207,8 @@ def exportar(ruta_tif: str | Path, clases, nombre_producto: str, nodata: int | N
     base = nombre_seguro(ruta.stem)
     archivos: dict[str, bytes] = {
         f"{base}.tif": bytes_tif,
-        f"{base}.qml": (estilo_qml_continuo() if continuo else estilo_qml(clases, nodata)).encode("utf-8"),
-        f"{base}_leyenda.csv": (leyenda_csv_continua() if continuo else leyenda_csv(clases, nodata)).encode("utf-8-sig"),
+        f"{base}.qml": (estilo_qml_continuo(escala) if continuo else estilo_qml(clases, nodata)).encode("utf-8"),
+        f"{base}_leyenda.csv": (leyenda_csv_continua(escala) if continuo else leyenda_csv(clases, nodata)).encode("utf-8-sig"),
     }
     if bytes_ficha is not None:
         archivos[f"{base}.json"] = bytes_ficha
@@ -213,7 +216,7 @@ def exportar(ruta_tif: str | Path, clases, nombre_producto: str, nodata: int | N
     if geojson is not None:
         archivos[f"{base}_aoi.geojson"] = geojson.encode("utf-8")
     archivos["LEEME_QGIS.txt"] = _leeme(base, estado, geojson is not None, bytes_ficha is not None,
-                                        continuo).encode("utf-8")
+                                        continuo, escala).encode("utf-8")
     manifiesto = {
         "generado_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "producto": nombre_producto,
@@ -233,7 +236,7 @@ def exportar(ruta_tif: str | Path, clases, nombre_producto: str, nodata: int | N
 
 
 def verificar_paquete(datos_zip: bytes, ruta_tif_original: str | Path, clases, nodata: int | None = NODATA,
-                      continuo: bool = False) -> list[str]:
+                      continuo: bool = False, escala=None) -> list[str]:
     """Comprueba un paquete exportado. Devuelve la lista de problemas (vacía = correcto).
 
     - estructura: una sola carpeta, nombres ASCII sin caracteres reservados de Windows;
@@ -291,11 +294,11 @@ def verificar_paquete(datos_zip: bytes, ruta_tif_original: str | Path, clases, n
         raiz = ET.fromstring(planos[f"{base}.qml"].decode("utf-8").split("\n", 1)[1])
         render = raiz.find("pipe/rasterrenderer")
         if continuo:
-            esperado_qml = ET.fromstring(estilo_qml_continuo().split("\n", 1)[1]).find("pipe/rasterrenderer")
+            esperado_qml = ET.fromstring(estilo_qml_continuo(escala).split("\n", 1)[1]).find("pipe/rasterrenderer")
             items = [(e.get("value"), e.get("color"), e.get("alpha")) for e in render.iter("item")] if render is not None else []
             esperados = [(e.get("value"), e.get("color"), e.get("alpha")) for e in esperado_qml.iter("item")]
             if render is None or render.get("type") != "singlebandpseudocolor" or items != esperados:
-                problemas.append("El .qml no es el pseudocolor ±10 dB del visor.")
+                problemas.append("El .qml no es el pseudocolor en dB del visor para este producto.")
         elif render is None or render.get("type") != "paletted" or render.get("band") != "1":
             problemas.append("El .qml no es un estilo de paleta sobre la banda 1.")
         else:

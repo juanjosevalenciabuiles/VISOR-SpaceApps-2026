@@ -310,8 +310,10 @@ def _auditar_continuo(informe: Informe, pre: str, ruta: Path, res) -> None:
                         APROBADA if f["estado_efectivo"] == procedencia.NO_DECLARADA else FALLIDA,
                         f"estado {f['estado_efectivo']} (el motor no escribe ficha para este producto)")
     try:
-        _, zip_bytes = exportar(ruta, (), res.nombre, continuo=True)
-        problemas = verificar_paquete(zip_bytes, ruta, (), continuo=True)
+        from utils.diferencia_db import escala_de
+        esc = escala_de(res.perfil.clave)
+        _, zip_bytes = exportar(ruta, (), res.nombre, continuo=True, escala=esc)
+        problemas = verificar_paquete(zip_bytes, ruta, (), continuo=True, escala=esc)
     except ErrorExportacion as err:
         problemas = [str(err)]
     problemas += [] if procedencia.sha256_archivo(ruta) == sha else ["la exportación modificó el original"]

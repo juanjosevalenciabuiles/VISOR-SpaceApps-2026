@@ -309,9 +309,9 @@ def herramientas_sar() -> None:
             st.button("Cerrar", key="cerrar_sar", icon=":material/close:", type="tertiary",
                       on_click=cerrar_sar)
         st.markdown(
-            '<div class="mc-aviso">Búsqueda de solo lectura en ASF y análisis de productos RTC ya presentes en '
-            "<code>data/sar/</code>. No descarga ni procesa en HyP3. Los resultados son indicios de cambio de "
-            "radar, no inundaciones confirmadas.</div>",
+            '<div class="mc-aviso">Búsqueda de solo lectura y análisis de productos ya presentes en '
+            "<code>data/sar/</code> (Sentinel-1) o <code>data/nisar/</code> (NISAR). No descarga ni procesa en "
+            "HyP3. Los resultados son indicios de cambio de radar, no inundaciones confirmadas.</div>",
             unsafe_allow_html=True,
         )
         herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)

@@ -11,6 +11,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 
+from utils.diferencia_db import escala_de  # noqa: E402
 from utils.qgis import ErrorExportacion, exportar  # noqa: E402
 from utils.resultados import leer_resultado  # noqa: E402
 
@@ -25,7 +26,8 @@ def main(argumentos=None) -> int:
         print(f"ERROR: {res.error or 'resultado no reconocido'}", file=sys.stderr)
         return 1
     try:
-        nombre, datos = exportar(a.geotiff, res.perfil.clases, res.nombre, continuo=res.perfil.continuo)
+        nombre, datos = exportar(a.geotiff, res.perfil.clases, res.nombre, continuo=res.perfil.continuo,
+                                 escala=escala_de(res.perfil.clave))
     except ErrorExportacion as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1

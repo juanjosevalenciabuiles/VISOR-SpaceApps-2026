@@ -102,3 +102,22 @@ def test_herramientas_sar_abrir_minimizar_restaurar_cerrar(abrir):
     assert seleccionada.startswith("03")
     p.clic("cerrar_sar")
     assert not p.visible("panel_sar") and p.visible("panel_explorador") and p.mapa_intacto()
+
+
+def test_selector_de_sensor_nisar_separado_de_sentinel1(abrir):
+    """NISAR (banda L) es un panel aparte; volver a Sentinel-1 conserva su flujo y el mapa no se recrea."""
+    p = abrir()
+    p.marcar_mapa()
+    p.clic("btn_sar")
+    p.page.locator(".st-key-sar_sensor button", has_text="NISAR").click()
+    p.esperar()
+    panel = p.texto("panel_sar")
+    assert "NISAR L2 GCOV" in panel and "VALIDATED" in panel and "no se descarga nada" in panel.lower()
+    assert p.visible("nisar_buscar") and not p.visible("sar_buscar")
+    p.page.locator(".st-key-panel_sar [role=tab]").nth(2).click()
+    p.esperar(800)
+    assert "recortes NISAR" in p.texto("panel_sar")          # sin datos: no ofrece análisis
+    assert p.superposiciones() == []
+    p.page.locator(".st-key-sar_sensor button", has_text="Sentinel-1").click()
+    p.esperar()
+    assert not p.visible("nisar_buscar") and p.mapa_intacto()
