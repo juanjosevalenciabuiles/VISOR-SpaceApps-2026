@@ -49,7 +49,7 @@ _SUFIJOS_SALIDA = {f"{n}.{e}" for n in ("dif_db", "mascara", "antes_db", "despue
 MAX_PIXELES = 16_000_000
 
 ESCALAS = ("power", "amplitude", "db")
-POLARIZACIONES = ("VV", "VH", "HH", "HV")
+POLARIZACIONES = ("VV", "VH", "HH", "HV", "RH", "RV")   # RH/RV: polarimetría compacta (NISAR)
 
 # Clases de la máscara: (valor, etiqueta, color). Las etiquetas describen la
 # señal medida, nunca un fenómeno confirmado.
@@ -85,6 +85,18 @@ LIMITACIONES: tuple[str, ...] = (
     "Solo se comparan dos fechas: no hay referencia estacional ni se sabe qué ocurrió entre ellas.",
     "Los umbrales son configurables y no están calibrados para la zona.",
 )
+# Solo para NISAR (banda L). Sustituyen la línea de vegetación en banda C.
+LIMITACIONES_BANDA_L: tuple[str, ...] = (
+    "Banda L (NISAR): penetra más el dosel que la banda C; el agua bajo vegetación suele AUMENTAR la "
+    "señal (doble rebote) y no disminuirla. Un cambio en banda L no se interpreta igual que en Sentinel-1.",
+    "Umbrales EXPERIMENTALES para banda L: no se copian los de Sentinel-1 (VV −7,5 / VH −3 dB) y no "
+    "están calibrados por canal ni por cobertura; deben evaluarse con datos de campo.",
+    "El producto GCOV ya trae corrección radiométrica del terreno (RTC); no se vuelve a aplicar.",
+    "Que el producto GCOV sea VALIDATED significa que el dato está calibrado, no que este mapa derivado "
+    "esté validado.",
+)
+# Campos de NISAR que deben coincidir entre las dos fechas (etiquetas del recorte GCOV).
+CAMPOS_GEOMETRIA_NISAR = ("TRACK", "FRAME", "DIRECCION", "FRECUENCIA", "TERMINO", "CRID")
 
 
 class ErrorSAR(Exception):
@@ -122,6 +134,14 @@ class EscenaRTC:
     radiometria: str | None = None
     es_hyp3: bool = False             # el nombre sigue la convención de HyP3 RTC
     avisos: list[str] = field(default_factory=list)
+    sensor: str | None = None         # "Sentinel-1" (banda C) o "NISAR" (banda L); None = desconocido
+    banda: str | None = None
+    geometria: dict[str, str] = field(default_factory=dict)   # NISAR: track, frame, dirección, CRID…
+    es_demo: bool = False             # etiqueta VISOR_DEMO=1 en el archivo de entrada
+
+    @property
+    def es_nisar(self) -> bool:
+        return self.sensor == "NISAR"
 
     @property
     def limites(self) -> tuple[float, float, float, float]:
@@ -141,6 +161,10 @@ class EscenaRTC:
             "radiometria": self.radiometria,
             "escala": self.escala,
             "producto_hyp3_rtc": self.es_hyp3,
+            "sensor": self.sensor,
+            "banda": self.banda,
+            **({"geometria_nisar": self.geometria} if self.geometria else {}),
+            "demo": self.es_demo,
             "crs": self.crs.to_string(),
             "resolucion": list(self.resolucion),
             "dimensiones": [self.ancho, self.alto],
@@ -222,14 +246,36 @@ def describir_escena(
     if esc not in ESCALAS:
         raise ErrorSAR(f"Escala '{esc}' no reconocida. Opciones: {', '.join(ESCALAS)}.")
 
+    sensor = "Sentinel-1" if nombre else (etiquetas.get("SENSOR") or None)
+    banda = "C" if nombre else (etiquetas.get("BANDA") or None)
+    if nombre and etiquetas.get("SENSOR") not in (None, "", "Sentinel-1"):
+        raise ErrorSAR(f"`{ruta.name}` tiene nombre de Sentinel-1 pero declara SENSOR={etiquetas['SENSOR']}.")
+    geometria = {k.lower(): etiquetas.get(k, "") for k in (*CAMPOS_GEOMETRIA_NISAR, "MADUREZ", "GRANULE", "MISION")} \
+        if sensor == "NISAR" else {}
     return EscenaRTC(
         ruta=ruta, polarizacion=pol, escala=esc, crs=crs, transform=transform,
         ancho=ancho, alto=alto, nodata=nodata,
         fecha=_a_fecha(fecha or (nombre and nombre["fecha"]) or etiquetas.get("FECHA_ADQUISICION")),
-        plataforma=nombre["plataforma"] if nombre else None,
-        radiometria=_RADIOMETRIAS[nombre["radiometria"]] if nombre else None,
-        es_hyp3=nombre is not None, avisos=avisos,
+        plataforma=nombre["plataforma"] if nombre else ("NISAR" if sensor == "NISAR" else None),
+        radiometria=_RADIOMETRIAS[nombre["radiometria"]] if nombre else (etiquetas.get("RADIOMETRIA") or None),
+        es_hyp3=nombre is not None, avisos=avisos, sensor=sensor, banda=banda, geometria=geometria,
+        es_demo=etiquetas.get("VISOR_DEMO") == "1",
     )
+
+
+def bloqueos_nisar(antes: EscenaRTC, despues: EscenaRTC) -> list[str]:
+    """Motivos por los que dos recortes NISAR no son comparables (lista vacía = compatibles)."""
+    motivos = []
+    for campo in CAMPOS_GEOMETRIA_NISAR:
+        a, d = antes.geometria.get(campo.lower(), ""), despues.geometria.get(campo.lower(), "")
+        if not a or not d:
+            motivos.append(f"falta {campo} en {antes.ruta.name if not a else despues.ruta.name}")
+        elif a != d:
+            motivos.append(f"{campo} distinto ({a} y {d})")
+    ma, md = antes.geometria.get("madurez", ""), despues.geometria.get("madurez", "")
+    if ma and md and "NO_COMPROBADA" not in (ma, md) and ma != md:
+        motivos.append(f"madurez distinta ({ma} y {md})")
+    return motivos
 
 
 def validar_par(antes: EscenaRTC, despues: EscenaRTC) -> list[str]:
@@ -237,6 +283,17 @@ def validar_par(antes: EscenaRTC, despues: EscenaRTC) -> list[str]:
     ErrorSAR si compararlas no tendría sentido."""
     if antes.ruta.resolve() == despues.ruta.resolve():
         raise ErrorSAR("La imagen anterior y la posterior son el mismo archivo.")
+    # Banda C (Sentinel-1) y banda L (NISAR) no son el mismo canal: nunca se comparan entre sí.
+    if (antes.sensor != despues.sensor or antes.banda != despues.banda) and "NISAR" in (antes.sensor, despues.sensor):
+        raise ErrorSAR(
+            f"No se comparan sensores o bandas distintos: {antes.ruta.name} es "
+            f"{antes.sensor or 'de sensor desconocido'} (banda {antes.banda or '?'}) y {despues.ruta.name} es "
+            f"{despues.sensor or 'de sensor desconocido'} (banda {despues.banda or '?'})."
+        )
+    if antes.es_nisar:
+        motivos = bloqueos_nisar(antes, despues)
+        if motivos:
+            raise ErrorSAR("Los dos recortes NISAR no son comparables: " + "; ".join(motivos) + ".")
     if antes.polarizacion != despues.polarizacion:
         raise ErrorSAR(
             f"Polarizaciones distintas ({antes.polarizacion} y {despues.polarizacion}): "
@@ -624,10 +681,18 @@ def analizar_par(
     automático se usa `_r2`, `_r3`…; con un prefijo explícito ya ocupado se
     detiene, salvo `sobrescribir=True`.
     """
-    parametros = parametros or ParametrosCambio()
     antes = describir_escena(ruta_antes, polarizacion, fecha_antes, escala)
     despues = describir_escena(ruta_despues, polarizacion, fecha_despues, escala)
     avisos = validar_par(antes, despues)
+    if antes.es_nisar and parametros is None:
+        raise ErrorSAR("NISAR (banda L) no tiene umbrales por defecto: indica umbrales experimentales "
+                       "explícitos (los de Sentinel-1 no se aplican).")
+    parametros = parametros or ParametrosCambio()
+    if antes.es_nisar:
+        avisos.append("Umbrales EXPERIMENTALES para banda L, no calibrados: el resultado es exploratorio.")
+        madureces = {antes.geometria.get("madurez"), despues.geometria.get("madurez")}
+        if "NO_COMPROBADA" in madureces or "" in madureces:
+            avisos.append("La madurez de algún producto GCOV no se comprobó en el catálogo.")
     cuad = cuadricula_comun(antes, despues, aoi, max_pixeles)
 
     datos_antes, metodo_antes = leer_en_cuadricula(antes, cuad)
@@ -654,7 +719,8 @@ def analizar_par(
     carpeta = Path(carpeta_salida)
     if prefijo is None:
         sello = lambda e: f"{e.fecha:%Y%m%d}" if e.fecha else "sinfecha"  # noqa: E731
-        prefijo = f"cambio_{pol}_{sello(antes)}_{sello(despues)}"
+        prefijo = (f"nisar_cambio_{antes.geometria['frecuencia']}{antes.geometria['termino']}_{sello(antes)}_{sello(despues)}"
+                   if antes.es_nisar else f"cambio_{pol}_{sello(antes)}_{sello(despues)}")
         if not sobrescribir:
             prefijo = prefijo_libre(carpeta, prefijo)
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", prefijo):
@@ -668,6 +734,10 @@ def analizar_par(
     if antes.es_hyp3 and despues.es_hyp3:
         plataformas = " y ".join(sorted({antes.plataforma, despues.plataforma}))
         fuente = f"Sentinel-1 ({plataformas}), ASF HyP3 RTC {antes.radiometria} · derivado por V.I.S.O.R."
+    elif antes.es_nisar:
+        g = antes.geometria
+        fuente = (f"NISAR L2 GCOV banda L, frecuencia {g['frecuencia']}, {g['termino']} gamma0 · track {g['track']}, "
+                  f"frame {g['frame']}, CRID {g['crid']} · ASF · derivado por V.I.S.O.R.")
     else:
         fuente = f"Archivos locales: {antes.ruta.name} y {despues.ruta.name} · derivado por V.I.S.O.R."
     fechas = f"{dia(antes)} / {dia(despues)}"
@@ -675,6 +745,10 @@ def analizar_par(
         "VISOR_ANALISIS": "1", "MOTOR_VERSION": VERSION_MOTOR, "FUENTE": fuente, "FECHA": fechas,
         "POLARIZACION": pol, "ENTRADA_ANTES": antes.ruta.name, "ENTRADA_DESPUES": despues.ruta.name,
         "PARAMETROS": json.dumps(asdict(parametros)), "ADVERTENCIA": ADVERTENCIA,
+        **({"SENSOR": antes.sensor, "BANDA": antes.banda or ""} if antes.sensor else {}),
+        **({"UMBRALES": "experimentales banda L, no calibrados"} if antes.es_nisar else {}),
+        # Si una entrada es sintética, lo derivado también lo es: la marca DEMO se propaga.
+        **({"VISOR_DEMO": "1"} if antes.es_demo or despues.es_demo else {}),
     }
 
     def lateral(producto: str, unidades: str) -> dict[str, str]:
@@ -735,7 +809,9 @@ def analizar_par(
         "clases_mascara": {str(v): e for v, e, _ in CLASES_MASCARA},
         "estadisticas": resumen,
         "avisos": avisos,
-        "limitaciones": list(LIMITACIONES),
+        "sensor": antes.sensor, "banda": antes.banda,
+        "limitaciones": ([lim for lim in LIMITACIONES if not lim.startswith("Vegetación")] + list(LIMITACIONES_BANDA_L)
+                         if antes.es_nisar else list(LIMITACIONES)),
     }
     ruta_informe = carpeta / f"{prefijo}_analisis.json"
     ruta_informe.write_text(json.dumps(procedencia, ensure_ascii=False, indent=2), encoding="utf-8")
