@@ -40,7 +40,7 @@ os.environ.setdefault("STREAMLIT_LOGGER_LEVEL", "error")
 
 from utils.verificacion import (  # noqa: E402
     ADVERTENCIA, APROBADA, CRITICO, FALLIDA, IMPORTANTE, INFORMATIVO, NO_APTO, OMITIDA,
-    Informe, auditar_resultados, diferencias_huellas, huellas, leer_referencia,
+    Informe, auditar_regional, auditar_resultados, diferencias_huellas, huellas, leer_referencia,
 )
 
 DEPENDENCIAS = ("streamlit", "folium", "streamlit-folium", "rasterio", "numpy", "geopandas", "pytest")
@@ -284,6 +284,7 @@ def main(argumentos=None) -> int:
     inf.protegido("DAT-X", "Datos reales", "Auditoría de data/analisis/", auditar_resultados,
                   inf, DATA_DIR / "analisis", None if a.ci else referencia)
     inf.protegido("SAR-X", "Datos reales", "RTC en data/sar/", rtc_locales, inf)
+    inf.protegido("REG-X", "Regional", "Cruce SAR × JRC", auditar_regional, inf, DATA_DIR)
 
     cambios = diferencias_huellas(antes, huellas(DATA_DIR))
     inf.si(not cambios, "DAT-RO", "Datos reales", "Ningún archivo de data/ cambió durante la verificación",

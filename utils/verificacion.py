@@ -324,3 +324,36 @@ def leer_referencia(ruta: Path) -> dict | None:
         return json.loads(ruta.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+
+
+def auditar_regional(informe: Informe, carpeta_datos: Path) -> None:
+    """Cruce SAR × JRC: reproduce Chigorodó si están los GeoTIFF reales (en una carpeta temporal:
+    no escribe en data/) e informa si el análisis regional está habilitado."""
+    import tempfile
+
+    from utils import sar_jrc
+
+    cat = "Regional"
+    carpeta_datos = Path(carpeta_datos)
+    mascara = carpeta_datos / "analisis" / "coincidencia_VV_VH_20260924_20261006.tif"
+    carpeta_jrc = carpeta_datos / "jrc"
+    candidatos = sorted([*carpeta_jrc.glob("*.tif"), *carpeta_jrc.glob("*.vrt")]) if carpeta_jrc.is_dir() else []
+    chigorodo = [p for p in candidatos if "chigorodo" in p.name.lower()] or (candidatos if len(candidatos) == 1 else [])
+    if not mascara.is_file() or len(chigorodo) != 1:
+        motivo = ("falta la máscara reproducible" if not mascara.is_file() else
+                  "no hay JRC en data/jrc/" if not candidatos else "hay varios JRC y ninguno se llama «Chigorodo»")
+        informe.agregar("REG-01", cat, "Reproducción del cruce SAR × JRC de Chigorodó (QGIS)", "Coincide con QGIS",
+                        IMPORTANTE, OMITIDA, f"No se puede comprobar aquí: {motivo}")
+    else:
+        with tempfile.TemporaryDirectory(prefix="visor_reg_") as tmp:
+            r = sar_jrc.cruzar(mascara, chigorodo[0], None, Path(tmp), usar_cache=False)
+        diferencias = sar_jrc.comparar_con_referencia(r.datos, sar_jrc.leer_referencia())
+        u1 = r.datos["global"]["umbrales_jrc"][0]
+        informe.si(not diferencias, "REG-01", cat, "Reproducción del cruce SAR × JRC de Chigorodó (QGIS)",
+                   "Mismas cifras que el informe de QGIS del equipo (13-nov-2026)", IMPORTANTE,
+                   f"{r.datos['global']['detecciones']:,} detecciones · {u1['pixeles_sar_jrc']:,} sobre JRC ≥ 1 % · "
+                   f"{u1['hectareas_sar_jrc']} ha · máscara {r.datos['entradas']['sar']['procedencia']}",
+                   "; ".join(diferencias)[:400])
+    habilitado, motivo = sar_jrc.estado_habilitacion(carpeta_datos / "analisis" / "regional", carpeta_datos / "analisis")
+    informe.agregar("REG-02", cat, "Análisis regional habilitado (reproducción registrada)", "Informativo", INFORMATIVO,
+                    APROBADA if habilitado else OMITIDA, motivo)
