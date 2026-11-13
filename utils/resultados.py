@@ -35,7 +35,7 @@ from utils.combinacion_sar import (
 )
 from utils.config import DATA_DIR
 from utils.diferencia_db import RANGO_DB, describir_continuo
-from utils.geotiff import Capa, ErrorCapa, _metadatos, leer_geotiff
+from utils.geotiff import Capa, ErrorCapa, _firma, _metadatos, leer_geotiff  # noqa: F401 (_firma se reexporta)
 
 CARPETA_ANALISIS = DATA_DIR / "analisis"
 # Protección de memoria: un resultado más grande no se carga en el visor.
@@ -205,16 +205,6 @@ def leer_resultado(ruta: str | Path) -> ResultadoSAR:
     except ErrorSAR as e:
         res.error = str(e)
     return res
-
-
-def _firma(ruta: Path) -> tuple:
-    def una(p: Path) -> tuple[int, int]:
-        try:
-            s = p.stat()
-            return s.st_mtime_ns, s.st_size
-        except OSError:
-            return 0, 0
-    return una(ruta) + una(ruta.with_suffix(".json"))
 
 
 @st.cache_data(show_spinner=False, max_entries=24)
