@@ -115,3 +115,37 @@ def test_verificador_lo_aprueba_sin_advertencia_de_perfil(motor):
     dif = [c for c in inf.comprobaciones if "dif_db" in c.descripcion]
     assert dif and all(c.estado == v.APROBADA for c in dif), [(c.id, c.estado, c.detalle) for c in dif]
     assert not any("no reconocido" in c.detalle for c in inf.comprobaciones if "dif_db" in c.descripcion)
+
+
+def test_estadisticas_grandes_se_marcan_aproximadas(motor, monkeypatch):
+    from utils import diferencia_db
+    exacto = diferencia_db.describir_continuo(motor.diferencia)
+    assert exacto["aproximado"] is False
+    monkeypatch.setattr(diferencia_db, "MAX_PIXELES_EXACTOS", 900)     # fuerza la lectura reducida
+    aprox = diferencia_db.describir_continuo(motor.diferencia)
+    assert aprox["aproximado"] is True and aprox["pixeles_totales"] == 3600
+    assert abs(aprox["pixeles_validos"] - exacto["pixeles_validos"]) <= 120
+    assert aprox["minimo"] == pytest.approx(-20.0, abs=0.5) and aprox["maximo"] == pytest.approx(10.0, abs=0.5)
+    res = r.leer_resultado(motor.diferencia)
+    res.estadisticas = aprox
+    assert "APROXIMADO" in ui.ficha_html(res)
+
+
+def test_el_raster_se_lee_una_sola_vez(motor, monkeypatch):
+    llamadas = []
+    original = r.leer_geotiff
+    monkeypatch.setattr(r, "leer_geotiff", lambda ruta, **k: llamadas.append(k) or original(ruta, **k))
+    r.leer_resultado(motor.diferencia)
+    r.leer_resultado(motor.mascara)
+    assert llamadas == [{"categorico": False}, {"categorico": True}]
+
+
+def test_la_imagen_del_mapa_se_reutiliza_y_respeta_la_opacidad(motor):
+    from streamlit.runtime.caching import cache_data_api  # noqa: F401  (caché en memoria fuera de la app)
+    res = r.leer_resultado(motor.diferencia)
+    mapa.imagen_resultado.clear()
+    a = mapa.grupo_resultado(res, 0.3)
+    b = mapa.grupo_resultado(res, 0.9)
+    ia, ib = (next(iter(g._children.values())) for g in (a, b))
+    assert ia.url == ib.url and ia.url.startswith("data:image/png;base64,")
+    assert (ia.options["opacity"], ib.options["opacity"]) == (0.3, 0.9)

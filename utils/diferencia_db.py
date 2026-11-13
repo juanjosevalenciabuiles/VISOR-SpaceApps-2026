@@ -24,6 +24,9 @@ import rasterio
 from rasterio.errors import RasterioError
 
 RANGO_DB = 10.0
+# Por encima de esta cantidad de píxeles, las estadísticas se calculan sobre una lectura
+# reducida (y se marcan como aproximadas) para no agotar la memoria de Replit.
+MAX_PIXELES_EXACTOS = 25_000_000
 ALFA_MIN = 0.15
 # (Δ en dB, color) de la rampa; se interpola linealmente entre puntos.
 RAMPA: tuple[tuple[float, str], ...] = (
@@ -64,22 +67,33 @@ def describir_continuo(ruta: str | Path) -> dict:
     ruta = Path(ruta)
     try:
         with rasterio.open(ruta) as src:
-            datos = src.read(1, masked=True).astype("float64")
+            total = src.width * src.height
+            escala = min(1.0, (MAX_PIXELES_EXACTOS / total) ** 0.5)
+            forma = (max(1, int(src.height * escala)), max(1, int(src.width * escala)))
+            datos = src.read(1, masked=True, out_shape=forma) if escala < 1 else src.read(1, masked=True)
             area_m2 = abs(src.transform.a * src.transform.e) if src.crs and src.crs.is_projected else None
             nodata = src.nodata
     except (RasterioError, OSError, ValueError) as e:
         raise ValueError(f"`{ruta.name}` no es un GeoTIFF válido o está dañado.") from e
-    validos = datos.compressed()
+    validos = datos.compressed().astype("float32", copy=False)
     validos = validos[np.isfinite(validos)]
-    total = int(datos.size)
-    resumen = {"pixeles_totales": total, "pixeles_validos": int(validos.size),
-               "pixeles_sin_dato": total - int(validos.size), "nodata": nodata,
-               "area_pixel_ha": area_m2 / 10_000 if area_m2 else None, "unidades": "dB"}
+    aproximado = escala < 1
+    if aproximado:  # conteos extrapolados a la resolución completa
+        factor = total / datos.size
+        n_validos = int(round(validos.size * factor))
+    else:
+        n_validos = int(validos.size)
+    resumen = {"pixeles_totales": int(total), "pixeles_validos": n_validos,
+               "pixeles_sin_dato": int(total) - n_validos, "nodata": nodata,
+               "area_pixel_ha": area_m2 / 10_000 if area_m2 else None, "unidades": "dB",
+               "aproximado": aproximado}
     if validos.size:
         p5, p50, p95 = np.percentile(validos, [5, 50, 95])
-        resumen.update(minimo=float(validos.min()), p5=float(p5), mediana=float(p50), media=float(validos.mean()),
-                       p95=float(p95), maximo=float(validos.max()), desviacion=float(validos.std()),
-                       fuera_de_rango=int((np.abs(validos) > RANGO_DB).sum()))
+        fuera = int((np.abs(validos) > RANGO_DB).sum())
+        resumen.update(minimo=float(validos.min()), p5=float(p5), mediana=float(p50),
+                       media=float(validos.mean(dtype="float64")), p95=float(p95), maximo=float(validos.max()),
+                       desviacion=float(validos.std(dtype="float64")),
+                       fuera_de_rango=int(round(fuera * total / datos.size)) if aproximado else fuera)
     return resumen
 
 

@@ -21,7 +21,9 @@ import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
+import rasterio
 import streamlit as st
+from rasterio.errors import RasterioError
 
 from utils.analisis_sar import CLASES_MASCARA, LIMITACIONES, ErrorSAR
 from utils.combinacion_sar import (
@@ -33,7 +35,7 @@ from utils.combinacion_sar import (
 )
 from utils.config import DATA_DIR
 from utils.diferencia_db import RANGO_DB, describir_continuo
-from utils.geotiff import Capa, ErrorCapa, leer_geotiff
+from utils.geotiff import Capa, ErrorCapa, _metadatos, leer_geotiff
 
 CARPETA_ANALISIS = DATA_DIR / "analisis"
 # Protección de memoria: un resultado más grande no se carga en el visor.
@@ -158,6 +160,16 @@ def listar(carpeta: Path | None = None) -> list[Path]:
     return sorted(p for p in carpeta.iterdir() if p.is_file() and p.suffix.lower() in (".tif", ".tiff"))
 
 
+def declaracion(ruta: Path) -> tuple[dict[str, str] | None, dict | None]:
+    """Etiquetas (en mayúsculas) y ficha JSON lateral, sin leer píxeles. (None, None) si no abre."""
+    try:
+        with rasterio.open(ruta) as src:
+            etiquetas, _, ficha = _metadatos(src, ruta)
+    except (RasterioError, OSError, ValueError):
+        return None, None
+    return etiquetas, ficha
+
+
 def leer_resultado(ruta: str | Path) -> ResultadoSAR:
     """Carga un resultado sin Streamlit (se prueba con pytest)."""
     ruta = Path(ruta)
@@ -165,22 +177,27 @@ def leer_resultado(ruta: str | Path) -> ResultadoSAR:
     if ruta.stat().st_size > MAX_BYTES_RESULTADO:
         res.error = "Archivo demasiado grande para el visor; recórtalo con un AOI."
         return res
+    # El perfil se decide por lo que declara el archivo (etiquetas + ficha), sin leer el ráster;
+    # así el ráster se lee una sola vez, con el remuestreo que corresponde al perfil.
+    etiquetas, ficha = declaracion(ruta)
+    clave = identificar_perfil(etiquetas, ficha) if etiquetas is not None else None
+    if etiquetas is not None and clave is None:
+        res.error = "Perfil de producto no reconocido: no se dibuja."
+        return res
+    perfil = PERFILES.get(clave)
+    continuo = bool(perfil and perfil.continuo)
     try:
-        capa = leer_geotiff(ruta, categorico=True)
+        capa = leer_geotiff(ruta, categorico=not continuo)       # bilineal solo para la imagen continua
     except ErrorCapa as e:
         res.error = str(e)
         return res
-    clave = identificar_perfil(capa.metadatos, capa.ficha)
-    if clave is None:
-        res.error = "Perfil de producto no reconocido: no se dibuja."
-        return res
-    res.perfil = PERFILES[clave]
-    if res.perfil.continuo:
+    res.perfil = perfil
+    if continuo:
         try:
-            res.capa = leer_geotiff(ruta, categorico=False)      # bilineal solo para la imagen del mapa
+            res.capa = capa
             res.estadisticas = describir_continuo(ruta)          # siempre del archivo original
-        except (ErrorCapa, ValueError) as e:
-            res.perfil, res.error = None, str(e)
+        except ValueError as e:
+            res.perfil, res.capa, res.error = None, None, str(e)
         return res
     res.capa = capa
     try:

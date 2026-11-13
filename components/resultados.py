@@ -146,8 +146,10 @@ def _estadisticas_continuas(e: dict) -> list[str]:
         f'<table class="mc-tabla mc-tabla-db"><tbody>{filas}</tbody></table>',
         f'<div class="visor-leyenda-nota">Válidos: {_num(e["pixeles_validos"])} px · sin dato (NoData '
         f'{e["nodata"]:g}): {_num(e["pixeles_sin_dato"])} px · fuera de ±{RANGO_DB:g} dB: '
-        f'{_num(e.get("fuera_de_rango", 0))} px. Calculado a resolución completa desde el archivo; '
-        "no se aplica ningún umbral.</div>",
+        f'{_num(e.get("fuera_de_rango", 0))} px. '
+        + ("APROXIMADO: archivo muy grande, calculado sobre una lectura reducida; "
+           if e.get("aproximado") else "Calculado a resolución completa desde el archivo; ")
+        + "no se aplica ningún umbral.</div>",
     ]
     return partes
 
