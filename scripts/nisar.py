@@ -3,6 +3,8 @@
     .venv/bin/python scripts/nisar.py buscar --inicio 2026-10-21 --fin 2026-11-13
     .venv/bin/python scripts/nisar.py inspeccionar data/nisar/crudos/NISAR_L2_PR_GCOV_….h5
     .venv/bin/python scripts/nisar.py recortar data/nisar/crudos/NISAR_L2_PR_GCOV_….h5 --termino HHHH --madurez VALIDATED
+    .venv/bin/python scripts/nisar.py descargar --registro data/nisar/catalogo/busqueda_….json \
+        --granule NISAR_L2_PR_GCOV_… --confirmo-gb 2.5        # pide EARTHDATA_TOKEN; un granule cada vez
 
 `buscar` consulta solo metadatos (sin credenciales) y guarda el registro en
 data/nisar/catalogo/ sin sobrescribir. `recortar` copia la ventana del área de
@@ -19,7 +21,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 
-from utils import nisar_catalogo, nisar_gcov  # noqa: E402
+from utils import nisar_catalogo, nisar_descarga, nisar_gcov  # noqa: E402
 from utils.buscador_sar import ErrorBusqueda  # noqa: E402
 
 CHIGORODO = (-76.80, 7.55, -76.55, 7.80)
@@ -80,6 +82,20 @@ def _recortar(a) -> int:
     return 0
 
 
+def _descargar(a) -> int:
+    def avance(hecho, total):
+        if hecho == total or hecho % (256 * 1024 * 1024) < nisar_descarga.BLOQUE:
+            print(f"  {hecho / 1e9:.2f} de {total / 1e9:.2f} GB", flush=True)
+    try:
+        destino = nisar_descarga.descargar(a.registro, a.granule, nisar_gcov.CARPETA_NISAR / "crudos",
+                                           a.confirmo_gb, avance=avance)
+    except nisar_descarga.ErrorDescarga as e:
+        print(f"NO SE DESCARGÓ: {e}", file=sys.stderr)
+        return 1
+    print(f"Descargado: {destino}\nSiguiente paso: scripts/nisar.py inspeccionar {destino}")
+    return 0
+
+
 def main(argumentos=None) -> int:
     p = argparse.ArgumentParser(description="NISAR L2 GCOV para V.I.S.O.R. (banda L, separado de Sentinel-1)")
     sub = p.add_subparsers(dest="accion", required=True)
@@ -100,8 +116,14 @@ def main(argumentos=None) -> int:
     r.add_argument("--sha256-origen", action="store_true", help="calcular el SHA-256 del HDF5 (lee el archivo entero)")
     r.add_argument("--carpeta", type=Path, default=None)
     _bbox(r)
+    d = sub.add_parser("descargar", help="UN granule del registro, con tamaño confirmado y EARTHDATA_TOKEN")
+    d.add_argument("--registro", type=Path, required=True, help="JSON guardado por `buscar`")
+    d.add_argument("--granule", required=True)
+    d.add_argument("--confirmo-gb", type=float, default=None,
+                   help="tamaño que aceptas descargar, en GB (sin esto solo se informa el tamaño)")
     a = p.parse_args(argumentos)
-    return {"buscar": _buscar, "inspeccionar": _inspeccionar, "recortar": _recortar}[a.accion](a)
+    return {"buscar": _buscar, "inspeccionar": _inspeccionar, "recortar": _recortar,
+            "descargar": _descargar}[a.accion](a)
 
 
 if __name__ == "__main__":

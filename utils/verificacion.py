@@ -326,3 +326,56 @@ def leer_referencia(ruta: Path) -> dict | None:
         return json.loads(ruta.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+
+
+def auditar_nisar(informe: Informe, carpeta: Path) -> None:
+    """Recortes NISAR GCOV de data/nisar/: solo lectura. Sin recortes, se omite (informativo)."""
+    import json
+
+    import rasterio
+
+    from utils import procedencia
+    from utils.nisar_gcov import NODATA
+
+    cat = "NISAR"
+    recortes = sorted(Path(carpeta).glob("nisar_gcov_*.tif")) if Path(carpeta).is_dir() else []
+    if not recortes:
+        informe.agregar("NIS-00", cat, "Recortes NISAR GCOV en data/nisar/", "Informativo", INFORMATIVO, OMITIDA,
+                        "No hay recortes NISAR en este entorno")
+        return
+    for i, ruta in enumerate(recortes, 1):
+        informe.protegido(f"NIS-{i:02d}x", cat, f"{ruta.name}: auditoría", _auditar_recorte_nisar, informe,
+                          f"NIS-{i:02d}", ruta, json, rasterio, procedencia, NODATA)
+
+
+def _auditar_recorte_nisar(informe: Informe, pre: str, ruta: Path, json, rasterio, procedencia, nodata) -> None:
+    cat = "NISAR"
+    with rasterio.open(ruta) as src:
+        t = {k.upper(): v for k, v in src.tags().items()}
+        tecnico = (src.dtypes[0] == "float32" and src.nodata == nodata and src.crs is not None and src.count == 1)
+        banda = src.read(1, masked=True)
+    etiquetas = (t.get("SENSOR") == "NISAR" and t.get("BANDA") == "L" and t.get("ESCALA") == "power"
+                 and t.get("RADIOMETRIA") == "gamma0" and t.get("TERMINO", "")[:2] == t.get("POLARIZACION")
+                 and all(t.get(k) for k in ("FRECUENCIA", "TRACK", "FRAME", "DIRECCION")))
+    informe.si(tecnico and etiquetas, f"{pre}a", cat, f"{ruta.name}: recorte GCOV en potencia, bien etiquetado",
+               "float32, NoData −9999, CRS, SENSOR=NISAR, BANDA=L, gamma0 en potencia, polarización = término",
+               CRITICO, f"{t.get('FRECUENCIA')}:{t.get('TERMINO')} · T{t.get('TRACK')} F{t.get('FRAME')} · "
+               f"madurez {t.get('MADUREZ')}", f"etiquetas={t}")
+    validos = banda.compressed()
+    informe.si(validos.size > 0 and bool((validos > 0).all()), f"{pre}b", cat,
+               f"{ruta.name}: toda potencia válida es positiva", "Ningún valor ≤ 0 fuera del NoData", CRITICO,
+               f"{validos.size} px válidos")
+    lateral = ruta.with_suffix(".json")
+    try:
+        ficha = json.loads(lateral.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        ficha = None
+    informe.si(isinstance(ficha, dict) and ficha.get("sha256") == procedencia.sha256_archivo(ruta), f"{pre}c",
+               "Procedencia", f"{ruta.name}: SHA-256 = el de su ficha", "Coinciden", CRITICO,
+               (ficha or {}).get("estado", "sin ficha") if isinstance(ficha, dict) else "",
+               "falta la ficha o el SHA-256 no coincide")
+    if isinstance(ficha, dict):
+        demo = t.get("VISOR_DEMO") == "1"
+        informe.si((ficha.get("estado") == "DEMO") == demo, f"{pre}d", "Procedencia",
+                   f"{ruta.name}: la ficha y la marca DEMO concuerdan",
+                   "Estado DEMO si y solo si el GeoTIFF lleva VISOR_DEMO=1", IMPORTANTE, str(ficha.get("estado")))

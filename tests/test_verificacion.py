@@ -184,3 +184,38 @@ def test_cero_pruebas_recogidas_es_fallo_no_omision():
     verificar_visor.pytest_(inf, "PYT-T", "batería vacía", "marca_que_no_existe_en_ninguna_prueba", v.CRITICO, 300)
     c = inf.comprobaciones[-1]
     assert c.estado == v.FALLIDA and inf.veredicto == v.NO_APTO
+
+
+# ---------------------------------------------------------------------------
+# NISAR
+# ---------------------------------------------------------------------------
+
+def _recorte_nisar(tmp_path):
+    from tests import nisar_sintetico as sint
+    from utils import nisar_gcov
+    h5 = sint.gcov(tmp_path / "a.h5", n=1500)
+    return nisar_gcov.exportar_recorte(h5, (-76.70, 7.62, -76.66, 7.66), carpeta=tmp_path / "nisar")
+
+
+def test_nisar_sin_recortes_se_omite(tmp_path):
+    inf = v.Informe()
+    v.auditar_nisar(inf, tmp_path / "nisar")
+    assert estados(inf) == {"NIS-00": v.OMITIDA} and inf.veredicto != v.NO_APTO
+
+
+def test_nisar_recorte_correcto_aprueba(tmp_path):
+    _recorte_nisar(tmp_path)
+    inf = v.Informe()
+    v.auditar_nisar(inf, tmp_path / "nisar")
+    assert set(estados(inf).values()) == {v.APROBADA} and len(inf.comprobaciones) == 4
+
+
+def test_nisar_recorte_alterado_es_no_apto(tmp_path):
+    import rasterio
+    ruta = _recorte_nisar(tmp_path)
+    with rasterio.open(ruta, "r+") as dst:
+        dst.update_tags(POLARIZACION="VV")                 # HH rotulado como VV y archivo modificado
+    inf = v.Informe()
+    v.auditar_nisar(inf, tmp_path / "nisar")
+    e = estados(inf)
+    assert e["NIS-01a"] == v.FALLIDA and e["NIS-01c"] == v.FALLIDA and inf.veredicto == v.NO_APTO
