@@ -136,7 +136,7 @@ Lo que esto significa, sin adornos:
   comprobar en el HDF5 que el modo es el mismo sobre el área.
 - No se ha elegido ni descargado nada. La decisión (qué granule, cuántos GB, dónde) es del equipo.
 
-El registro completo de la búsqueda está en `tests/datos/` (ver registro de cambios) y se
+El registro completo de esa búsqueda está en `tests/datos/nisar_catalogo_chigorodo_20261113.json` y se
 regenera con `scripts/nisar.py buscar`.
 
 ## 9. Uso en Replit (cuando la rama esté revisada)

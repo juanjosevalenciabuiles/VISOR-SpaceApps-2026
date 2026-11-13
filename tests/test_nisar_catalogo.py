@@ -272,3 +272,37 @@ def test_modo_unico_y_mixto_no_se_emparejan():
     b = item(granule("20261105T231500").replace("_DHDH_A_", "_DHDH_M_"))
     r = cat.buscar(*CHIGORODO, "2026-10-21", "2026-11-13", abrir=servidor({"items": [a, b]}), hoy=HOY)
     assert r.pares == [] and "modos mixtos" in r.bloqueos[0]
+
+
+# --- registro REAL guardado (tests/datos/, obtenido en GitHub Actions) ---------------
+
+def _registro_real():
+    from pathlib import Path
+    ruta = Path(__file__).parent / "datos" / "nisar_catalogo_chigorodo_20261113.json"
+    return ruta, json.loads(ruta.read_text(encoding="utf-8"))
+
+
+def test_registro_real_coincide_con_lo_documentado():
+    _, reg = _registro_real()
+    assert reg["consulta"]["coleccion"] == "NISAR_L2_GCOV_V1" and reg["consulta"]["madurez"] == "VALIDATED"
+    assert reg["total_catalogo"] == 11 and reg["descartes"] == []
+    assert sorted(c["granule"] for c in reg["candidatos"]) == sorted(REALES_CHIGORODO)
+    assert {c["crid"] for c in reg["candidatos"]} == {"P05036"}
+    assert {(p["antes"][21:24], round(p["dias"])) for p in reg["pares"]} == {("148", 12)}
+    assert all(p["estado"] == "CANDIDATO NO VALIDADO" and p["cobertura_comun"] < 0.45 for p in reg["pares"])
+    mejor = max(reg["candidatos"], key=lambda c: c["cobertura_aoi"])
+    assert (mejor["track"], mejor["frame"], round(mejor["cobertura_aoi"], 2)) == (112, 85, 0.94)
+
+
+def test_los_enlaces_reales_pasan_las_comprobaciones_de_descarga_sin_red(tmp_path):
+    """URL https en el servidor de ASF y tamaño conocido; sin confirmar el tamaño, nada se pide."""
+    from utils import nisar_descarga
+    _, reg = _registro_real()
+    for c in reg["candidatos"]:
+        gb = c["tamano_bytes"] / 1e9
+        url, tamano, destino = nisar_descarga.comprobar(c, tmp_path, gb + 0.01, libre_bytes=10 ** 12)
+        assert url.startswith("https://nisar.asf.earthdatacloud.nasa.gov/") and tamano == c["tamano_bytes"]
+        assert destino.name == f"{c['granule']}.h5"
+        with pytest.raises(nisar_descarga.ErrorDescarga, match="confírmalo"):
+            nisar_descarga.comprobar(c, tmp_path, None, libre_bytes=10 ** 12)
+    assert 1.1 < min(c["tamano_bytes"] for c in reg["candidatos"]) / 1e9 < 1.3
