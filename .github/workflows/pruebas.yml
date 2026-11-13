@@ -48,9 +48,16 @@ jobs:
           if-no-files-found: ignore
 
   navegador:
-    name: Mission Control en Chromium (Playwright)
+    name: Mission Control en ${{ matrix.navegador }} (Playwright)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        navegador: [chromium, firefox]
+    env:
+      VISOR_E2E_NAVEGADOR: ${{ matrix.navegador }}
+      VISOR_E2E_EXIGIR: "1"     # si el navegador no arranca, el trabajo falla (no se omite)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -59,13 +66,13 @@ jobs:
           cache: pip
           cache-dependency-path: requirements*.txt
       - run: pip install -r requirements-dev.txt
-      - run: python -m playwright install --with-deps chromium
+      - run: python -m playwright install --with-deps ${{ matrix.navegador }}
       - name: pytest -m navegador
         run: python -m pytest -q -m navegador --junitxml=informes/junit-navegador.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: informe-navegador
+          name: informe-navegador-${{ matrix.navegador }}
           path: informes/
           if-no-files-found: ignore
 

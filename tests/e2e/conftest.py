@@ -28,7 +28,10 @@ from pathlib import Path
 
 import pytest
 
-sync_api = pytest.importorskip("playwright.sync_api")
+if os.environ.get("VISOR_E2E_EXIGIR") == "1" or os.environ.get("CI") == "true":
+    from playwright import sync_api      # en CI, sin Playwright la recolección falla (no se omite)
+else:
+    sync_api = pytest.importorskip("playwright.sync_api")
 
 RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ))
@@ -123,13 +126,25 @@ class Servidor:
         self.registro.close()
 
 
+# Motor del navegador: chromium (predeterminado), firefox o webkit.
+NAVEGADOR = os.environ.get("VISOR_E2E_NAVEGADOR", "chromium").strip().lower()
+# En GitHub Actions (CI=true) o con VISOR_E2E_EXIGIR=1, un navegador que no
+# arranca es un FALLO: nunca se omiten en silencio todas las pruebas.
+EXIGIR = os.environ.get("VISOR_E2E_EXIGIR") == "1" or os.environ.get("CI") == "true"
+
+
 @pytest.fixture(scope="session")
 def navegador():
+    if NAVEGADOR not in ("chromium", "firefox", "webkit"):
+        pytest.fail(f"VISOR_E2E_NAVEGADOR={NAVEGADOR!r} no es chromium, firefox ni webkit")
     with sync_api.sync_playwright() as p:
         try:
-            b = p.chromium.launch()
+            b = getattr(p, NAVEGADOR).launch()
         except Exception as e:  # noqa: BLE001
-            pytest.skip(f"Chromium no disponible: {e}")
+            mensaje = f"{NAVEGADOR} no disponible: {str(e).splitlines()[0][:200]}"
+            if EXIGIR:
+                pytest.fail(mensaje)
+            pytest.skip(mensaje)
         yield b
         b.close()
 
@@ -261,8 +276,9 @@ def abrir(navegador, servidor, request):
     contextos = []
 
     def _abrir(ancho=1440, alto=900, movil=False, url=None, descargas=False):
-        ctx = navegador.new_context(viewport={"width": ancho, "height": alto}, is_mobile=movil, has_touch=movil,
-                                    accept_downloads=descargas)
+        movilidad = {"is_mobile": movil} if NAVEGADOR != "firefox" else {}   # Firefox no emula is_mobile
+        ctx = navegador.new_context(viewport={"width": ancho, "height": alto}, has_touch=movil,
+                                    accept_downloads=descargas, **movilidad)
         contextos.append(ctx)
         return Pagina(ctx.new_page(), url or servidor.url)
 
