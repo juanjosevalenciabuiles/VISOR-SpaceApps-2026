@@ -6,6 +6,10 @@ Visor geoespacial que muestra productos de radar SAR **ya procesados** sobre un 
 
 > V.I.S.O.R. muestra **indicios**, no detecciones confirmadas. Los GeoTIFF que vienen en `data/` son **sintéticos de demostración**: no provienen de ningún satélite. El color describe la señal medida, no un nivel de riesgo.
 
+**Para la hackathon:** arquitectura, flujo Sentinel-1 → RTC → análisis → QGIS, limitaciones y
+pendientes en [`docs/hackathon.md`](docs/hackathon.md); qué se hizo, cómo y con qué datos en
+[`docs/registro_de_cambios.md`](docs/registro_de_cambios.md).
+
 ## Guía rápida
 
 **En Replit, el uso diario son dos pasos:**
@@ -291,7 +295,7 @@ Una escena completa a 30 m supera el límite de 16 millones de píxeles: hay que
 - **Speckle:** produce falsos cambios píxel a píxel; el filtro lo reduce a costa de detalle.
 - **Agua permanente:** ríos y ciénagas son oscuros en ambas fechas y no aparecen como cambio.
 - Solo se comparan dos fechas y los umbrales no están calibrados para la zona.
-- El motor se probó con rásteres sintéticos; **aún no se ha ejecutado con las escenas reales**.
+- El motor se valida con rásteres sintéticos de verdad conocida. El equipo lo ejecutó con las escenas reales de Chigorodó (24-sep / 6-oct-2026): sus resultados son **REAL SIN VALIDAR**, sin validación de campo.
 
 ## Estructura
 
@@ -411,7 +415,7 @@ Tareas, estados y roles se gestionan **solo en Notion**.
 
 ## Limitaciones actuales
 
-- En el repositorio solo hay datos SAR sintéticos; el motor de análisis aún no se ha ejecutado con escenas reales y no existe ningún resultado científico todavía.
+- En el repositorio solo hay datos SAR sintéticos. Los productos reales de Chigorodó están en Replit (fuera de Git) y son REAL SIN VALIDAR: indicios de cambio, no un resultado científico validado.
 - Los perfiles de visualización no están calibrados con productos reales.
 - Hidrografía y vías son de escala general; sin quebradas, cuencas ni vías secundarias.
 - Sin capa de precipitación.
