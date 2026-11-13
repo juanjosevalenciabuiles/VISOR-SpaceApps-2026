@@ -120,19 +120,11 @@ sin pruebas o un navegador que no arranca en CI también fallan. Detalles en `do
 - Hidrografía y vías de mayor detalle (IGAC, IDEAM u OpenStreetMap).
 - Deslizamientos (fase InSAR) y deforestación (coherencia): hoy solo existen como demos.
 
-## 8. NISAR (solo arquitectura; nada implementado ni descargado)
+## 8. NISAR (banda L)
 
-NISAR (NASA-ISRO) es un SAR en banda L, que penetra mejor la vegetación que la banda C de
-Sentinel-1. Sentinel-1C **no** es NISAR. Una integración futura cabría sin cambiar el motor:
-
-1. **Adaptador de lectura** (nuevo módulo) que convierta el producto geocodificado de NISAR
-   en una banda de potencia en una cuadrícula proyectada, con la misma descripción que hoy
-   produce `describir_escena` (polarización, fecha, plataforma, escala, NoData).
-2. **Polarizaciones:** el motor ya trabaja por polarización; habría que admitir las de NISAR
-   y revisar la regla de combinación (hoy VV/VH).
-3. **Umbrales y limitaciones propios de la banda L** en `ParametrosCambio` y en las fichas.
-4. **Procedencia:** nueva plataforma en la ficha; el SHA-256 y los cuatro estados no cambian.
-5. **Catálogo:** el buscador de ASF ya consulta un catálogo con parámetros por plataforma.
-
-Formatos, niveles de producto y polarizaciones exactas deben confirmarse con la documentación
-oficial antes de implementar. No se descargará ni procesará NISAR antes de la hackathon.
+Desde el 13-nov-2026 hay una integración en la rama `feature/nisar-gcov` (PR aparte, sin
+fusionar): catálogo de solo metadatos, lector de L2 GCOV, cálculo temporal con el motor común,
+escena única, panel propio en Mission Control y exportación QGIS. Sentinel-1C **no** es NISAR y
+las dos bandas nunca se combinan. Está probada con HDF5 **sintéticos**; **ningún producto real
+de NISAR se ha descargado ni leído**. Estado exacto, escenas reales disponibles sobre Chigorodó
+y límites en [`docs/nisar.md`](nisar.md).

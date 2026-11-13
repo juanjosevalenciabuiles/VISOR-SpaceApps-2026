@@ -8,7 +8,8 @@ Visor geoespacial que muestra productos de radar SAR **ya procesados** sobre un 
 
 **Para la hackathon:** arquitectura, flujo Sentinel-1 → RTC → análisis → QGIS, limitaciones y
 pendientes en [`docs/hackathon.md`](docs/hackathon.md); qué se hizo, cómo y con qué datos en
-[`docs/registro_de_cambios.md`](docs/registro_de_cambios.md).
+[`docs/registro_de_cambios.md`](docs/registro_de_cambios.md); integración NISAR (banda L) y su estado real en
+[`docs/nisar.md`](docs/nisar.md).
 
 ## Guía rápida
 

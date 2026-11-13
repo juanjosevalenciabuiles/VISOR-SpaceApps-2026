@@ -225,3 +225,50 @@ def test_registro_es_json_y_no_afirma_validacion():
     assert reg["pares"][0]["estado"] == "CANDIDATO NO VALIDADO"
     assert reg["candidatos"][0]["sensor"] == "NISAR" and reg["candidatos"][0]["banda"] == "L"
     assert "no se descargó nada" in reg["nota"]
+
+
+# --- nombres REALES del catálogo (CMR, 13-nov-2026, GitHub Actions) ---------------
+
+REALES_CHIGORODO = [
+    "NISAR_L2_PR_GCOV_033_148_A_005_2005_DHDH_M_20261022T104722_20261022T104757_P05036_N_F_J_001",
+    "NISAR_L2_PR_GCOV_033_148_A_005_4005_DHDH_A_20261022T104744_20261022T104757_P05036_N_P_J_001",
+    "NISAR_L2_PR_GCOV_034_011_D_085_4005_DHDH_A_20261024T232837_20261024T232912_P05036_N_F_J_001",
+    "NISAR_L2_PR_GCOV_034_047_A_005_4005_DHDH_A_20261027T103903_20261027T103938_P05036_N_F_J_001",
+    "NISAR_L2_PR_GCOV_034_047_A_006_4005_DHDH_A_20261027T103937_20261027T104011_P05036_N_F_J_001",
+    "NISAR_L2_PR_GCOV_034_112_D_084_2005_SHSH_M_20261031T233623_20261031T233658_P05036_N_F_J_001",
+    "NISAR_L2_PR_GCOV_034_112_D_084_4005_DHDH_A_20261031T233632_20261031T233658_P05036_N_P_J_001",
+    "NISAR_L2_PR_GCOV_034_112_D_085_2005_SHSH_M_20261031T233657_20261031T233731_P05036_N_F_J_001",
+    "NISAR_L2_PR_GCOV_034_112_D_085_4005_DHDH_A_20261031T233657_20261031T233713_P05036_N_P_J_001",
+    "NISAR_L2_PR_GCOV_034_148_A_005_2005_DHDH_M_20261103T104722_20261103T104757_P05036_N_F_J_001",
+    "NISAR_L2_PR_GCOV_034_148_A_005_4005_DHDH_A_20261103T104745_20261103T104757_P05036_N_P_J_001",
+]
+
+
+def test_nombres_reales_de_chigorodo_se_interpretan():
+    nombres = [cat.leer_nombre(n) for n in REALES_CHIGORODO]
+    assert all(n is not None and n.crid == "P05036" for n in nombres)
+    primero = nombres[0]
+    assert (primero.track, primero.frame, primero.direccion, primero.fuente_datos, primero.cobertura) == \
+        (148, 5, "ASCENDING", "M", "F")
+    assert nombres[5].pol_a == ("HH",) and nombres[1].cobertura == "P"
+    assert {n.fuente_datos for n in nombres} == {"A", "M"}
+
+
+def test_pares_de_los_nombres_reales_solo_track_148():
+    """Con las huellas del catálogo (aquí simuladas iguales), los únicos pares posibles son los
+    de track 148 / frame 5: mismo modo y misma fuente de datos, 12 días. Lo demás se bloquea."""
+    candidatos, _ = cat.interpretar({"items": [item(n) for n in REALES_CHIGORODO]}, region())
+    pares, _ = cat.emparejar(candidatos, region())
+    claves = {(p.antes.nombre.track, p.antes.nombre.modo_a, p.antes.nombre.fuente_datos, round(p.dias)) for p in pares}
+    assert claves == {(148, "20", "M", 12), (148, "40", "A", 12)}
+    mixto = next(p for p in pares if p.antes.nombre.fuente_datos == "M")
+    assert any("modos de adquisición mixtos" in a for a in mixto.avisos)
+    parcial = next(p for p in pares if p.antes.nombre.fuente_datos == "A")
+    assert any("cobertura parcial" in a for a in parcial.avisos)
+
+
+def test_modo_unico_y_mixto_no_se_emparejan():
+    a = item(granule("20261024T231500"))
+    b = item(granule("20261105T231500").replace("_DHDH_A_", "_DHDH_M_"))
+    r = cat.buscar(*CHIGORODO, "2026-10-21", "2026-11-13", abrir=servidor({"items": [a, b]}), hoy=HOY)
+    assert r.pares == [] and "modos mixtos" in r.bloqueos[0]

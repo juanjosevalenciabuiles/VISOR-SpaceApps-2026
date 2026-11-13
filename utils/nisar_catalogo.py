@@ -9,8 +9,13 @@ Fuentes (comprobadas el 13-nov-2026):
 - Consulta: el CMR de NASA (`cmr.earthdata.nasa.gov`), como hace `asf_search`;
   rutas UMM-G de cada campo según `asf_search/Products/NISARProduct.py`.
 - Nombre de granule: convención de ISCE3
-  (`nisar/products/writers/BaseWriterSingleInput.py`):
-  NISAR_IL_PT_PROD_CYL_REL_P_FRM_MODE_POLE_S_Inicio_Fin_CRID_A_C_LOC_CTR.
+  (`nisar/products/writers/BaseWriterSingleInput.py`) y del NISAR Cookbook de
+  ASF (`HDF5_intro.md`):
+  NISAR_IL_PT_PROD_CYL_REL_P_FRM_MODE_POLE_S_Inicio_Fin_CRID_A_C_LOC_CTR,
+  con S = A (un solo modo) o M (modos de adquisición mixtos), A = exactitud
+  de órbita y apuntamiento, C = F (frame completo) o P (parcial).
+- Comprobado con el catálogo real el 13-nov-2026 (GitHub Actions): 11 GCOV
+  VALIDATED sobre Chigorodó, con productos S=M y C=P entre ellos.
 - VALIDATED cubre adquisiciones desde el 21-oct-2026 (nisar-docs.asf.alaska.edu).
 
 Consultar el catálogo no requiere credenciales ni descarga nada. Un par que
@@ -56,7 +61,7 @@ CODIGOS_POL = {
 _NOMBRE = re.compile(
     r"NISAR_(?P<nivel>L2)_(?P<configuracion>[A-Z]{2})_(?P<producto>GCOV)_(?P<ciclo>\d{3})_"
     r"(?P<track>\d{3})_(?P<direccion>[AD])_(?P<frame>\d{3})_(?P<modo_a>\d{2})(?P<modo_b>\d{2})_"
-    r"(?P<pol_a>[A-Z]{2})(?P<pol_b>[A-Z]{2})_(?P<fuente>[A-Z])_(?P<inicio>\d{8}T\d{6})_(?P<fin>\d{8}T\d{6})_"
+    r"(?P<pol_a>[A-Z]{2})(?P<pol_b>[A-Z]{2})_(?P<fuente>[AM])_(?P<inicio>\d{8}T\d{6})_(?P<fin>\d{8}T\d{6})_"
     r"(?P<crid>[A-Z]\d{5})_(?P<a>[A-Z])_(?P<c>[A-Z])_(?P<loc>[A-Z])_(?P<contador>\d{3})"
 )
 
@@ -77,18 +82,21 @@ class NombreGCOV:
     fin: datetime
     crid: str
     contador: int
+    fuente_datos: str = "A"     # A = un solo modo de adquisición; M = modos mixtos
+    exactitud: str = ""         # indicador de exactitud de órbita y apuntamiento
+    cobertura: str = ""         # F = frame completo; P = parcial
 
     @property
     def clave_adquisicion(self) -> tuple:
         """Misma toma, distinto procesamiento (CRID o contador)."""
         return (self.track, self.direccion, self.frame, self.modo_a, self.modo_b,
-                self.pol_a, self.pol_b, self.inicio)
+                self.pol_a, self.pol_b, self.fuente_datos, self.inicio)
 
     @property
     def geometria(self) -> tuple:
         """Lo que debe coincidir para que dos fechas se puedan comparar."""
         return (self.track, self.direccion, self.frame, self.modo_a, self.modo_b,
-                self.pol_a, self.pol_b, self.configuracion)
+                self.pol_a, self.pol_b, self.fuente_datos, self.configuracion)
 
 
 def _utc(texto: str) -> datetime:
@@ -105,6 +113,7 @@ def leer_nombre(granule: str) -> NombreGCOV | None:
         direccion="ASCENDING" if m["direccion"] == "A" else "DESCENDING", frame=int(m["frame"]),
         modo_a=m["modo_a"], modo_b=m["modo_b"], pol_a=CODIGOS_POL[m["pol_a"]], pol_b=CODIGOS_POL[m["pol_b"]],
         inicio=_utc(m["inicio"]), fin=_utc(m["fin"]), crid=m["crid"], contador=int(m["contador"]),
+        fuente_datos=m["fuente"], exactitud=m["a"], cobertura=m["c"],
     )
 
 
@@ -194,6 +203,9 @@ class CandidatoGCOV:
             "inicio": n.inicio.isoformat(), "fin": n.fin.isoformat(), "crid": n.crid, "contador": n.contador,
             "frecuencia_A": {"polarizaciones": list(n.pol_a), "ancho_banda_MHz": n.modo_a},
             "frecuencia_B": {"polarizaciones": list(n.pol_b), "ancho_banda_MHz": n.modo_b},
+            "modos_de_adquisicion": "mixtos" if n.fuente_datos == "M" else "uno solo",
+            "frame_nombre": {"cobertura": "parcial" if n.cobertura == "P" else "completa" if n.cobertura == "F" else n.cobertura,
+                      "exactitud_orbita": n.exactitud},
             "cobertura_aoi": round(self.cobertura, 4), "cobertura_frame": self.cobertura_frame,
             "tamano_bytes": self.tamano_bytes, "url_h5": self.url_h5,
             "otras_versiones": self.otras_versiones, "avisos": self.avisos,
@@ -268,6 +280,10 @@ def _candidato(item: dict, region: Region, madurez: str) -> CandidatoGCOV | str:
     url, tamano = _archivo_h5(umm)
     if url is None:
         avisos.append("El catálogo no trae un enlace .h5 de descarga.")
+    if nombre.fuente_datos == "M":
+        avisos.append("Producto de modos de adquisición MIXTOS (S=M): el modo cambia dentro del frame.")
+    if nombre.cobertura == "P":
+        avisos.append("Frame de cobertura PARCIAL (C=P).")
     if madurez == "VALIDATED" and nombre.inicio.date() < INICIO_VALIDATED:
         avisos.append("Fecha anterior al inicio de VALIDATED (21-oct-2026): revisa la madurez.")
     return CandidatoGCOV(nombre=nombre, madurez=madurez, coleccion=COLECCIONES[madurez], huella=huella,
@@ -337,6 +353,8 @@ def evaluar_par(a: CandidatoGCOV, b: CandidatoGCOV, region: Region) -> ParNISAR 
         bloqueos.append(f"modo de ancho de banda distinto ({na.modo_a}{na.modo_b} y {nb.modo_a}{nb.modo_b})")
     if (na.pol_a, na.pol_b) != (nb.pol_a, nb.pol_b):
         bloqueos.append("polarizaciones distintas")
+    if na.fuente_datos != nb.fuente_datos:
+        bloqueos.append("uno es de un solo modo de adquisición y el otro de modos mixtos")
     if na.crid != nb.crid:
         bloqueos.append(f"CRID distinto ({na.crid} y {nb.crid}): versiones de procesamiento diferentes")
     if na.configuracion != nb.configuracion:
@@ -362,6 +380,11 @@ def evaluar_par(a: CandidatoGCOV, b: CandidatoGCOV, region: Region) -> ParNISAR 
         avisos.append(f"El par no cubre toda la región (cubre el {comun:.0%}).")
     if dias > 36:
         avisos.append(f"{dias:.0f} días entre fechas: pueden acumularse cambios ajenos al evento.")
+    if na.fuente_datos == "M":
+        avisos.append("Ambos productos son de modos de adquisición mixtos: comprobar en los HDF5 que el modo "
+                      "es el mismo sobre el área antes de comparar.")
+    if "P" in (na.cobertura, nb.cobertura):
+        avisos.append("Algún frame es de cobertura parcial: la zona común puede ser menor que la huella.")
     motivos = [f"Mismo track {na.track}, frame {na.frame} y dirección {na.direccion.lower()}",
                f"Mismo modo ({na.modo_a}{na.modo_b} MHz), polarizaciones y CRID {na.crid}",
                f"{dias:.0f} días entre fechas"]

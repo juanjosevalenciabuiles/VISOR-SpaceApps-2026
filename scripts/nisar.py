@@ -50,7 +50,8 @@ def _buscar(a) -> int:
         tam = f"{c.tamano_bytes / 1e9:.2f} GB" if c.tamano_bytes else "tamaño desconocido"
         print(f"  {n.inicio:%Y-%m-%d %H:%M} T{n.track:03d} F{n.frame:03d} {n.direccion[:3]} "
               f"A={'/'.join(n.pol_a) or '—'} B={'/'.join(n.pol_b) or '—'} {n.crid} cubre {c.cobertura:.0%} · {tam}")
-        print(f"    {n.granule}")
+        print(f"    {n.granule}" + ("  [modos mixtos]" if n.fuente_datos == "M" else "")
+              + ("  [frame parcial]" if n.cobertura == "P" else ""))
     for p in r.pares:
         print(f"  PAR {p.estado}: {p.antes.nombre.inicio:%Y-%m-%d} → {p.despues.nombre.inicio:%Y-%m-%d} "
               f"({p.dias:.0f} días, cubre {p.cobertura_comun:.0%})")
@@ -59,6 +60,8 @@ def _buscar(a) -> int:
     for av in r.avisos:
         print(f"  AVISO: {av}")
     print(f"Registro: {destino}")
+    if a.volcar:
+        print(json.dumps(registro, ensure_ascii=False))
     return 0
 
 
@@ -104,6 +107,7 @@ def main(argumentos=None) -> int:
     b.add_argument("--fin", default=f"{datetime.now(timezone.utc):%Y-%m-%d}")
     b.add_argument("--madurez", default="VALIDATED", choices=list(nisar_catalogo.COLECCIONES))
     b.add_argument("--max", type=int, default=nisar_catalogo.MAX_RESULTADOS)
+    b.add_argument("--volcar", action="store_true", help="imprimir también el registro JSON completo")
     _bbox(b)
     i = sub.add_parser("inspeccionar", help="metadatos y capas de un HDF5 local (solo lectura)")
     i.add_argument("hdf5", type=Path)
