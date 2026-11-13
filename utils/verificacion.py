@@ -59,6 +59,16 @@ class Informe:
         return self.agregar(id, categoria, descripcion, criterio, nivel,
                             APROBADA if cond else estado_mal, detalle_ok if cond else detalle_mal)
 
+    def protegido(self, id, categoria, descripcion, funcion, *args, **kwargs):
+        """Ejecuta una etapa de la verificación. Una excepción inesperada no se
+        oculta ni detiene el resto: queda como FALLIDA crítica (→ NO APTO)."""
+        try:
+            return funcion(*args, **kwargs)
+        except Exception as e:  # noqa: BLE001 — precisamente: ninguna excepción puede quedar oculta
+            self.agregar(id, categoria, descripcion, "La comprobación se ejecuta sin excepciones", CRITICO,
+                         FALLIDA, f"{type(e).__name__}: {str(e)[:300]}")
+            return None
+
     @property
     def veredicto(self) -> str:
         if any(c.estado == FALLIDA and c.nivel in (CRITICO, IMPORTANTE) for c in self.comprobaciones):
@@ -147,12 +157,11 @@ def diferencias_huellas(antes: dict, despues: dict) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def auditar_resultados(informe: Informe, carpeta: Path, referencia: dict | None) -> None:
-    """Comprobaciones de solo lectura de cada GeoTIFF de resultados y de la referencia de Chigorodó."""
-    from utils import procedencia
+    """Comprobaciones de solo lectura de cada GeoTIFF de resultados y de la referencia de Chigorodó.
+    Cada archivo se audita por separado: si uno provoca una excepción, queda
+    como FALLIDA crítica y los demás se siguen auditando."""
     from utils.auditoria import auditar
-    from utils.combinacion_sar import umbrales_por_polarizacion
-    from utils.qgis import ErrorExportacion, exportar, verificar_paquete
-    from utils.resultados import leer_resultado, listar
+    from utils.resultados import listar
 
     cat = "Datos reales"
     archivos = listar(carpeta)
@@ -164,81 +173,8 @@ def auditar_resultados(informe: Informe, carpeta: Path, referencia: dict | None)
     cuadricula = (referencia or {}).get("cuadricula", {})
     for i, ruta in enumerate(archivos, 1):
         pre = f"DAT-{i:02d}"
-        res = leer_resultado(ruta)
-        informe.si(res.dibujable, f"{pre}a", cat, f"{ruta.name}: se carga y se reconoce su perfil",
-                   "El visor lo puede dibujar", IMPORTANTE, res.nombre if res.dibujable else "",
-                   res.error or "no dibujable",
-                   estado_mal=ADVERTENCIA if res.error and "no reconocido" in res.error else FALLIDA)
-        if not res.dibujable:
-            continue
-        if res.perfil.continuo:
-            _auditar_continuo(informe, pre, ruta, res)
-            continue
-        a = auditar(ruta)
-        e = a["clases"]
-        otros = e.get("pixeles_otros_valores", 0)
-        suma = sum(c["pixeles"] for c in e["clases"].values()) + otros
-        informe.si(suma == e["pixeles_validos"] and a["archivo"]["nodata"] is not None,
-                   f"{pre}b", cat, f"{ruta.name}: clases y NoData coherentes",
-                   "Σ clases = píxeles válidos y NoData declarado", CRITICO,
-                   f"{a['archivo']['crs']} · {a['archivo']['ancho']}×{a['archivo']['alto']} · válidos "
-                   f"{e['pixeles_validos']} · NoData {e['pixeles_sin_dato']}",
-                   f"Σ={suma} vs válidos={e['pixeles_validos']}, NoData={a['archivo']['nodata']}")
-        if otros:
-            informe.agregar(f"{pre}c", cat, f"{ruta.name}: valores fuera del perfil", "0 píxeles", IMPORTANTE,
-                            ADVERTENCIA, f"{otros} píxeles")
-        area = e.get("area_pixel_ha")
-        if area:
-            ok = all(c["area_ha"] is not None and abs(c["area_ha"] - c["pixeles"] * area) < 0.01
-                     for c in e["clases"].values())
-            informe.si(ok, f"{pre}d", cat, f"{ruta.name}: superficies", "ha = píxeles × área del píxel",
-                       CRITICO, f"píxel de {area:.4f} ha", "hectáreas inconsistentes")
-
-        # Procedencia: la ficha, si existe, debe corresponder al archivo.
-        f = a["ficha"]
-        if f.get("presente"):
-            informe.si(f.get("sha256_coincide", False), f"{pre}e", "Procedencia",
-                       f"{ruta.name}: SHA-256 del GeoTIFF = el de su ficha", "Coinciden", CRITICO,
-                       f"estado efectivo {f['estado_efectivo']}",
-                       f"{f.get('motivo')} (estado efectivo {f['estado_efectivo']})")
-        else:
-            informe.agregar(f"{pre}e", "Procedencia", f"{ruta.name}: ficha de procedencia",
-                            "Sin ficha → PROCEDENCIA NO DECLARADA", INFORMATIVO,
-                            APROBADA if f["estado_efectivo"] == procedencia.NO_DECLARADA else FALLIDA,
-                            f"sin ficha · estado {f['estado_efectivo']}")
-
-        # QGIS: paquete en memoria; la fuente no se toca (huella antes = después).
-        antes = procedencia.sha256_archivo(ruta)
-        try:
-            _, zip_bytes = exportar(ruta, res.perfil.clases, res.nombre)
-            problemas = verificar_paquete(zip_bytes, ruta, res.perfil.clases)
-        except ErrorExportacion as err:
-            problemas = [str(err)]
-        problemas += [] if procedencia.sha256_archivo(ruta) == antes else ["la exportación modificó el original"]
-        informe.si(not problemas, f"{pre}f", "QGIS", f"{ruta.name}: paquete QGIS",
-                   "GeoTIFF idéntico, manifiesto y .qml correctos", IMPORTANTE, "correcto", "; ".join(problemas))
-
-        # Referencia verificada por el equipo (si el archivo es uno de los conocidos).
-        esperado = ref.get(ruta.name)
-        if esperado:
-            reales = {k: e["clases"][k]["pixeles"] for k in esperado["clases"]}
-            geom = (a["archivo"]["crs"], a["archivo"]["ancho"], a["archivo"]["alto"], int(a["archivo"]["nodata"]),
-                    e["pixeles_sin_dato"])
-            geom_ref = (cuadricula.get("crs"), cuadricula.get("ancho"), cuadricula.get("alto"),
-                        cuadricula.get("nodata"), cuadricula.get("pixeles_sin_dato"))
-            informe.si(reales == esperado["clases"] and geom == geom_ref, f"{pre}g", "Referencia",
-                       f"{ruta.name}: igual a lo verificado el 12-nov", "Clases, CRS, tamaño y NoData sin cambios",
-                       IMPORTANTE, "sin cambios",
-                       f"esperado {esperado['clases']} {geom_ref}, encontrado {reales} {geom}", estado_mal=ADVERTENCIA)
-            informe.si(f["estado_efectivo"] == esperado["procedencia"], f"{pre}h", "Procedencia",
-                       f"{ruta.name}: estado de procedencia esperado", esperado["procedencia"], IMPORTANTE,
-                       f["estado_efectivo"], f"encontrado {f['estado_efectivo']}: {f.get('motivo')}",
-                       estado_mal=ADVERTENCIA)
-            if "umbrales_db" in esperado:
-                umbrales = umbrales_por_polarizacion(res.ficha)
-                informe.si(umbrales == esperado["umbrales_db"], f"{pre}i", "Procedencia",
-                           f"{ruta.name}: umbrales declarados en la ficha", str(esperado["umbrales_db"]),
-                           IMPORTANTE, str(umbrales), f"encontrado {umbrales}", estado_mal=ADVERTENCIA)
+        informe.protegido(f"{pre}x", cat, f"{ruta.name}: auditoría completa", _auditar_archivo,
+                          informe, pre, ruta, ref, cuadricula)
 
     comp = (referencia or {}).get("comparacion")
     if comp:
@@ -257,6 +193,92 @@ def auditar_resultados(informe: Informe, carpeta: Path, referencia: dict | None)
             informe.agregar("DAT-CMP", "Referencia", "Diferencia documentada entre los dos productos VV/VH",
                             f"{comp['pixeles_distintos']} píxeles distintos", INFORMATIVO, OMITIDA,
                             "Falta alguno de los dos archivos en data/analisis/")
+
+
+
+def _auditar_archivo(informe: Informe, pre: str, ruta: Path, ref: dict, cuadricula: dict) -> None:
+    from utils import procedencia
+    from utils.auditoria import auditar
+    from utils.combinacion_sar import umbrales_por_polarizacion
+    from utils.qgis import ErrorExportacion, exportar, verificar_paquete
+    from utils.resultados import leer_resultado
+
+    cat = "Datos reales"
+    res = leer_resultado(ruta)
+    informe.si(res.dibujable, f"{pre}a", cat, f"{ruta.name}: se carga y se reconoce su perfil",
+               "El visor lo puede dibujar", IMPORTANTE, res.nombre if res.dibujable else "",
+               res.error or "no dibujable",
+               estado_mal=ADVERTENCIA if res.error and "no reconocido" in res.error else FALLIDA)
+    if not res.dibujable:
+        return
+    if res.perfil.continuo:
+        _auditar_continuo(informe, pre, ruta, res)
+        return
+    a = auditar(ruta)
+    e = a["clases"]
+    otros = e.get("pixeles_otros_valores", 0)
+    suma = sum(c["pixeles"] for c in e["clases"].values()) + otros
+    informe.si(suma == e["pixeles_validos"] and a["archivo"]["nodata"] is not None,
+               f"{pre}b", cat, f"{ruta.name}: clases y NoData coherentes",
+               "Σ clases = píxeles válidos y NoData declarado", CRITICO,
+               f"{a['archivo']['crs']} · {a['archivo']['ancho']}×{a['archivo']['alto']} · válidos "
+               f"{e['pixeles_validos']} · NoData {e['pixeles_sin_dato']}",
+               f"Σ={suma} vs válidos={e['pixeles_validos']}, NoData={a['archivo']['nodata']}")
+    if otros:
+        informe.agregar(f"{pre}c", cat, f"{ruta.name}: valores fuera del perfil", "0 píxeles", IMPORTANTE,
+                        ADVERTENCIA, f"{otros} píxeles")
+    area = e.get("area_pixel_ha")
+    if area:
+        ok = all(c["area_ha"] is not None and abs(c["area_ha"] - c["pixeles"] * area) < 0.01
+                 for c in e["clases"].values())
+        informe.si(ok, f"{pre}d", cat, f"{ruta.name}: superficies", "ha = píxeles × área del píxel",
+                   CRITICO, f"píxel de {area:.4f} ha", "hectáreas inconsistentes")
+
+    # Procedencia: la ficha, si existe, debe corresponder al archivo.
+    f = a["ficha"]
+    if f.get("presente"):
+        informe.si(f.get("sha256_coincide", False), f"{pre}e", "Procedencia",
+                   f"{ruta.name}: SHA-256 del GeoTIFF = el de su ficha", "Coinciden", CRITICO,
+                   f"estado efectivo {f['estado_efectivo']}",
+                   f"{f.get('motivo')} (estado efectivo {f['estado_efectivo']})")
+    else:
+        informe.agregar(f"{pre}e", "Procedencia", f"{ruta.name}: ficha de procedencia",
+                        "Sin ficha → PROCEDENCIA NO DECLARADA", INFORMATIVO,
+                        APROBADA if f["estado_efectivo"] == procedencia.NO_DECLARADA else FALLIDA,
+                        f"sin ficha · estado {f['estado_efectivo']}")
+
+    # QGIS: paquete en memoria; la fuente no se toca (huella antes = después).
+    antes = procedencia.sha256_archivo(ruta)
+    try:
+        _, zip_bytes = exportar(ruta, res.perfil.clases, res.nombre)
+        problemas = verificar_paquete(zip_bytes, ruta, res.perfil.clases)
+    except ErrorExportacion as err:
+        problemas = [str(err)]
+    problemas += [] if procedencia.sha256_archivo(ruta) == antes else ["la exportación modificó el original"]
+    informe.si(not problemas, f"{pre}f", "QGIS", f"{ruta.name}: paquete QGIS",
+               "GeoTIFF idéntico, manifiesto y .qml correctos", IMPORTANTE, "correcto", "; ".join(problemas))
+
+    # Referencia verificada por el equipo (si el archivo es uno de los conocidos).
+    esperado = ref.get(ruta.name)
+    if esperado:
+        reales = {k: e["clases"][k]["pixeles"] for k in esperado["clases"]}
+        geom = (a["archivo"]["crs"], a["archivo"]["ancho"], a["archivo"]["alto"], int(a["archivo"]["nodata"]),
+                e["pixeles_sin_dato"])
+        geom_ref = (cuadricula.get("crs"), cuadricula.get("ancho"), cuadricula.get("alto"),
+                    cuadricula.get("nodata"), cuadricula.get("pixeles_sin_dato"))
+        informe.si(reales == esperado["clases"] and geom == geom_ref, f"{pre}g", "Referencia",
+                   f"{ruta.name}: igual a lo verificado el 12-nov", "Clases, CRS, tamaño y NoData sin cambios",
+                   IMPORTANTE, "sin cambios",
+                   f"esperado {esperado['clases']} {geom_ref}, encontrado {reales} {geom}", estado_mal=ADVERTENCIA)
+        informe.si(f["estado_efectivo"] == esperado["procedencia"], f"{pre}h", "Procedencia",
+                   f"{ruta.name}: estado de procedencia esperado", esperado["procedencia"], IMPORTANTE,
+                   f["estado_efectivo"], f"encontrado {f['estado_efectivo']}: {f.get('motivo')}",
+                   estado_mal=ADVERTENCIA)
+        if "umbrales_db" in esperado:
+            umbrales = umbrales_por_polarizacion(res.ficha)
+            informe.si(umbrales == esperado["umbrales_db"], f"{pre}i", "Procedencia",
+                       f"{ruta.name}: umbrales declarados en la ficha", str(esperado["umbrales_db"]),
+                       IMPORTANTE, str(umbrales), f"encontrado {umbrales}", estado_mal=ADVERTENCIA)
 
 
 def _auditar_continuo(informe: Informe, pre: str, ruta: Path, res) -> None:

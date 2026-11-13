@@ -131,3 +131,56 @@ def test_verificador_completo_no_modifica_datos(tmp_path):
     assert v.ADVERTENCIA in {c["estado"] for c in informe["comprobaciones"] if c["id"].endswith("g")}
     assert informe["veredicto"] in (v.APTO_ADVERTENCIAS, v.NO_APTO)
     assert (salida / next(salida.glob("*.md")).name).read_text(encoding="utf-8").startswith("# Informe")
+
+
+# ---------------------------------------------------------------------------
+# Ningún error puede quedar oculto
+# ---------------------------------------------------------------------------
+
+def test_una_excepcion_inesperada_es_fallo_critico():
+    inf = v.Informe()
+
+    def rota():
+        raise KeyError("campo_que_no_existe")
+    assert inf.protegido("X-01", "x", "etapa rota", rota) is None
+    c = inf.comprobaciones[-1]
+    assert (c.estado, c.nivel) == (v.FALLIDA, v.CRITICO) and "KeyError" in c.detalle
+    assert inf.veredicto == v.NO_APTO
+    assert inf.protegido("X-02", "x", "etapa sana", lambda: 7) == 7 and len(inf.comprobaciones) == 1
+
+
+def test_un_archivo_que_rompe_la_auditoria_no_oculta_los_demas(tmp_path, monkeypatch):
+    from utils import resultados
+    analisis = datos_sinteticos(tmp_path)
+    original = resultados.leer_resultado
+
+    def falla_con_uno(ruta, *a, **k):
+        if ruta.name == "coincidencia_VV_VH_Chigorodo.tif":
+            raise RuntimeError("fallo simulado")
+        return original(ruta, *a, **k)
+    monkeypatch.setattr(resultados, "leer_resultado", falla_con_uno)
+    inf = v.Informe()
+    v.auditar_resultados(inf, analisis, None)
+    e = estados(inf)
+    fallidas = [c for c in inf.comprobaciones if c.estado == v.FALLIDA]
+    assert any("RuntimeError" in c.detalle and "Chigorodo" in c.descripcion for c in fallidas)
+    assert any(k.endswith("e") and e[k] == v.APROBADA for k in e), "el otro archivo se auditó igual"
+    assert inf.veredicto == v.NO_APTO
+
+
+def test_geotiff_danado_en_resultados_es_no_apto(tmp_path):
+    analisis = datos_sinteticos(tmp_path)
+    (analisis / "cambio_VV_20260924_20261006_mascara.tif").write_bytes(b"II*\x00no es un raster")
+    inf = v.Informe()
+    v.auditar_resultados(inf, analisis, None)
+    assert inf.veredicto == v.NO_APTO
+    assert any(c.estado == v.FALLIDA and "cambio_VV" in c.descripcion for c in inf.comprobaciones)
+
+
+def test_cero_pruebas_recogidas_es_fallo_no_omision():
+    sys.path.insert(0, str(RAIZ / "scripts"))
+    import verificar_visor
+    inf = v.Informe()
+    verificar_visor.pytest_(inf, "PYT-T", "batería vacía", "marca_que_no_existe_en_ninguna_prueba", v.CRITICO, 300)
+    c = inf.comprobaciones[-1]
+    assert c.estado == v.FALLIDA and inf.veredicto == v.NO_APTO

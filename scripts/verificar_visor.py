@@ -137,8 +137,9 @@ def pytest_(inf: Informe, id_: str, descripcion: str, marcas: str, nivel: str, t
             return None
         d = _junit(junit)
     if d["pruebas"] == 0:
-        inf.agregar(id_, "Pruebas", descripcion, "0 fallidas", nivel, FALLIDA if r.returncode not in (0, 5) else OMITIDA,
-                    (r.stdout + r.stderr)[-400:] or "no se recogieron pruebas")
+        # Estas baterías nunca están vacías: 0 pruebas (o un junit ilegible) es un fallo, no una omisión.
+        inf.agregar(id_, "Pruebas", descripcion, "0 fallidas y al menos una prueba ejecutada", nivel, FALLIDA,
+                    (r.stdout + r.stderr)[-400:] or "no se recogió ninguna prueba")
         return d
     ok = r.returncode == 0 and not d["fallidas"]
     aprobadas = d["pruebas"] - len(d["fallidas"]) - len(d["omitidas"])
@@ -254,13 +255,13 @@ def main(argumentos=None) -> int:
     antes = huellas(DATA_DIR)
     print(f"Verificando V.I.S.O.R. ({len(antes)} archivos en {DATA_DIR}, solo lectura)…", flush=True)
 
-    entorno(inf)
-    estado_git(inf)
+    inf.protegido("ENT-X", "Entorno", "Comprobación del entorno", entorno, inf)
+    inf.protegido("GIT-X", "Git", "Estado de Git", estado_git, inf)
     if not a.sin_pytest:
         print("· pytest (unidad e integración)…", flush=True)
-        pytest_(inf, "PYT-01", "pytest: unidad e integración (sin navegador ni red)", "not navegador and not red",
-                CRITICO, 1800)
-        ruff(inf)
+        inf.protegido("PYT-X", "Pruebas", "pytest: unidad e integración", pytest_, inf, "PYT-01",
+                      "pytest: unidad e integración (sin navegador ni red)", "not navegador and not red", CRITICO, 1800)
+        inf.protegido("LNT-X", "Calidad", "ruff", ruff, inf)
     if a.sin_navegador:
         inf.agregar("E2E-01", "Navegador", "Mission Control en Chromium (Playwright)", "0 fallidas", CRITICO,
                     OMITIDA, "desactivado con --sin-navegador")
@@ -271,16 +272,18 @@ def main(argumentos=None) -> int:
                         FALLIDA if a.navegador else OMITIDA, motivo + ". GitHub Actions las ejecuta en cada push.")
         else:
             print("· navegador (Playwright)…", flush=True)
-            pytest_(inf, "E2E-01", "Mission Control en Chromium (Playwright)", "navegador", CRITICO, 2400)
+            inf.protegido("E2E-X", "Navegador", "Mission Control en Chromium", pytest_, inf, "E2E-01",
+                          "Mission Control en Chromium (Playwright)", "navegador", CRITICO, 2400)
     if a.red:
         print("· consulta real a ASF…", flush=True)
-        asf_real(inf)
+        inf.protegido("RED-X", "ASF", "Consulta real a ASF", asf_real, inf)
     print("· aplicación con los datos reales…", flush=True)
-    app_real(inf)
+    inf.protegido("APP-X", "Aplicación", "Arranque con los datos reales", app_real, inf)
     print("· datos reales…", flush=True)
     referencia = leer_referencia(RAIZ / "tests" / "datos" / "referencia_chigorodo.json")
-    auditar_resultados(inf, DATA_DIR / "analisis", None if a.ci else referencia)
-    rtc_locales(inf)
+    inf.protegido("DAT-X", "Datos reales", "Auditoría de data/analisis/", auditar_resultados,
+                  inf, DATA_DIR / "analisis", None if a.ci else referencia)
+    inf.protegido("SAR-X", "Datos reales", "RTC en data/sar/", rtc_locales, inf)
 
     cambios = diferencias_huellas(antes, huellas(DATA_DIR))
     inf.si(not cambios, "DAT-RO", "Datos reales", "Ningún archivo de data/ cambió durante la verificación",
