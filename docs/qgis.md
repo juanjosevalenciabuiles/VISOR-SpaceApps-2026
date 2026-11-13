@@ -35,6 +35,25 @@ Desde la Shell: `.venv/bin/python scripts/exportar_qgis.py data/analisis/<archiv
 5. No guardar encima del `.tif`: cambiaría su SHA-256 y la ficha dejaría de valer.
 6. Guardar el proyecto `.qgz` con rutas relativas y anotar las versiones de QGIS y GDAL.
 
+## 2b. Lista de comprobación manual en QGIS Desktop
+
+Lo automático verifica el paquete (SHA-256, estructura del `.qml`, CRS y NoData leídos con
+GDAL); **no** puede abrir QGIS. Antes de una demostración, una persona del equipo marca:
+
+| # | Comprobación | Máscara (`coincidencia_…`, `…_mascara`) | Diferencia en dB (`…_dif_db`) |
+| --- | --- | --- | --- |
+| Q1 | El estilo se aplica solo al arrastrar el `.tif` | Paleta de valores únicos | Pseudocolor, rampa azul–gris–rojo (azul = disminuye) |
+| Q2 | Propiedades → Información: CRS y tamaño de píxel | EPSG del UTM, ~30 m | Igual que la máscara del mismo par |
+| Q3 | NoData transparente | 255 | −9999 |
+| Q4 | Clases sin cambio invisibles | 0 con alfa 0 | Δ≈0 casi transparente |
+| Q5 | Identificar un píxel coincide con la ficha | Clase 1–3 y su etiqueta | Valor en dB con signo (negativo = disminuye) |
+| Q6 | Rango de la leyenda | — | ±10 dB, centrado en 0 |
+| Q7 | Nombres sin errores al descomprimir en Windows | ✔ | ✔ |
+| Q8 | `manifiesto.json` coincide (`Get-FileHash` en Windows, `sha256sum` en Linux/macOS) | ✔ | ✔ |
+
+Registrar versión de QGIS, de GDAL y sistema operativo. Un fallo en Q1–Q5 bloquea el uso
+del paquete en la demostración.
+
 ## 3. Auditoría numérica (complemento de la revisión visual)
 
 ```bash

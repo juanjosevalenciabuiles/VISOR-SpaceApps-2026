@@ -1,6 +1,7 @@
 """Interoperabilidad con QGIS y auditoría de GeoTIFF (rásteres sintéticos aislados)."""
 import io
 import json
+import re
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -206,3 +207,15 @@ def test_verificar_paquete_detecta_manipulaciones(tmp_path):
     assert any("Paleta" in p or "manifiesto" in p for p in qml)
     assert any("Falta el .qml" in p for p in rehacer(lambda a: a.pop(f"{base}.qml")))
     assert qgis.verificar_paquete(b"no es zip", ruta, CLASES_COINCIDENCIA) == ["El paquete no es un ZIP válido."]
+
+
+@pytest.mark.parametrize("entrada, esperado", [
+    ("coincidencia VV/VH · Chigorodó", "coincidencia_VV_VH_Chigorod"),
+    ("CON", "resultado_CON"), ("com1.tif", "resultado_com1.tif"), ("nul", "resultado_nul"),
+    ("...", "resultado"), ("a" * 79 + ".b", "a" * 79),
+])
+def test_nombres_validos_en_windows(entrada, esperado):
+    nombre = qgis.nombre_seguro(entrada)
+    assert nombre == esperado
+    assert len(nombre) <= 80 and not nombre.endswith((".", " "))
+    assert re.fullmatch(r"[A-Za-z0-9._-]+", nombre)

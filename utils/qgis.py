@@ -37,10 +37,17 @@ class ErrorExportacion(Exception):
     """Mensaje legible para la interfaz."""
 
 
+_RESERVADOS_WINDOWS = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)),
+                       *(f"LPT{i}" for i in range(1, 10))}
+
+
 def nombre_seguro(texto: str) -> str:
-    """Nombre válido en Windows, Linux y macOS (sin tildes ni caracteres reservados)."""
-    limpio = re.sub(r"[^A-Za-z0-9._-]+", "_", texto).strip("._")
-    return (limpio or "resultado")[:80]
+    """Nombre válido en Windows, Linux y macOS (sin tildes, caracteres ni nombres
+    reservados como CON o COM1, que Windows no permite ni con extensión)."""
+    limpio = re.sub(r"[^A-Za-z0-9._-]+", "_", texto).strip("._")[:80].rstrip("._")
+    if limpio.split(".")[0].upper() in _RESERVADOS_WINDOWS:
+        limpio = f"resultado_{limpio}"
+    return limpio or "resultado"
 
 
 def estilo_qml(clases, nodata: int | None = NODATA) -> str:
