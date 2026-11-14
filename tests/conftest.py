@@ -18,3 +18,5 @@ os.environ.setdefault("VISOR_TRABAJOS_DIR", tempfile.mkdtemp(prefix="visor_traba
 os.environ.setdefault("VISOR_TRABAJOS_SINCRONOS", "1")
 os.environ.setdefault("VISOR_DIAGNOSTICO", "desactivado")
 os.environ.setdefault("VISOR_REGION_MODE", "GLOBAL")
+os.environ.setdefault("VISOR_SENSOR_DEFECTO", "SENTINEL")
+os.environ.setdefault("VISOR_FENOMENOS_LEGACY", "1")
