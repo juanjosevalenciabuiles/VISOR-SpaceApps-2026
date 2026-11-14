@@ -29,8 +29,11 @@ historia completa está en `git log`.
 | `coincidencia_VV_VH_Chigorodo.tif` | Script exploratorio del equipo | Resultado exploratorio | Procedencia no declarada; difiere en 15.860 px del reproducible (umbral VV) |
 | Hidrografía y vías | Natural Earth 1:10m v5.1.2, dominio público | Contexto cartográfico | Escala general |
 | `inundacion.tif`, `deslizamiento.tif`, `deforestacion.tif` | Sintéticos | Demostración de la interfaz | Marcados DEMO |
+| Catálogo NISAR L2 GCOV VALIDATED | CMR de NASA / ASF, consulta real del 13-nov-2026 (solo metadatos) | Saber qué escenas de banda L existen sobre Chigorodó | 11 productos, 2 pares candidatos no validados (~41 % del área) |
+| HDF5 GCOV sintéticos | `tests/nisar_sintetico.py` | Probar el lector y el cálculo NISAR | Inventados; marcados DEMO |
+| GCOV de prueba de ISCE3 | Repositorio de ISCE3 (datos UAVSAR) | Comprobar la estructura que escribe el procesador oficial | No es NISAR; no se redistribuye |
 
-No se ha descargado ni procesado NISAR. No se han enviado trabajos a HyP3 desde la app.
+NISAR: solo se ha consultado el catálogo (metadatos). No se ha descargado ni procesado ningún producto real. No se han enviado trabajos a HyP3 desde la app.
 
 ## Cronología
 
@@ -97,6 +100,31 @@ Comprobado con los cuatro RTC reales de Chigorodó (24-sep y 6-oct-2026, VV/VH),
 Sigue sin comprobar con datos auténticos: cruce SAR × JRC (REG-01), lector NISAR GCOV y cualquier
 municipio distinto de Chigorodó. Son indicios de cambio de retrodispersión, no inundaciones
 confirmadas; no hay validación independiente.
+### 13-nov-2026 · Integración NISAR (rama `feature/nisar-gcov`)
+
+El equipo autorizó empezar NISAR antes de la hackathon y entregó un prototipo independiente
+(`VISOR_NISAR_inicio_2026-11-13.zip`, 5 pruebas sintéticas). Se revisó contra la documentación
+de ASF y el código de ISCE3 y se adaptó al repositorio real.
+
+| Commit | Fase | Cambio |
+| --- | --- | --- |
+| `a4d38a0` | N1 | Catálogo NISAR GCOV de solo metadatos (CMR), separado de Sentinel-1; pares «CANDIDATO NO VALIDADO» |
+| `643fd24` | N2 | Lector GCOV: solo términos diagonales, ventana del área, GeoTIFF gamma0 en potencia con ficha y SHA-256 |
+| `12e4000` | N3 | Motor: sensores y bandas no se mezclan; umbrales experimentales obligatorios en banda L; escena única |
+| `04099b6` | N4 | Panel NISAR en Mission Control; perfil y escala propios; QGIS |
+| `a6b09f3` | N5 | Descarga confirmada a mano, verificador NISAR, CI con GCOV de ISCE3 y catálogo real informativo |
+
+Cambios respecto al prototipo: la regularidad de la cuadrícula se mide relativa al paso (la
+tolerancia absoluta no detectaba saltos en grados); la máscara descarta 0 además de 255; no se
+añade `asf_search` (se consulta el CMR directamente); la madurez no se supone; los productos
+que no son de la misión quedan DEMO.
+
+Resultado real del catálogo (13-nov, 14:28 UTC): 11 GCOV VALIDATED sobre Chigorodó; dos pares
+candidatos del track 148 / frame 5 (22-oct → 3-nov) que cubren ~41 % del área; la escena de
+mayor cobertura (94 %, track 112) no tiene segunda fecha. Detalle en `docs/nisar.md`.
+
+Regla de la competencia sobre trabajo previo al evento: sigue **sin respuesta escrita** del
+organizador.
 
 ## Cómo añadir una entrada
 

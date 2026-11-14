@@ -25,7 +25,7 @@ from utils.capas_contexto import CAPAS_CONTEXTO, cargar_contexto
 from utils.config import MAPA_CENTRO, MAPA_ZOOM, Fenomeno
 from utils.geotiff import Capa, a_web_mercator, colorizar_capa, colorizar_categorico
 from utils.mapas_base import MapaBase, obtener, url_teselas
-from utils.diferencia_db import colorizar_diferencia
+from utils.diferencia_db import colorizar_diferencia, escala_de
 from utils.resultados import ResultadoSAR, _firma
 
 
@@ -108,7 +108,7 @@ def imagen_resultado(ruta: str, firma: tuple, perfil: str, _res: ResultadoSAR) -
     repetía en cada recarga; ahora solo cambia si cambia el archivo o su ficha (`firma`)."""
     from folium.utilities import image_to_url
     oeste, sur, este, norte = _res.capa.limites
-    rgba = (colorizar_diferencia(_res.capa.datos) if _res.perfil.continuo
+    rgba = (colorizar_diferencia(_res.capa.datos, escala_de(_res.perfil.clave)) if _res.perfil.continuo
             else colorizar_categorico(_res.capa.datos, _res.perfil.clases))
     return image_to_url(a_web_mercator(rgba, sur, norte))
 

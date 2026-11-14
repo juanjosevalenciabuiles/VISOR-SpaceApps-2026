@@ -9,4 +9,6 @@ numpy~=2.5.4
 geopandas~=1.2.0
 # Usada directamente (buscador, geometrías); ~=2.1 equivale a >=2.1,<3: lo instalado por geopandas ya cumple.
 shapely~=2.1
+# Lectura de NISAR L2 GCOV (HDF5). 3.16.0 comprobada con numpy 2.5.4 y Python 3.12 (trae su propio HDF5).
+h5py~=3.16.0
 pytest~=9.2.0

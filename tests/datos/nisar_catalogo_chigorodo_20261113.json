@@ -1,0 +1,508 @@
+{
+ "consulta": {
+  "url": "https://cmr.earthdata.nasa.gov/search/granules.umm_json?short_name=NISAR_L2_GCOV_V1&provider=ASF&bounding_box=-76.800000%2C7.550000%2C-76.550000%2C7.800000&temporal=2026-10-21T00%3A00%3A00Z%2C2026-11-13T23%3A59%3A59Z&page_size=200&sort_key%5B%5D=start_date",
+  "madurez": "VALIDATED",
+  "coleccion": "NISAR_L2_GCOV_V1",
+  "region": [
+   -76.8,
+   7.55,
+   -76.55,
+   7.8
+  ],
+  "inicio": "2026-10-21",
+  "fin": "2026-11-13",
+  "fecha_consulta_utc": "2026-11-13T14:44:07+00:00"
+ },
+ "total_catalogo": 11,
+ "candidatos": [
+  {
+   "granule": "NISAR_L2_PR_GCOV_033_148_A_005_2005_DHDH_M_20261022T104722_20261022T104757_P05036_N_F_J_001",
+   "sensor": "NISAR",
+   "banda": "L",
+   "madurez": "VALIDATED",
+   "track": 148,
+   "frame": 5,
+   "direccion": "ASCENDING",
+   "ciclo": 33,
+   "inicio": "2026-10-22T10:47:22+00:00",
+   "fin": "2026-10-22T10:47:57+00:00",
+   "crid": "P05036",
+   "contador": 1,
+   "frecuencia_A": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "20"
+   },
+   "frecuencia_B": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "05"
+   },
+   "modos_de_adquisicion": "mixtos",
+   "frame_nombre": {
+    "cobertura": "completa",
+    "exactitud_orbita": "N"
+   },
+   "cobertura_aoi": 0.4053,
+   "cobertura_frame": "TRUE",
+   "tamano_bytes": 1644167168,
+   "url_h5": "https://nisar.asf.earthdatacloud.nasa.gov/NISAR/NISAR_L2_GCOV_V1/NISAR_L2_PR_GCOV_033_148_A_005_2005_DHDH_M_20261022T104722_20261022T104757_P05036_N_F_J_001/NISAR_L2_PR_GCOV_033_148_A_005_2005_DHDH_M_20261022T104722_20261022T104757_P05036_N_F_J_001.h5",
+   "otras_versiones": [],
+   "avisos": [
+    "Producto de modos de adquisición MIXTOS (S=M): el modo cambia dentro del frame."
+   ]
+  },
+  {
+   "granule": "NISAR_L2_PR_GCOV_033_148_A_005_4005_DHDH_A_20261022T104744_20261022T104757_P05036_N_P_J_001",
+   "sensor": "NISAR",
+   "banda": "L",
+   "madurez": "VALIDATED",
+   "track": 148,
+   "frame": 5,
+   "direccion": "ASCENDING",
+   "ciclo": 33,
+   "inicio": "2026-10-22T10:47:44+00:00",
+   "fin": "2026-10-22T10:47:57+00:00",
+   "crid": "P05036",
+   "contador": 1,
+   "frecuencia_A": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "40"
+   },
+   "frecuencia_B": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "05"
+   },
+   "modos_de_adquisicion": "uno solo",
+   "frame_nombre": {
+    "cobertura": "parcial",
+    "exactitud_orbita": "N"
+   },
+   "cobertura_aoi": 0.416,
+   "cobertura_frame": "FALSE",
+   "tamano_bytes": 2449473536,
+   "url_h5": "https://nisar.asf.earthdatacloud.nasa.gov/NISAR/NISAR_L2_GCOV_V1/NISAR_L2_PR_GCOV_033_148_A_005_4005_DHDH_A_20261022T104744_20261022T104757_P05036_N_P_J_001/NISAR_L2_PR_GCOV_033_148_A_005_4005_DHDH_A_20261022T104744_20261022T104757_P05036_N_P_J_001.h5",
+   "otras_versiones": [],
+   "avisos": [
+    "Frame de cobertura PARCIAL (C=P)."
+   ]
+  },
+  {
+   "granule": "NISAR_L2_PR_GCOV_034_011_D_085_4005_DHDH_A_20261024T232837_20261024T232912_P05036_N_F_J_001",
+   "sensor": "NISAR",
+   "banda": "L",
+   "madurez": "VALIDATED",
+   "track": 11,
+   "frame": 85,
+   "direccion": "DESCENDING",
+   "ciclo": 34,
+   "inicio": "2026-10-24T23:28:37+00:00",
+   "fin": "2026-10-24T23:29:12+00:00",
+   "crid": "P05036",
+   "contador": 1,
+   "frecuencia_A": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "40"
+   },
+   "frecuencia_B": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "05"
+   },
+   "modos_de_adquisicion": "uno solo",
+   "frame_nombre": {
+    "cobertura": "completa",
+    "exactitud_orbita": "N"
+   },
+   "cobertura_aoi": 0.5818,
+   "cobertura_frame": "TRUE",
+   "tamano_bytes": 7344226304,
+   "url_h5": "https://nisar.asf.earthdatacloud.nasa.gov/NISAR/NISAR_L2_GCOV_V1/NISAR_L2_PR_GCOV_034_011_D_085_4005_DHDH_A_20261024T232837_20261024T232912_P05036_N_F_J_001/NISAR_L2_PR_GCOV_034_011_D_085_4005_DHDH_A_20261024T232837_20261024T232912_P05036_N_F_J_001.h5",
+   "otras_versiones": [],
+   "avisos": []
+  },
+  {
+   "granule": "NISAR_L2_PR_GCOV_034_047_A_005_4005_DHDH_A_20261027T103903_20261027T103938_P05036_N_F_J_001",
+   "sensor": "NISAR",
+   "banda": "L",
+   "madurez": "VALIDATED",
+   "track": 47,
+   "frame": 5,
+   "direccion": "ASCENDING",
+   "ciclo": 34,
+   "inicio": "2026-10-27T10:39:03+00:00",
+   "fin": "2026-10-27T10:39:38+00:00",
+   "crid": "P05036",
+   "contador": 1,
+   "frecuencia_A": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "40"
+   },
+   "frecuencia_B": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "05"
+   },
+   "modos_de_adquisicion": "uno solo",
+   "frame_nombre": {
+    "cobertura": "completa",
+    "exactitud_orbita": "N"
+   },
+   "cobertura_aoi": 0.6948,
+   "cobertura_frame": "TRUE",
+   "tamano_bytes": 7289700352,
+   "url_h5": "https://nisar.asf.earthdatacloud.nasa.gov/NISAR/NISAR_L2_GCOV_V1/NISAR_L2_PR_GCOV_034_047_A_005_4005_DHDH_A_20261027T103903_20261027T103938_P05036_N_F_J_001/NISAR_L2_PR_GCOV_034_047_A_005_4005_DHDH_A_20261027T103903_20261027T103938_P05036_N_F_J_001.h5",
+   "otras_versiones": [],
+   "avisos": []
+  },
+  {
+   "granule": "NISAR_L2_PR_GCOV_034_047_A_006_4005_DHDH_A_20261027T103937_20261027T104011_P05036_N_F_J_001",
+   "sensor": "NISAR",
+   "banda": "L",
+   "madurez": "VALIDATED",
+   "track": 47,
+   "frame": 6,
+   "direccion": "ASCENDING",
+   "ciclo": 34,
+   "inicio": "2026-10-27T10:39:37+00:00",
+   "fin": "2026-10-27T10:40:11+00:00",
+   "crid": "P05036",
+   "contador": 1,
+   "frecuencia_A": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "40"
+   },
+   "frecuencia_B": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "05"
+   },
+   "modos_de_adquisicion": "uno solo",
+   "frame_nombre": {
+    "cobertura": "completa",
+    "exactitud_orbita": "N"
+   },
+   "cobertura_aoi": 0.8063,
+   "cobertura_frame": "TRUE",
+   "tamano_bytes": 5742002176,
+   "url_h5": "https://nisar.asf.earthdatacloud.nasa.gov/NISAR/NISAR_L2_GCOV_V1/NISAR_L2_PR_GCOV_034_047_A_006_4005_DHDH_A_20261027T103937_20261027T104011_P05036_N_F_J_001/NISAR_L2_PR_GCOV_034_047_A_006_4005_DHDH_A_20261027T103937_20261027T104011_P05036_N_F_J_001.h5",
+   "otras_versiones": [],
+   "avisos": []
+  },
+  {
+   "granule": "NISAR_L2_PR_GCOV_034_112_D_084_2005_SHSH_M_20261031T233623_20261031T233658_P05036_N_F_J_001",
+   "sensor": "NISAR",
+   "banda": "L",
+   "madurez": "VALIDATED",
+   "track": 112,
+   "frame": 84,
+   "direccion": "DESCENDING",
+   "ciclo": 34,
+   "inicio": "2026-10-31T23:36:23+00:00",
+   "fin": "2026-10-31T23:36:58+00:00",
+   "crid": "P05036",
+   "contador": 1,
+   "frecuencia_A": {
+    "polarizaciones": [
+     "HH"
+    ],
+    "ancho_banda_MHz": "20"
+   },
+   "frecuencia_B": {
+    "polarizaciones": [
+     "HH"
+    ],
+    "ancho_banda_MHz": "05"
+   },
+   "modos_de_adquisicion": "mixtos",
+   "frame_nombre": {
+    "cobertura": "completa",
+    "exactitud_orbita": "N"
+   },
+   "cobertura_aoi": 0.5523,
+   "cobertura_frame": "TRUE",
+   "tamano_bytes": 1186988032,
+   "url_h5": "https://nisar.asf.earthdatacloud.nasa.gov/NISAR/NISAR_L2_GCOV_V1/NISAR_L2_PR_GCOV_034_112_D_084_2005_SHSH_M_20261031T233623_20261031T233658_P05036_N_F_J_001/NISAR_L2_PR_GCOV_034_112_D_084_2005_SHSH_M_20261031T233623_20261031T233658_P05036_N_F_J_001.h5",
+   "otras_versiones": [],
+   "avisos": [
+    "Producto de modos de adquisición MIXTOS (S=M): el modo cambia dentro del frame."
+   ]
+  },
+  {
+   "granule": "NISAR_L2_PR_GCOV_034_112_D_084_4005_DHDH_A_20261031T233632_20261031T233658_P05036_N_P_J_001",
+   "sensor": "NISAR",
+   "banda": "L",
+   "madurez": "VALIDATED",
+   "track": 112,
+   "frame": 84,
+   "direccion": "DESCENDING",
+   "ciclo": 34,
+   "inicio": "2026-10-31T23:36:32+00:00",
+   "fin": "2026-10-31T23:36:58+00:00",
+   "crid": "P05036",
+   "contador": 1,
+   "frecuencia_A": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "40"
+   },
+   "frecuencia_B": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "05"
+   },
+   "modos_de_adquisicion": "uno solo",
+   "frame_nombre": {
+    "cobertura": "parcial",
+    "exactitud_orbita": "N"
+   },
+   "cobertura_aoi": 0.5523,
+   "cobertura_frame": "FALSE",
+   "tamano_bytes": 4353687552,
+   "url_h5": "https://nisar.asf.earthdatacloud.nasa.gov/NISAR/NISAR_L2_GCOV_V1/NISAR_L2_PR_GCOV_034_112_D_084_4005_DHDH_A_20261031T233632_20261031T233658_P05036_N_P_J_001/NISAR_L2_PR_GCOV_034_112_D_084_4005_DHDH_A_20261031T233632_20261031T233658_P05036_N_P_J_001.h5",
+   "otras_versiones": [],
+   "avisos": [
+    "Frame de cobertura PARCIAL (C=P)."
+   ]
+  },
+  {
+   "granule": "NISAR_L2_PR_GCOV_034_112_D_085_2005_SHSH_M_20261031T233657_20261031T233731_P05036_N_F_J_001",
+   "sensor": "NISAR",
+   "banda": "L",
+   "madurez": "VALIDATED",
+   "track": 112,
+   "frame": 85,
+   "direccion": "DESCENDING",
+   "ciclo": 34,
+   "inicio": "2026-10-31T23:36:57+00:00",
+   "fin": "2026-10-31T23:37:31+00:00",
+   "crid": "P05036",
+   "contador": 1,
+   "frecuencia_A": {
+    "polarizaciones": [
+     "HH"
+    ],
+    "ancho_banda_MHz": "20"
+   },
+   "frecuencia_B": {
+    "polarizaciones": [
+     "HH"
+    ],
+    "ancho_banda_MHz": "05"
+   },
+   "modos_de_adquisicion": "mixtos",
+   "frame_nombre": {
+    "cobertura": "completa",
+    "exactitud_orbita": "N"
+   },
+   "cobertura_aoi": 0.9398,
+   "cobertura_frame": "TRUE",
+   "tamano_bytes": 1228931072,
+   "url_h5": "https://nisar.asf.earthdatacloud.nasa.gov/NISAR/NISAR_L2_GCOV_V1/NISAR_L2_PR_GCOV_034_112_D_085_2005_SHSH_M_20261031T233657_20261031T233731_P05036_N_F_J_001/NISAR_L2_PR_GCOV_034_112_D_085_2005_SHSH_M_20261031T233657_20261031T233731_P05036_N_F_J_001.h5",
+   "otras_versiones": [],
+   "avisos": [
+    "Producto de modos de adquisición MIXTOS (S=M): el modo cambia dentro del frame."
+   ]
+  },
+  {
+   "granule": "NISAR_L2_PR_GCOV_034_112_D_085_4005_DHDH_A_20261031T233657_20261031T233713_P05036_N_P_J_001",
+   "sensor": "NISAR",
+   "banda": "L",
+   "madurez": "VALIDATED",
+   "track": 112,
+   "frame": 85,
+   "direccion": "DESCENDING",
+   "ciclo": 34,
+   "inicio": "2026-10-31T23:36:57+00:00",
+   "fin": "2026-10-31T23:37:13+00:00",
+   "crid": "P05036",
+   "contador": 1,
+   "frecuencia_A": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "40"
+   },
+   "frecuencia_B": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "05"
+   },
+   "modos_de_adquisicion": "uno solo",
+   "frame_nombre": {
+    "cobertura": "parcial",
+    "exactitud_orbita": "N"
+   },
+   "cobertura_aoi": 0.9398,
+   "cobertura_frame": "FALSE",
+   "tamano_bytes": 3091202048,
+   "url_h5": "https://nisar.asf.earthdatacloud.nasa.gov/NISAR/NISAR_L2_GCOV_V1/NISAR_L2_PR_GCOV_034_112_D_085_4005_DHDH_A_20261031T233657_20261031T233713_P05036_N_P_J_001/NISAR_L2_PR_GCOV_034_112_D_085_4005_DHDH_A_20261031T233657_20261031T233713_P05036_N_P_J_001.h5",
+   "otras_versiones": [],
+   "avisos": [
+    "Frame de cobertura PARCIAL (C=P)."
+   ]
+  },
+  {
+   "granule": "NISAR_L2_PR_GCOV_034_148_A_005_2005_DHDH_M_20261103T104722_20261103T104757_P05036_N_F_J_001",
+   "sensor": "NISAR",
+   "banda": "L",
+   "madurez": "VALIDATED",
+   "track": 148,
+   "frame": 5,
+   "direccion": "ASCENDING",
+   "ciclo": 34,
+   "inicio": "2026-11-03T10:47:22+00:00",
+   "fin": "2026-11-03T10:47:57+00:00",
+   "crid": "P05036",
+   "contador": 1,
+   "frecuencia_A": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "20"
+   },
+   "frecuencia_B": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "05"
+   },
+   "modos_de_adquisicion": "mixtos",
+   "frame_nombre": {
+    "cobertura": "completa",
+    "exactitud_orbita": "N"
+   },
+   "cobertura_aoi": 0.4032,
+   "cobertura_frame": "TRUE",
+   "tamano_bytes": 1639972864,
+   "url_h5": "https://nisar.asf.earthdatacloud.nasa.gov/NISAR/NISAR_L2_GCOV_V1/NISAR_L2_PR_GCOV_034_148_A_005_2005_DHDH_M_20261103T104722_20261103T104757_P05036_N_F_J_001/NISAR_L2_PR_GCOV_034_148_A_005_2005_DHDH_M_20261103T104722_20261103T104757_P05036_N_F_J_001.h5",
+   "otras_versiones": [],
+   "avisos": [
+    "Producto de modos de adquisición MIXTOS (S=M): el modo cambia dentro del frame."
+   ]
+  },
+  {
+   "granule": "NISAR_L2_PR_GCOV_034_148_A_005_4005_DHDH_A_20261103T104745_20261103T104757_P05036_N_P_J_001",
+   "sensor": "NISAR",
+   "banda": "L",
+   "madurez": "VALIDATED",
+   "track": 148,
+   "frame": 5,
+   "direccion": "ASCENDING",
+   "ciclo": 34,
+   "inicio": "2026-11-03T10:47:45+00:00",
+   "fin": "2026-11-03T10:47:57+00:00",
+   "crid": "P05036",
+   "contador": 1,
+   "frecuencia_A": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "40"
+   },
+   "frecuencia_B": {
+    "polarizaciones": [
+     "HH",
+     "HV"
+    ],
+    "ancho_banda_MHz": "05"
+   },
+   "modos_de_adquisicion": "uno solo",
+   "frame_nombre": {
+    "cobertura": "parcial",
+    "exactitud_orbita": "N"
+   },
+   "cobertura_aoi": 0.4138,
+   "cobertura_frame": "FALSE",
+   "tamano_bytes": 2294284288,
+   "url_h5": "https://nisar.asf.earthdatacloud.nasa.gov/NISAR/NISAR_L2_GCOV_V1/NISAR_L2_PR_GCOV_034_148_A_005_4005_DHDH_A_20261103T104745_20261103T104757_P05036_N_P_J_001/NISAR_L2_PR_GCOV_034_148_A_005_4005_DHDH_A_20261103T104745_20261103T104757_P05036_N_P_J_001.h5",
+   "otras_versiones": [],
+   "avisos": [
+    "Frame de cobertura PARCIAL (C=P)."
+   ]
+  }
+ ],
+ "descartes": [],
+ "pares": [
+  {
+   "estado": "CANDIDATO NO VALIDADO",
+   "antes": "NISAR_L2_PR_GCOV_033_148_A_005_4005_DHDH_A_20261022T104744_20261022T104757_P05036_N_P_J_001",
+   "despues": "NISAR_L2_PR_GCOV_034_148_A_005_4005_DHDH_A_20261103T104745_20261103T104757_P05036_N_P_J_001",
+   "dias": 12.0,
+   "cobertura_comun": 0.4138,
+   "polarizaciones_frecuencia_A": [
+    "HH",
+    "HV"
+   ],
+   "motivos": [
+    "Mismo track 148, frame 5 y dirección ascending",
+    "Mismo modo (4005 MHz), polarizaciones y CRID P05036",
+    "12 días entre fechas"
+   ],
+   "avisos": [
+    "Par CANDIDATO NO VALIDADO: solo lo respaldan los metadatos del catálogo. Hay que inspeccionar los dos HDF5 (cuadrícula, CRS, máscara) antes de calcular el cambio.",
+    "El par no cubre toda la región (cubre el 41%).",
+    "Algún frame es de cobertura parcial: la zona común puede ser menor que la huella."
+   ]
+  },
+  {
+   "estado": "CANDIDATO NO VALIDADO",
+   "antes": "NISAR_L2_PR_GCOV_033_148_A_005_2005_DHDH_M_20261022T104722_20261022T104757_P05036_N_F_J_001",
+   "despues": "NISAR_L2_PR_GCOV_034_148_A_005_2005_DHDH_M_20261103T104722_20261103T104757_P05036_N_F_J_001",
+   "dias": 12.0,
+   "cobertura_comun": 0.4032,
+   "polarizaciones_frecuencia_A": [
+    "HH",
+    "HV"
+   ],
+   "motivos": [
+    "Mismo track 148, frame 5 y dirección ascending",
+    "Mismo modo (2005 MHz), polarizaciones y CRID P05036",
+    "12 días entre fechas"
+   ],
+   "avisos": [
+    "Par CANDIDATO NO VALIDADO: solo lo respaldan los metadatos del catálogo. Hay que inspeccionar los dos HDF5 (cuadrícula, CRS, máscara) antes de calcular el cambio.",
+    "El par no cubre toda la región (cubre el 40%).",
+    "Ambos productos son de modos de adquisición mixtos: comprobar en los HDF5 que el modo es el mismo sobre el área antes de comparar."
+   ]
+  }
+ ],
+ "bloqueos": [],
+ "avisos": [],
+ "nota": "Solo metadatos. Ningún par está validado y no se descargó nada."
+}

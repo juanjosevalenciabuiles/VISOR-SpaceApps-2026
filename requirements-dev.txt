@@ -2,3 +2,5 @@
 -r requirements.txt
 playwright~=1.63.0
 ruff~=0.16.0
+# Valida .github/workflows/*.yml en las pruebas: un YAML inválido deja la rama sin CI sin avisar.
+pyyaml~=6.0.3

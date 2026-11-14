@@ -1,7 +1,8 @@
 name: Pruebas
 
-# En cada push (cualquier rama) y en cada pull request. Ningún trabajo usa
-# Internet para la lógica de la app: ASF se simula con su respuesta guardada.
+# En cada push (cualquier rama) y en cada pull request. Las pruebas no usan
+# Internet para la lógica de la app: ASF y el CMR se simulan. Único trabajo con
+# red: «Catálogo NISAR real», informativo, de solo metadatos y no bloqueante.
 # La consulta real a ASF solo se ejecuta a mano (Run workflow → red).
 on:
   push:
@@ -35,8 +36,13 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - name: ruff
         run: ruff check --select F,E9,B .
+      - name: GCOV de referencia de ISCE3 (estructura del procesador oficial; datos UAVSAR, no NISAR)
+        continue-on-error: true      # sin él, la prueba de referencia se omite y se informa
+        run: curl -fsSL --max-time 120 -o /tmp/nisar_129_gcov_crop.h5 https://raw.githubusercontent.com/isce-framework/isce3/8a6bf71b03f4327143fa2c890a2f38d3774acc52/tests/data/nisar_129_gcov_crop.h5
       - name: pytest (unidad e integración, sin navegador ni red)
-        run: python -m pytest -q -m "not navegador and not red" --junitxml=informes/junit-unidad.xml
+        run: python -m pytest -q -rs -m "not navegador and not red" --junitxml=informes/junit-unidad.xml
+        env:
+          VISOR_GCOV_ISCE3: /tmp/nisar_129_gcov_crop.h5
       - name: Verificación integral (informe en el resumen del trabajo)
         if: always()
         run: python scripts/verificar_visor.py --ci --sin-pytest --sin-navegador
@@ -74,6 +80,41 @@ jobs:
         with:
           name: informe-navegador-${{ matrix.navegador }}
           path: informes/
+          if-no-files-found: ignore
+
+  catalogo-nisar:
+    # Informativo y NO bloqueante: consulta real de SOLO METADATOS al CMR de NASA
+    # (sin credenciales, sin descargas). Deja el registro como artefacto: es la
+    # evidencia de qué escenas NISAR GCOV VALIDATED existen sobre Chigorodó.
+    name: Catálogo NISAR real (informativo)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Búsqueda VALIDATED sobre Chigorodó desde el 21-oct-2026
+        run: |
+          python scripts/nisar.py buscar --inicio 2026-10-21 | tee informe_nisar.txt
+          { echo '### Catálogo NISAR GCOV VALIDATED · Chigorodó'; echo '```'; cat informe_nisar.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          VISOR_DATA_DIR: ${{ runner.temp }}/datos
+      - name: Registro JSON completo (evidencia)
+        run: cat "$VISOR_DATA_DIR"/nisar/catalogo/busqueda_*.json
+        env:
+          VISOR_DATA_DIR: ${{ runner.temp }}/datos
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: catalogo-nisar
+          path: |
+            ${{ runner.temp }}/datos/nisar/catalogo/
+            informe_nisar.txt
           if-no-files-found: ignore
 
   red:

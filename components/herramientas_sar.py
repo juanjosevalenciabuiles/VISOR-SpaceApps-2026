@@ -291,7 +291,18 @@ def paso_resultados(abrir_explorador) -> None:
               on_click=abrir_explorador)
 
 
+SENSORES = ("Sentinel-1 · banda C", "NISAR · banda L")
+
+
 def render(centrar, abrir_explorador, pasos) -> None:
+    # Dos proveedores separados: nunca se combinan escenas ni umbrales de bandas distintas.
+    sensor = st.segmented_control("Sensor", SENSORES, default=SENSORES[0], key="sar_sensor",
+                                  label_visibility="collapsed")
+    if sensor == SENSORES[1]:
+        from components import nisar
+        region, error = region_actual()
+        nisar.render(region, error, abrir_explorador)
+        return
     area, escenas, analisis, resultados = st.tabs(list(pasos), key="sar_paso")
     with area:
         paso_area(centrar)

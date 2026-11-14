@@ -16,6 +16,10 @@ data/crudos/
 # Entradas RTC de HyP3 y resultados del análisis: son locales, no van a GitHub.
 data/sar/
 data/analisis/
+# NISAR: HDF5 originales (GB), recortes, fichas y registros de catálogo: locales, nunca a GitHub.
+data/nisar/
+*.h5
+*.h5.part
 *.zip
 *.SAFE
 
