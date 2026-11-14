@@ -251,7 +251,8 @@ def buscar_en_linea(texto: str, abrir=None) -> list[Lugar]:
     base = proveedor()
     if base is None:
         raise ErrorLugares("No hay un geocodificador en línea configurado.")
-    consulta = normalizar(texto)
+    from utils import colombia
+    consulta = colombia.modo() + ":" + normalizar(texto)
     if consulta in _cache:
         return _cache[consulta]
     parametros = {"q": texto.strip(), "format": "jsonv2", "limit": str(MAX_RESULTADOS), "addressdetails": "1",
