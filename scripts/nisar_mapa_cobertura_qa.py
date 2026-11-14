@@ -69,6 +69,10 @@ def generar(informe: Path, raiz: Path | None = None,
         with ExitStack() as stack:
             fuentes = [_abrir_escena(raiz, e, stack) for e in escenas]
             fuente = fuentes[0]["HHHH"]
+            transformacion = fuente.transform
+            resolucion = [abs(float(transformacion.a)), abs(float(transformacion.e))]
+            res_m2 = abs(transformacion.a * transformacion.e -
+                         transformacion.b * transformacion.d)
             perfil = fuente.profile.copy()
             perfil.update(
                 driver="GTiff", count=1, dtype="uint8", nodata=0,
@@ -111,8 +115,6 @@ def generar(informe: Path, raiz: Path | None = None,
                     NOTA="3 significa observaciones utilizables en ambas fechas; NO AGUA",
                 )
             pixeles = sum(cuentas.values())
-            res_m2 = abs(fuente.transform.a * fuente.transform.e -
-                         fuente.transform.b * fuente.transform.d)
             if pixeles != fuente.width * fuente.height:
                 raise ErrorAuditoria("La cuadrícula resultante tiene tamaño inconsistente.")
             bbox_comun = None
@@ -127,8 +129,7 @@ def generar(informe: Path, raiz: Path | None = None,
             "archivo": salida.name,
             "source_informe": informe.name,
             "crs": str(perfil["crs"]),
-            "resolucion_m": [abs(float(fuente.transform.a)),
-                             abs(float(fuente.transform.e))],
+            "resolucion_m": resolucion,
             "clasificacion": {
                 "0": "no utilizable en ambas fechas (incluye sin datos)",
                 "1": "utilizable solo fecha inicial",
