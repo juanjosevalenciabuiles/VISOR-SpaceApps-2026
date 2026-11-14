@@ -25,8 +25,7 @@ import streamlit as st
 
 from components import flujo
 from utils import contexto_ambiental as externo
-from utils import contexto_local
-from utils import wikipedia_lugar
+from utils import contexto_local, wikipedia_lugar
 
 NIVEL_COLOR = {3: "roja", 2: "naranja", 1: "amarilla", 0: "otra"}
 NO_CONFIRMA = ("Las alertas y los eventos son contexto: no confirman lo que muestre el radar, ni el radar los "

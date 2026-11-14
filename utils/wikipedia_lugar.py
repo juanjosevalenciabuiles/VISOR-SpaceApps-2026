@@ -95,7 +95,7 @@ def consultar(municipio: str, departamento: str | None, abrir=None) -> dict:
         url = RESUMEN.format(urllib.parse.quote(titulo.replace(" ", "_")))
         try:
             resumen = _pedir_json(url, abrir=abrir, timeout=8)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             if getattr(exc, "code", None) == 404:
                 continue
             raise

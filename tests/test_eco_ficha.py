@@ -1,13 +1,13 @@
 """ECO (guía flotante) y la ficha del lugar del panel derecho: estados, clips, Wikipedia y chips (sin red)."""
 import io
 import json
-import subprocess
 import shutil
-import tomllib
+import subprocess
 import urllib.error
 from pathlib import Path
 
 import pytest
+import tomllib
 
 from components import eco
 from utils import trabajos, wikipedia_lugar

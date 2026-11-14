@@ -1,6 +1,5 @@
 """ECO (esquina inferior derecha) y la ficha del lugar en el navegador, sin red externa."""
 import pytest
-
 from conftest import Servidor, preparar_datos
 
 
@@ -35,6 +34,11 @@ def test_eco_saluda_y_reproduce_su_clip(abrir, servidor_eco):
     assert caja["x"] > vista["width"] * 0.75 and caja["y"] > vista["height"] * 0.6, "esquina inferior derecha"
     assert not _se_cruzan(p.page.locator("#eco-mensaje").first.bounding_box(),
                           p.page.locator(".st-key-panel_info").first.bounding_box())
+    for control in (".leaflet-control-zoom", ".leaflet-control-zoom-fullscreen", ".leaflet-draw-toolbar"):
+        c = p.mapa.locator(control).first.bounding_box()
+        # bounding_box() ya da coordenadas de la página principal, también dentro del iframe del mapa
+        assert c and not _se_cruzan(p.page.locator(".st-key-eco").first.bounding_box(), c), control
+    p.mapa.locator(".leaflet-control-zoom-fullscreen").click(trial=True)    # nada lo tapa
     assert "Busca un lugar de Colombia" in p.page.locator("#eco-mensaje").first.inner_text()
     assert "Cómo empezar" in p.texto("panel_info")
     assert not p.errores
@@ -80,4 +84,5 @@ def test_eco_en_el_celular_no_tapa_el_panel(abrir, servidor_eco):
     if panel.is_visible():
         assert not _se_cruzan(eco, panel.bounding_box())
     assert eco["x"] + eco["width"] <= 391
+    p.mapa.locator(".leaflet-control-zoom-in").click(trial=True)
     assert not p.errores
