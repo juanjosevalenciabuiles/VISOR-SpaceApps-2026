@@ -299,3 +299,16 @@ i.mc-transparente { background: repeating-conic-gradient(rgba(255, 255, 255, 0.2
   .mc-insignia-pais .mc-insignia-larga { display: none; }
   .mc-insignia-pais .mc-insignia-corta { display: inline; }
 }
+
+/* Panel derecho · «Conozcamos esta zona» */
+.mc-ctx { display: grid; gap: .55rem; margin-bottom: .6rem; }
+.mc-ctx-vacio { font-size: .9rem; color: var(--mc-texto-2, #c9d4e0); padding: .2rem 0 .4rem; }
+.mc-ctx-titulo { font-size: 1.05rem; font-weight: 700; color: #2ee6c8; }
+.mc-ctx-seccion .visor-seccion { margin: .1rem 0 .25rem; }
+.mc-ctx-lista { margin: 0; padding-left: 1.05rem; font-size: .82rem; display: grid; gap: .25rem; }
+.mc-ctx-estado { font-size: .8rem; color: #c9d4e0; }
+.mc-alerta { list-style: none; margin-left: -1.05rem; padding: .25rem .45rem; border-left: 4px solid #a1a1aa;
+  border-radius: 4px; background: rgba(255,255,255,.03); }
+.mc-alerta-roja { border-left-color: #ff453a; }
+.mc-alerta-naranja { border-left-color: #ff9f0a; }
+.mc-alerta-amarilla { border-left-color: #ffd60a; }

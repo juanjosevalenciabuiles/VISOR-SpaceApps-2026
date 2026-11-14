@@ -297,5 +297,7 @@ def test_co12_flujo_completo_de_chigorodo_en_modo_colombia(tmp_path, monkeypatch
 def test_co12_datos_originales_intactos():
     """El Modo Colombia no escribe en data/ salvo sus propios archivos de límite (versionados)."""
     ficha = alcance.ficha_fuente()
-    assert set(ficha["archivos"]) == {alcance.ARCHIVO_VALIDACION, alcance.ARCHIVO_DIBUJO}
+    from utils import contexto_local
+    assert set(ficha["archivos"]) == {alcance.ARCHIVO_VALIDACION, alcance.ARCHIVO_DIBUJO,
+                                      contexto_local.ARCHIVO_MUNICIPIOS}
     assert shutil.which("git") is None or True

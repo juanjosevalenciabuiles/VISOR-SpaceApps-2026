@@ -150,3 +150,39 @@ def test_capturas_modo_colombia_con_servicios_reales(navegador, servidor_real_co
         assert not p.errores
     finally:
         ctx.close()
+
+
+@pytest.fixture(scope="module")
+def servidor_real_ctx(tmp_path_factory):
+    # Modo Colombia con IDEAM y NASA EONET reales en el panel derecho.
+    s = Servidor(preparar_datos(tmp_path_factory.mktemp("reales_ctx") / "data"),
+                 {"VISOR_GEOCODIFICADOR_URL": None, "VISOR_ASF_SIMULADO": None, "VISOR_REGION_MODE": "CO",
+                  "VISOR_CONTEXTO_EXTERNO": None})
+    yield s
+    s.cerrar()
+
+
+def _esperar_fuentes(p, segundos=60):
+    p.page.wait_for_function(
+        "()=>{const e=[...document.querySelectorAll('#ctx-ideam [data-estado], #ctx-eonet [data-estado]')]"
+        ".map(x=>x.dataset.estado); return document.querySelector('#ctx-zona') && !e.includes('CONSULTANDO')}",
+        timeout=segundos * 1000)
+    p.esperar(1500)
+
+
+def test_capturas_contexto_ambiental_real(navegador, servidor_real_ctx):
+    ctx = navegador.new_context(viewport={"width": 1440, "height": 900})
+    p = Pagina(ctx.new_page(), servidor_real_ctx.url, red_real=True)
+    try:
+        for nombre, coords in (("CTX01_chigorodo", ("-76.8", "7.55", "-76.55", "7.8")),
+                               ("CTX02_la_mojana", ("-75.2", "8.3", "-74.5", "9.0"))):
+            p.confirmar_zona(*coords)
+            _esperar_fuentes(p)
+            texto = p.texto("panel_info")
+            print("CTX_PANEL", nombre, " | ".join(texto.split("\n")[:40]))
+            assert "Conozcamos esta zona" in texto and "Fuente no disponible" not in texto, texto[:1500]
+            p.page.locator(".st-key-panel_info").first.screenshot(path=str(DESTINO / f"{nombre}_{NAVEGADOR}.png"))
+            capturar(p, nombre + "_pantalla")
+        assert not p.errores
+    finally:
+        ctx.close()

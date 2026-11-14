@@ -18,3 +18,6 @@ os.environ.setdefault("VISOR_TRABAJOS_DIR", tempfile.mkdtemp(prefix="visor_traba
 os.environ.setdefault("VISOR_TRABAJOS_SINCRONOS", "1")
 os.environ.setdefault("VISOR_DIAGNOSTICO", "desactivado")
 os.environ.setdefault("VISOR_REGION_MODE", "GLOBAL")
+# Contexto ambiental (panel derecho): sin red en las pruebas; las que lo necesitan simulan las fuentes.
+os.environ.setdefault("VISOR_CONTEXTO_EXTERNO", "desactivado")
+os.environ.setdefault("VISOR_CONTEXTO_SINCRONO", "1")

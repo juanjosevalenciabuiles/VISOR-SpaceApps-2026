@@ -145,9 +145,20 @@ IDEAM_ATRIBUCION = "IDEAM — Alertas Hidrológicas (visualizador.ideam.gov.co)"
 IDEAM_BOLETIN = ("https://www.ideam.gov.co/sala-de-prensa/boletines/"
                  "Bolet%C3%ADn-de-Alertas-Hidrol%C3%B3gicas-%28BAH%29")
 # Candidatos por orden; se eligen entre los campos que la capa DECLARA (no se inventan).
+# Campos observados en la capa real (14-nov-2026): NIVEL_A («ALERTA NARANJA»…), NOMSZH (subzona),
+# NOMZH (zona), NOMAH (área), DEP/DEP_1/DEP_2; no declara ningún campo de fecha.
 CANDIDATOS_NIVEL = ("NIVEL_A", "NIVEL_ALERTA", "NIVEL", "ALERTA", "COLOR")
-CANDIDATOS_NOMBRE = ("NOM_ZH", "NOMZH", "NOM_SZH", "NOMSZH", "ZONA_HIDRO", "SUBZONA", "NOMBRE", "NOM_AH",
-                     "NOMAH", "NOM_RIO", "RIO", "NAME")
+CANDIDATOS_NOMBRE = ("NOMSZH", "NOM_SZH", "NOMZH", "NOM_ZH", "ZONA_HIDRO", "SUBZONA", "NOMBRE", "NOMAH",
+                     "NOM_AH", "NOM_RIO", "RIO", "NAME")
+CANDIDATOS_ZONA = ("NOMZH", "NOM_ZH")
+CANDIDATOS_DEPTO = ("DEP", "DEP_1", "DEP_2")
+ORDEN_NIVEL = {"ROJA": 3, "NARANJA": 2, "AMARILLA": 1}
+
+
+def gravedad(nivel: str | None) -> int:
+    """3 roja, 2 naranja, 1 amarilla, 0 cualquier otro valor (p. ej. condiciones normales o vacío)."""
+    texto = str(nivel or "").upper()
+    return next((v for k, v in ORDEN_NIVEL.items() if k in texto), 0)
 AGENTE_CONTEXTO = "VISOR-SpaceApps-2026/Contexto-Ambiental (+https://github.com/juanjosevalenciabuiles/VISOR-SpaceApps-2026)"
 
 
@@ -197,6 +208,8 @@ def consultar_ideam(aoi_geojson: dict, abrir=None) -> dict:
         campos = meta.get("fields") or []
         nivel = _elegir(campos, CANDIDATOS_NIVEL)
         nombre = _elegir(campos, CANDIDATOS_NOMBRE) or meta.get("displayField")
+        zona_h = _elegir(campos, CANDIDATOS_ZONA)
+        deptos = [c for c in (_elegir(campos, (d,)) for d in CANDIDATOS_DEPTO) if c]
         fechas = [c["name"] for c in campos if c.get("type") == "esriFieldTypeDate"]
         o, s, e, n = poligono.bounds
         q = urllib.parse.urlencode({
@@ -216,6 +229,8 @@ def consultar_ideam(aoi_geojson: dict, abrir=None) -> dict:
                         else "el área de alerta cruza la zona")
             valor = atributos.get(nivel) if nivel else None
             fechas_val = {c: _fecha_esri(atributos.get(c)) for c in fechas}
+            departamentos = list(dict.fromkeys(str(atributos.get(d)).strip().title() for d in deptos
+                                               if str(atributos.get(d) or "").strip()))
             items.append({
                 "id": f"IDEAM:{atributos.get(meta.get('objectIdField') or 'OBJECTID', '')}",
                 "source": IDEAM_ATRIBUCION, "source_type": "alerta_oficial",
@@ -226,11 +241,14 @@ def consultar_ideam(aoi_geojson: dict, abrir=None) -> dict:
                 "geometry": None, "spatial_relation": relacion,
                 "value": str(valor) if valor not in (None, "") else None, "unit": "nivel de alerta" if nivel else None,
                 "status": "alerta vigente según el servicio", "campo_nivel": nivel, "campo_nombre": nombre,
+                "zona_hidrografica": (str(atributos.get(zona_h)).strip() or None) if zona_h else None,
+                "departamentos": departamentos, "gravedad": gravedad(valor),
                 "fechas_declaradas": fechas_val,
                 "limitations": ["Alerta por zona hidrográfica publicada por el IDEAM; no es una medición en la "
                                 "zona ni confirma una inundación.",
                                 "Vigencia: la que tenga el servicio al momento de la consulta."],
             })
+        items.sort(key=lambda i: (-i["gravedad"], i["title"]))
         return {**base, "items": items, "estado": "CON_RESULTADOS" if items else "SIN_COINCIDENCIAS",
                 "campos": {"nivel": nivel, "nombre": nombre, "fechas": fechas}}
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError, ErrorContexto,

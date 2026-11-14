@@ -53,6 +53,7 @@ def confirmar_zona(limites, origen: str, geometria: dict | None = None) -> None:
     st.session_state["zona"] = {"limites": sesion.validar_zona(limites), "origen": origen, "geometria": geometria}
     st.session_state.update(sar_busqueda=None, sar_error_busqueda=None, mc_informe_sar=None, error_zona=None)
     st.session_state["sel_par"] = None
+    st.session_state["ui_info"] = True      # el panel derecho muestra al instante «Conozcamos esta zona»
 
 
 def quitar_zona() -> None:

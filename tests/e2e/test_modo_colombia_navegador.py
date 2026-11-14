@@ -17,7 +17,7 @@ def test_modo_colombia_pantalla_inicial(tmp_path, navegador):
         assert pagina.page.get_by_text("MODO COLOMBIA", exact=False).count() >= 1
         assert pagina.page.locator("#sin-resultado").count() >= 1
         pagina.clic("btn_sar")
-        assert pagina.page.get_by_text("Contexto ambiental · eventos reales", exact=False).count() >= 1
+        assert pagina.page.locator("#ctx-sin-zona").count() >= 1
     finally:
         contexto.close()
         servidor.cerrar()
