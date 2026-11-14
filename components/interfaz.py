@@ -219,8 +219,8 @@ corresponda exactamente al archivo (huella SHA-256).
 
 Un cambio de retrodispersión de radar **no confirma** una inundación ni ningún otro fenómeno.
 
-**Datos de radar.** Las capas reales provienen de Sentinel-1 (ESA/Copernicus, banda C).
-No deben confundirse con la misión NASA-ISRO NISAR (banda L).
+**Datos de radar.** NISAR (NASA-ISRO, banda L) es el sensor principal para estudiar inundaciones;
+Sentinel-1 (ESA/Copernicus, banda C) queda como respaldo. Un GCOV no confirma una inundación.
 
 **Uso de inteligencia artificial.** Parte del código y de la documentación de V.I.S.O.R. se
 desarrolló con asistencia de IA (Claude, de Anthropic), bajo revisión del equipo.
@@ -308,9 +308,9 @@ GUIA_INICIO = (
     '<ol class="visor-lista">'
     "<li><b>Localiza</b> el lugar por su nombre en el Explorador.</li>"
     "<li><b>Define la zona</b>: dibuja un rectángulo o un polígono sobre el mapa y confírmalo.</li>"
-    "<li><b>Busca imágenes</b> de radar (Sentinel-1) en el catálogo de ASF.</li>"
-    "<li><b>Elige dos fechas</b> comparables.</li>"
-    "<li><b>Analiza</b>: solo entonces se calcula y se dibuja el resultado.</li>"
+    "<li><b>Busca imágenes NISAR</b> de banda L en ASF; Sentinel-1 queda como alternativa.</li>"
+    "<li><b>Revisa</b> las fechas, cobertura y tamaño de la propuesta.</li>"
+    "<li><b>Prepara NISAR</b> automáticamente con Earthdata; la interpretación de inundaciones exige comparación temporal.</li>"
     "<li><b>Revisa</b> el resultado, su procedencia y expórtalo a QGIS.</li></ol>"
     '<div class="visor-aviso visor-aviso-general">Un cambio en la señal de radar no confirma una inundación ni '
     "ningún otro fenómeno.</div></div>")
@@ -358,8 +358,8 @@ def herramientas_sar() -> None:
                       on_click=cerrar_sar)
         st.markdown(
             '<div class="mc-aviso">Zona → imágenes → fechas → Analizar. Nada se calcula ni se dibuja hasta que '
-            "pulses «Analizar». Usa productos RTC ya presentes en <code>data/sar/</code>: no descarga ni procesa "
-            "en HyP3. Los resultados son indicios de cambio de radar, no inundaciones confirmadas.</div>",
+             "pulses «Analizar» en Sentinel-1. NISAR permite buscar y preparar GCOV automáticamente desde ASF; "
+            "Sentinel-1 aún requiere RTC locales. Ningún cambio de radar confirma por sí solo inundaciones.</div>",
             unsafe_allow_html=True,
         )
         herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
