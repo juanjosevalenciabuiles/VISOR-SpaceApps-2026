@@ -73,3 +73,27 @@ bash verificar.sh
 - [Guía ASF NISAR GCOV](https://nisar-docs.asf.alaska.edu/gcov/)
 - [API harmony-py](https://harmony-py.readthedocs.io/en/main/api.html)
 - [NASA Harmony](https://harmony.earthdata.nasa.gov/docs)
+
+
+## Hito real verificado en Replit — 14 de noviembre de 2026
+
+En la carpeta aislada \`~/visor-nisar-prueba\`, el usuario confirmó un procesamiento **NASA Harmony REAL** y una descarga final auténtica con \`scripts/nisar_harmony_recuperar_job.py\` sobre el trabajo completado \`c442bc11-689a-4ae4-8e35-9af7b77f3ab2\`.
+
+| Evidencia | Valor observado |
+| --- | --- |
+| Granule | \`NISAR_L2_PR_GCOV_033_148_A_005_4005_DHDH_A_20261022T104744_20261022T104757_P05036_N_P_J_001\` |
+| Variable | \`frequencyA/HHHH\` (potencia gamma0, banda L) |
+| Estado Harmony | \`successful\`, 100 %, sin errores reportados |
+| Archivo válido | \`tmp_harmony_recuperado/gcov_c442bc11689a4ae48e359af7b77f3ab2_HHHH.tif\` |
+| Bytes | **16 520 489** = **15,755 MiB** (UNA capa de UNA fecha) |
+| CRS / resolución | \`EPSG:32618\`, **10 m × 10 m** |
+| Dimensiones / tipo | **2768 × 2775**, \`float32\` |
+| Transformación afín | \`[10, 0, 301400, 0, -10, 862610]\` |
+| SHA-256 | \`859d28d784e205ae752dd388bb3119ac861da3c56567d85380deded939480f23\` |
+| Validez parcial | 14 976 píxeles finitos en muestra de 128×128; **no representa cobertura útil total** |
+
+**Incidente resuelto:** la primera descarga por \`urllib\` sin sesión autenticada escribió 9277 bytes de HTML (firma \`<!DOCTYP\`) con extensión \`.tif\`; Rasterio lo rechazó. Tras recuperar el **mismo** trabajo usando la sesión autenticada y verificar la firma TIFF, Rasterio abrió el GeoTIFF correctamente. Se añadieron pruebas de regresión y rechazo de HTML.
+
+**Conclusión limitada:** la extracción antes de descargar *sí funciona* para **una variable de una fecha real NISAR** y evita traer el HDF5 completo para esa consulta. No afirmar todavía que están verificadas la pareja completa, la máscara, las capas auxiliares, la clasificación de agua/inundación ni los ahorros del flujo completo. La pareja de catálogo 22-oct/3-nov tiene 4,744 GB en HDF5 originales **entre las dos fechas** y cobertura común estimada 41,38 %; no comparar esos 4,744 GB contra 15,755 MiB como un cociente preciso de ahorro de dos escenas.
+
+**Siguiente prueba:** obtener \`HHHH\` de la segunda fecha, \`mask\`, \`numberOfLooks\` y, cuando aplique, \`HVHV\`; comparar las dos cuadrículas, metadatos, píxeles válidos, cobertura, compatibilidad orbital y calidad radiométrica antes de cualquier análisis temporal.
