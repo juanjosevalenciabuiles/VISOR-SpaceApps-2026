@@ -42,7 +42,7 @@ def test_co01_co09_apertura_velo_y_cambio_de_fondo(abrir, servidor_co):
     assert v["trazos"] == 2 and v["contorno"] == 1 and v["interactivos"] == 0 and v["puntero"] == "none"
     assert v["z"] > 400, "por encima de ríos, vías y resultados"
     assert p.mapa.locator("#rotulo-fuera").inner_text().startswith("Fuera de Colombia")
-    assert "MGN 2025, DANE" in p.mapa.locator(".visor-atribucion-limite").inner_text()
+    assert "MGN 2025, DANE" in p.mapa.locator(".leaflet-control-attribution").inner_text()
     assert p.capas_resultado() == [] and "SIN RESULTADO" in p.texto("barra_superior")
     # No se puede llevar el mapa lejos de Colombia: Leaflet recoloca la vista dentro de la extensión.
     p.mapa.evaluate("()=>map.setView([35.68,139.69],5,{animate:false})")

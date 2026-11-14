@@ -87,7 +87,7 @@ def test_co01_primera_apertura(monkeypatch):
     compacto = "".join(html.split())
     assert "center:[4.6,-74.3]" in compacto and '"zoom":5' in compacto
     assert '"maxBounds":[[-8.0,-86.0,],[17.0,-62.0,],]' in compacto, "paneo limitado a Colombia con margen"
-    assert "MGN 2025, DANE" in html and "Fuera de Colombia" in html
+    assert "MGN 2025, DANE" in html and '"attribution"' in html and "Fuera de Colombia" in html
 
 
 # ---------------------------------------------------------------------------

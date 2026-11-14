@@ -143,9 +143,10 @@ def test_capturas_modo_colombia_con_servicios_reales(navegador, servidor_real_co
         capturar(p, "CO02_uraba_frontera_panama_oscurecida")
         ir(p, "San Andrés isla")
         capturar(p, "CO03_san_andres")
-        ir(p, "Tokio")
+        # «Tokio» SÍ existe en Colombia (veredas con ese nombre): Nominatim con countrycodes=co las devuelve.
+        ir(p, "Nairobi, Kenya")
         assert "no está en Colombia" in p.texto("panel_explorador")
-        capturar(p, "CO04_tokio_rechazado")
+        capturar(p, "CO04_nairobi_rechazado")
         assert not p.errores
     finally:
         ctx.close()

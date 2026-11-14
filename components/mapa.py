@@ -41,9 +41,6 @@ ESTILO_LIENZO = """<style id="visor-lienzo">
   border: 1px solid rgba(46,230,200,.35); border-radius: 8px; padding: 4px 8px; }
 .visor-rotulo-muestra { display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px;
   background: #02060c; border: 1px solid #2ee6c8; border-radius: 2px; }
-.visor-atribucion-limite { position: absolute; right: 6px; bottom: 18px; z-index: 800; font: 10px/1.2 system-ui,
-  sans-serif; color: #c9d4e0; background: rgba(2,6,12,.6); padding: 1px 5px; border-radius: 4px; }
-.visor-atribucion-limite a { color: #8fe9da; }
 @media (max-width: 600px) { .visor-rotulo-fuera { bottom: 64px; font-size: 10px; } }
 
 html, body { margin: 0; height: 100%; overflow: hidden; background: #06121e; }
@@ -142,15 +139,15 @@ def _modo_colombia(m: folium.Map) -> None:
     folium.GeoJson(velo, name="Fuera de Colombia", pane="visor_velo", interactive=False, control=False,
                    style_function=lambda _: {"color": "#000000", "weight": 0, "fillColor": "#02060c",
                                              "fillOpacity": 0.62, "interactive": False}).add_to(m)
+    # La atribución del límite (DANE, CC BY 4.0) va en la propia capa: Leaflet la muestra en su control.
     folium.GeoJson(contorno, name="Colombia", pane="visor_velo", interactive=False, control=False,
+                   attribution=alcance_geografico.ATRIBUCION,
                    style_function=lambda _: {"color": "#2ee6c8", "weight": 2.2, "opacity": 0.95, "fill": False,
                                              "interactive": False}).add_to(m)
     # Rótulo cartográfico fijo (abajo a la izquierda, sobre la escala): explica el velo sin taparlo todo.
     m.get_root().html.add_child(folium.Element(
         '<div class="visor-rotulo-fuera" id="rotulo-fuera"><span class="visor-rotulo-muestra"></span>'
         f"Fuera de Colombia: {alcance_geografico.FUERA.lower()}</div>"))
-    m.get_root().html.add_child(folium.Element(
-        f'<div class="visor-atribucion-limite">{alcance_geografico.ATRIBUCION}</div>'))
 
 
 def mapa_fijo() -> folium.Map:
