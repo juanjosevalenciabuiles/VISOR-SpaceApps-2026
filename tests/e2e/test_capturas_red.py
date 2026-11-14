@@ -172,7 +172,9 @@ def _esperar_fuentes(p, segundos=60):
 
 def test_capturas_contexto_ambiental_real(navegador, servidor_real_ctx):
     ctx = navegador.new_context(viewport={"width": 1440, "height": 900})
-    p = Pagina(ctx.new_page(), servidor_real_ctx.url, red_real=True)
+    pagina_ctx = ctx.new_page()
+    pagina_ctx.on("response", lambda r: "upload.wikimedia.org" in r.url and print("CTX_WIKIMEDIA", r.status, r.url))
+    p = Pagina(pagina_ctx, servidor_real_ctx.url, red_real=True)
     try:
         for nombre, coords in (("CTX01_chigorodo", ("-76.8", "7.55", "-76.55", "7.8")),
                                ("CTX02_la_mojana", ("-75.2", "8.3", "-74.5", "9.0"))):

@@ -128,7 +128,7 @@ def test_wikipedia_prueba_primero_municipio_departamento_y_trae_foto_con_credito
     assert "Antioquia%29" in abrir.llamadas[0], "primero «Municipio (Departamento)»"
     f = r["items"][0]
     assert r["estado"] == "CON_RESULTADOS" and f["title"] == "Chigorodó"
-    assert f["imagen"].endswith("640px-Iglesia_(X).jpg")
+    assert f["imagen"].endswith("960px-Iglesia_(X).jpg")
     assert f["credito"] == {"licencia": "CC BY-SA 4.0", "autor": "Ana Pérez",
                             "pagina": "https://commons.wikimedia.org/wiki/File:Iglesia_%28X%29.jpg"}
     assert len(f["extract"]) <= wikipedia_lugar.LARGO_RESUMEN + 1 and f["extract"].endswith(".")

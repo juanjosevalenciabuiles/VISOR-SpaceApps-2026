@@ -20,6 +20,7 @@ RESUMEN = "https://es.wikipedia.org/api/rest_v1/page/summary/{}"
 MEDIAWIKI = "https://es.wikipedia.org/w/api.php"
 ATRIBUCION = "Texto: Wikipedia en español (CC BY-SA 4.0)"
 LARGO_RESUMEN = 260
+ANCHO_FOTO = 960      # ancho estándar de miniatura de Wikimedia
 
 
 def candidatos(municipio: str, departamento: str | None) -> list[str]:
@@ -110,7 +111,8 @@ def consultar(municipio: str, departamento: str | None, abrir=None) -> dict:
             credito = credito_imagen(archivo, abrir=abrir) if archivo else None
             if credito:  # sin licencia comprobable, no hay foto
                 ancho = (resumen.get("originalimage") or {}).get("width") or 0
-                imagen = re.sub(r"/\d+px-", "/640px-", miniatura) if ancho > 640 else miniatura
+                # Wikimedia solo sirve miniaturas en anchos estándar (…330, 500, 960…): otros se rechazan.
+                imagen = re.sub(r"/\d+px-", f"/{ANCHO_FOTO}px-", miniatura) if ancho > ANCHO_FOTO else miniatura
                 ficha["imagen"] = imagen.replace("'", "%27").replace('"', "%22")
                 ficha["credito"] = credito
         return {"estado": "CON_RESULTADOS", "items": [ficha], "retrieved_at": ahora}
