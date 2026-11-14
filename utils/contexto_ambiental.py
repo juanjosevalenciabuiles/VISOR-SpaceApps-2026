@@ -114,3 +114,177 @@ def consultar_eonet(aoi_geojson: dict, inicio: date, fin: date, abrir=None) -> d
                 "ventana_temporal": [inicio.isoformat(), fin.isoformat()],
                 "retrieved_at": datetime.now(timezone.utc).isoformat(),
                 "estado": "ERROR_FUENTE", "error": type(exc).__name__}
+
+
+# ---------------------------------------------------------------------------
+# Formato común (plan del panel derecho, 14-nov-2026)
+# ---------------------------------------------------------------------------
+# Cada proveedor devuelve elementos con: source, url, fetched_at, observed_at, published_at, valid_from,
+# valid_to, geometry, spatial_relation, value, unit, status, limitations y title. Un campo que la fuente
+# no declara queda en None: nunca se rellena con una suposición.
+
+CAMPOS_COMUNES = ("source", "url", "fetched_at", "observed_at", "published_at", "valid_from", "valid_to",
+                  "geometry", "spatial_relation", "value", "unit", "status", "limitations", "title")
+
+
+def comun_eonet(item: dict, fetched_at: str) -> dict:
+    """Añade el formato común a un evento ya normalizado por normalizar_eonet (sin quitar sus claves)."""
+    return {**item, "fetched_at": fetched_at, "observed_at": item.get("event_start"),
+            "published_at": None, "valid_from": None, "valid_to": None,
+            "spatial_relation": "la geometría del evento toca la zona", "value": None, "unit": None,
+            "status": "evento catalogado"}
+
+
+# ---------------------------------------------------------------------------
+# IDEAM · Alertas Hidrológicas (ArcGIS REST, capa 2)
+# ---------------------------------------------------------------------------
+
+IDEAM_CAPA = ("https://visualizador.ideam.gov.co/gisserver/rest/services/StoryMaps_IDA/"
+              "Alertas_Hidrologicas/MapServer/2")
+IDEAM_ATRIBUCION = "IDEAM — Alertas Hidrológicas (visualizador.ideam.gov.co)"
+IDEAM_BOLETIN = ("https://www.ideam.gov.co/sala-de-prensa/boletines/"
+                 "Bolet%C3%ADn-de-Alertas-Hidrol%C3%B3gicas-%28BAH%29")
+# Candidatos por orden; se eligen entre los campos que la capa DECLARA (no se inventan).
+CANDIDATOS_NIVEL = ("NIVEL_A", "NIVEL_ALERTA", "NIVEL", "ALERTA", "COLOR")
+CANDIDATOS_NOMBRE = ("NOM_ZH", "NOMZH", "NOM_SZH", "NOMSZH", "ZONA_HIDRO", "SUBZONA", "NOMBRE", "NOM_AH",
+                     "NOMAH", "NOM_RIO", "RIO", "NAME")
+AGENTE_CONTEXTO = "VISOR-SpaceApps-2026/Contexto-Ambiental (+https://github.com/juanjosevalenciabuiles/VISOR-SpaceApps-2026)"
+
+
+def _pedir_json(url: str, abrir=None, timeout: int = 10) -> dict:
+    req = urllib.request.Request(url, headers={"User-Agent": AGENTE_CONTEXTO, "Accept": "application/json"})
+    with (abrir or urllib.request.urlopen)(req, timeout=timeout) as respuesta:
+        datos = json.loads(respuesta.read().decode("utf-8"))
+    if isinstance(datos, dict) and "error" in datos:            # ArcGIS responde 200 con {"error": …}
+        raise ErrorContexto(f"ArcGIS: {datos['error'].get('message', 'error')}")
+    return datos
+
+
+def _elegir(campos: list[dict], candidatos: tuple[str, ...]) -> str | None:
+    nombres = {c["name"].upper(): c["name"] for c in campos if isinstance(c, dict) and c.get("name")}
+    return next((nombres[c] for c in candidatos if c in nombres), None)
+
+
+def _esri_a_shapely(geometria: dict):
+    """Polígono Esri JSON (anillos) → geometría shapely, sin suponer orden de anillos."""
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    anillos = (geometria or {}).get("rings") or []
+    partes = [Polygon(a).buffer(0) for a in anillos if len(a) >= 4]
+    return unary_union(partes) if partes else None
+
+
+def _fecha_esri(valor) -> str | None:
+    if isinstance(valor, (int, float)) and valor > 0:      # milisegundos desde 1970 (UTC)
+        return datetime.fromtimestamp(valor / 1000, tz=timezone.utc).isoformat(timespec="minutes")
+    return None
+
+
+def consultar_ideam(aoi_geojson: dict, abrir=None) -> dict:
+    """Alertas hidrológicas VIGENTES del IDEAM que tocan la zona (relación geométrica real).
+
+    1. Lee la definición de la capa (campos y tipos) para no suponer nombres.
+    2. Pide los polígonos que cruzan el rectángulo de la zona (outSR=4326).
+    3. Conserva solo los que intersecan la geometría real de la zona.
+    Una consulta correcta sin polígonos es «SIN_COINCIDENCIAS»; un fallo de red o formato es «ERROR_FUENTE»."""
+    poligono = shape(aoi_geojson)
+    if not poligono.is_valid or poligono.is_empty:
+        raise ValueError("AOI inválida")
+    ahora = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    base = {"fuente": IDEAM_ATRIBUCION, "retrieved_at": ahora, "items": [], "url_consulta": IDEAM_CAPA}
+    try:
+        meta = _pedir_json(IDEAM_CAPA + "?f=json", abrir)
+        campos = meta.get("fields") or []
+        nivel = _elegir(campos, CANDIDATOS_NIVEL)
+        nombre = _elegir(campos, CANDIDATOS_NOMBRE) or meta.get("displayField")
+        fechas = [c["name"] for c in campos if c.get("type") == "esriFieldTypeDate"]
+        o, s, e, n = poligono.bounds
+        q = urllib.parse.urlencode({
+            "where": "1=1", "geometry": f"{o},{s},{e},{n}", "geometryType": "esriGeometryEnvelope",
+            "inSR": "4326", "spatialRel": "esriSpatialRelIntersects", "outFields": "*",
+            "returnGeometry": "true", "outSR": "4326", "f": "json"})
+        datos = _pedir_json(IDEAM_CAPA + "/query?" + q, abrir)
+        if not isinstance(datos.get("features"), list):
+            raise ErrorContexto("IDEAM devolvió un formato inesperado.")
+        items = []
+        for f in datos["features"]:
+            atributos = f.get("attributes") or {}
+            geom = _esri_a_shapely(f.get("geometry"))
+            if geom is None or geom.is_empty or not geom.intersects(poligono):
+                continue
+            relacion = ("la zona está dentro del área de alerta" if geom.covers(poligono)
+                        else "el área de alerta cruza la zona")
+            valor = atributos.get(nivel) if nivel else None
+            fechas_val = {c: _fecha_esri(atributos.get(c)) for c in fechas}
+            items.append({
+                "id": f"IDEAM:{atributos.get(meta.get('objectIdField') or 'OBJECTID', '')}",
+                "source": IDEAM_ATRIBUCION, "source_type": "alerta_oficial",
+                "title": str(atributos.get(nombre) or "Área de alerta hidrológica")[:200],
+                "url": IDEAM_BOLETIN, "fetched_at": ahora, "observed_at": None,
+                "published_at": next((v for v in fechas_val.values() if v), None),
+                "valid_from": None, "valid_to": None,
+                "geometry": None, "spatial_relation": relacion,
+                "value": str(valor) if valor not in (None, "") else None, "unit": "nivel de alerta" if nivel else None,
+                "status": "alerta vigente según el servicio", "campo_nivel": nivel, "campo_nombre": nombre,
+                "fechas_declaradas": fechas_val,
+                "limitations": ["Alerta por zona hidrográfica publicada por el IDEAM; no es una medición en la "
+                                "zona ni confirma una inundación.",
+                                "Vigencia: la que tenga el servicio al momento de la consulta."],
+            })
+        return {**base, "items": items, "estado": "CON_RESULTADOS" if items else "SIN_COINCIDENCIAS",
+                "campos": {"nivel": nivel, "nombre": nombre, "fechas": fechas}}
+    except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError, ErrorContexto,
+            KeyError, TypeError) as exc:
+        return {**base, "estado": "ERROR_FUENTE", "error": type(exc).__name__}
+
+
+# ---------------------------------------------------------------------------
+# Consultas en segundo plano con caché por zona + período + fuente
+# ---------------------------------------------------------------------------
+
+import threading as _threading  # noqa: E402
+import time as _time  # noqa: E402
+
+TTL_S = {"eonet": 3600, "ideam": 900}
+_consultas: dict[tuple[str, str], dict] = {}
+_cerrojo_consultas = _threading.Lock()
+
+
+def pedir(fuente: str, clave: str, funcion, sincrono: bool = False) -> dict:
+    """Lanza (una sola vez por clave y TTL) la consulta en un hilo y devuelve su estado actual:
+    {"estado": "CONSULTANDO" | "CON_RESULTADOS" | "SIN_COINCIDENCIAS" | "ERROR_FUENTE", ...}.
+    Nunca bloquea la interfaz; nunca mezcla claves (zona/período) distintas."""
+    k = (fuente, clave)
+    with _cerrojo_consultas:
+        actual = _consultas.get(k)
+        vigente = actual and (actual["estado"] == "CONSULTANDO" or
+                              _time.monotonic() - actual["_t"] < TTL_S.get(fuente, 900))
+        if vigente:
+            return actual
+        _consultas[k] = {"estado": "CONSULTANDO", "_t": _time.monotonic()}
+
+    def correr():
+        try:
+            resultado = funcion()
+        except Exception as exc:  # noqa: BLE001 — una fuente caída nunca rompe la app
+            resultado = {"estado": "ERROR_FUENTE", "items": [], "error": type(exc).__name__}
+        with _cerrojo_consultas:
+            _consultas[k] = {**resultado, "_t": _time.monotonic()}
+
+    if sincrono:
+        correr()
+    else:
+        _threading.Thread(target=correr, name=f"visor-contexto-{fuente}", daemon=True).start()
+    with _cerrojo_consultas:
+        return _consultas[k]
+
+
+def estado(fuente: str, clave: str) -> dict | None:
+    with _cerrojo_consultas:
+        return _consultas.get((fuente, clave))
+
+
+def olvidar() -> None:
+    """Solo pruebas."""
+    with _cerrojo_consultas:
+        _consultas.clear()
