@@ -130,3 +130,33 @@ git switch --detach origin/feature/nisar-inundaciones-auto
 \`\`\`
 
 La auditoría verifica tamaño de cada archivo y SHA-256, integridad del manifiesto, estructura GeoTIFF, máscaras y looks presentes, geometría compartida entre capas por fecha, igualdad geométrica entre fechas (sin reproyección automática), MB totales y proporción completa de píxeles HHHH con potencia positiva/finita; esto último **NO** equivale a agua, ni a cobertura QA decodificada, ni a inundación validada. Si las grillas temporales difieren, se reporta como condición pendiente de alineación, no como inundación.
+
+
+## Auditoría de solape QA de dos fechas (antes de cambios de agua)
+
+El primer informe real auditado por el usuario arrojó:
+
+- Estado \`ARCHIVOS_GCOV_AUDITADOS_SIN_CLASIFICAR\`, **2 fechas, 8 capas, SHA-256 verificados**.
+- **100 757 700 bytes = 96,09 MiB** en total; 22-oct: 48,152 MiB; 3-nov: 47,938 MiB.
+- CRS **EPSG:32618**, misma cuadrícula temporal y **10 m** de resolución.
+- HHHH finito + positivo: **3 182 253 / 7 681 200 píxeles** (41,4291%) en primera fecha; **3 161 990 / 7 681 200** (41,1653%) en segunda. **Esta fracción NO representa agua, inundación ni cobertura QA común**. Las huellas del catálogo sugerían 41,38 % de cobertura común aproximada.
+
+Se incorporó una segunda auditoría de precisión en \`scripts/nisar_solape_qa.py\`, que **no descarga ni modifica datos**, comprueba de nuevo hashes y alineación, y calcula en ventanas pequeñas **solo la intersección de píxeles utilizables en AMBAS fechas**, con estas reglas conservadoras:
+
+- \`mask\`: valores **1–254** (subswath plenamente enfocada), 0 = mezcla con muestras no válidas o parcialmente enfocadas; 255 = fuera del alcance radar. Consultar la descripción y versión de producto correspondiente.
+- \`numberOfLooks\`: finito y estrictamente positivo.
+- \`HHHH\` y \`HVHV\`: finitos y estrictamente positivos (poder usar logaritmos/radios), sin interpretar intensidad como inundación.
+
+Fuente científica: [Guía ASF NISAR GCOV](https://nisar-docs.asf.alaska.edu/gcov/) y [NISAR Cookbook](https://asfopensarlab.github.io/NISAR_Cookbook/nisar-data-access/). La medida es de **cobertura y calidad técnica**, no una clasificación de inundación.
+
+Para ejecutar con el informe ya generado, sin otra transferencia:
+
+\`\`\`bash
+cd ~/visor-nisar-prueba
+git fetch origin feature/nisar-inundaciones-auto
+git switch --detach origin/feature/nisar-inundaciones-auto
+~/workspace/.venv/bin/python scripts/nisar_solape_qa.py \
+  --informe data/nisar/catalogo/preparacion_7d03a543e5754867bba3875d71a7fc6c.json
+\`\`\`
+
+La siguiente fase, una vez medido el solape, será diseñar/validar inferencia hidrológica por pixel en el dominio común y distinguir agua permanente de agua potencialmente nueva con referencias externas. Ni la máscara QA ni el ratio radar por sí solos verifican inundaciones.
