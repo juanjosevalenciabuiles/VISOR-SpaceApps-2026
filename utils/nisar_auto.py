@@ -168,8 +168,11 @@ def preparar(plan: Plan, registro: Path, carpeta_crudos: Path | None = None,
             try:
                 # Se confirmó un PLAN con GB máximos; no hace falta escribir el
                 # nombre ni el tamaño manualmente para cada granule.
-                destino = desc.descargar(registro, c.granule, carpeta_crudos,
-                                        float(c.tamano_bytes) / 1e9 + 0.02)
+                destino = desc.descargar(
+                    registro, c.granule, carpeta_crudos,
+                    float(c.tamano_bytes) / 1e9 + 0.02,
+                    avance=(lambda hecho, total: notificar("progreso", (hecho, total))) if notificar else None,
+                )
             except desc.ErrorDescarga as exc:
                 raise ErrorAutoNISAR(str(exc)) from None
         # Inspección REAL antes de recortar; no confundir un HDF5 sintético con NISAR.
