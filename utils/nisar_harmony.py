@@ -15,7 +15,6 @@ import json
 import os
 import re
 import shutil
-import socket
 import time
 import urllib.parse
 import urllib.request
@@ -238,6 +237,7 @@ def _validar_cog(ruta: Path, bbox, capa: str) -> dict:
             ventana = ((0, min(128, src.height)), (0, min(128, src.width)))
             muestra = src.read(1, window=ventana, masked=True)
             return {"crs": str(src.crs), "resolucion_m": list(res),
+                    "transform": list(tuple(src.transform)[:6]),
                     "dimensiones": [src.width, src.height], "dtype": src.dtypes[0],
                     "muestra_finitos": int(np.isfinite(muestra.compressed()).sum())}
     except ErrorHarmony:
@@ -333,8 +333,8 @@ def obtener(spec: Especificacion, carpeta: Path, *, cliente=None, abrir=None,
         origen = archivos[0]["geotiff"]
         for a in archivos[1:]:
             meta = a["geotiff"]
-            if (meta["crs"], meta["dimensiones"], meta["resolucion_m"]) != (
-                origen["crs"], origen["dimensiones"], origen["resolucion_m"]
+            if (meta["crs"], meta["dimensiones"], meta["resolucion_m"], meta["transform"]) != (
+                origen["crs"], origen["dimensiones"], origen["resolucion_m"], origen["transform"]
             ):
                 raise ErrorHarmony("Las capas Harmony no comparten CRS, resolución y dimensiones.")
         meta = {
@@ -342,6 +342,7 @@ def obtener(spec: Especificacion, carpeta: Path, *, cliente=None, abrir=None,
             "tipo": "HARMONY_COG_SUBSET", "granule": spec.granule,
             "aoi": list(spec.bbox), "variables": list(spec.variables),
             "job_id": jobid, "bytes_totales": consumido,
+            "carpeta_relativa": final.name,
             "archivos": archivos, "creado_utc": datetime.now(timezone.utc).isoformat(),
             "advertencia": "Insumos GCOV gamma0 en potencia; NO son mapas de inundación.",
         }
