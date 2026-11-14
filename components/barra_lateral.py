@@ -6,6 +6,7 @@ una clave estable para que su valor se conserve aunque el panel se oculte.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from html import escape
 
