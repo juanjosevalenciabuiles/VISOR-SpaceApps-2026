@@ -52,7 +52,7 @@ def main(argv=None):
             json.dump(salida, fd, indent=2, ensure_ascii=False)
         print(f"Insumos NISAR preparados; informe: {informe}. NO son mapas de inundación.")
         return 0
-    except Exception as e:
+    except Exception:
         # No imprimir URLs firmadas, tokens o trazas que incluyan credenciales.
         print(f"No fue posible preparar NISAR: {type(e).__name__}", file=sys.stderr)
         return 2
