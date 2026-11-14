@@ -234,9 +234,11 @@ def _auditar_archivo(informe: Informe, pre: str, ruta: Path, ref: dict, cuadricu
         informe.si(ok, f"{pre}d", cat, f"{ruta.name}: superficies", "ha = píxeles × área del píxel",
                    CRITICO, f"píxel de {area:.4f} ha", "hectáreas inconsistentes")
 
-    # Procedencia: la ficha, si existe, debe corresponder al archivo.
+    # Procedencia: una ficha que DECLARA procedencia debe corresponder al archivo. El JSON
+    # descriptivo que el motor deja junto a cada máscara (fuente, fecha, producto, unidades) no
+    # declara procedencia: el archivo queda NO DECLARADO, igual que la diferencia en dB.
     f = a["ficha"]
-    if f.get("presente"):
+    if f.get("presente") and (f.get("sha256_en_ficha") or f.get("estado_declarado") or not f.get("legible", True)):
         informe.si(f.get("sha256_coincide", False), f"{pre}e", "Procedencia",
                    f"{ruta.name}: SHA-256 del GeoTIFF = el de su ficha", "Coinciden", CRITICO,
                    f"estado efectivo {f['estado_efectivo']}",
@@ -245,7 +247,8 @@ def _auditar_archivo(informe: Informe, pre: str, ruta: Path, ref: dict, cuadricu
         informe.agregar(f"{pre}e", "Procedencia", f"{ruta.name}: ficha de procedencia",
                         "Sin ficha → PROCEDENCIA NO DECLARADA", INFORMATIVO,
                         APROBADA if f["estado_efectivo"] == procedencia.NO_DECLARADA else FALLIDA,
-                        f"sin ficha · estado {f['estado_efectivo']}")
+                        ("ficha descriptiva sin bloque de procedencia" if f.get("presente") else "sin ficha")
+                        + f" · estado {f['estado_efectivo']}")
 
     # QGIS: paquete en memoria; la fuente no se toca (huella antes = después).
     antes = procedencia.sha256_archivo(ruta)
