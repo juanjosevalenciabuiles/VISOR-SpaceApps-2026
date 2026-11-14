@@ -77,7 +77,7 @@ jobs:
           if-no-files-found: ignore
 
   red:
-    name: Consulta real a ASF (manual)
+    name: Consulta real a ASF, mapas y búsqueda de lugares (manual)
     if: github.event_name == 'workflow_dispatch' && inputs.red
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -88,6 +88,6 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: python -m pytest -q -m red --ignore=tests/e2e
+      - run: python -m pytest -q -rA -m red --ignore=tests/e2e
         env:
           VISOR_PRUEBAS_RED: "1"
