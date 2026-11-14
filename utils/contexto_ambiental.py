@@ -11,7 +11,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
-from shapely.geometry import box, shape
+from shapely.geometry import shape
 
 ENDPOINT = "https://eonet.gsfc.nasa.gov/api/v3/events"
 ATRIBUCION = "NASA EONET v3 — Earth Observatory Natural Event Tracker"
