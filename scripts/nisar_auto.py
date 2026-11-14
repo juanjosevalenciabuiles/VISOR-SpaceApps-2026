@@ -50,10 +50,38 @@ def main(argv=None):
         ruta = carpeta / f"auto_{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}_{uuid.uuid4().hex[:8]}.json"
         with ruta.open("x", encoding="utf-8") as fd:
             json.dump(registro, fd, indent=2, ensure_ascii=False)
+        # Harmony consulta el estado cada 5 s. No imprimir la misma frase
+        # indefinidamente: mostrar el porcentaje y solo repetir si cambia,
+        # con un latido ocasional para evitar aparentar que está bloqueado.
+        ultimo = {"mensaje": None, "repeticiones": 0}
+
+        def mostrar_progreso(etapa, detalle):
+            if etapa == "Harmony: preparando recorte":
+                try:
+                    progreso = f"{float(detalle):.0f} %"
+                except (TypeError, ValueError):
+                    progreso = "porcentaje no informado"
+                mensaje = f"NASA Harmony preparando recorte: {progreso}"
+            elif etapa == "Harmony":
+                mensaje = f"NASA Harmony: {detalle}"
+            elif etapa == "Descargando capa":
+                mensaje = f"Descargando variable NISAR: {detalle}"
+            else:
+                mensaje = str(etapa)
+
+            if mensaje != ultimo["mensaje"]:
+                ultimo["mensaje"] = mensaje
+                ultimo["repeticiones"] = 0
+                print(mensaje, flush=True)
+            else:
+                ultimo["repeticiones"] += 1
+                if ultimo["repeticiones"] % 12 == 0:
+                    print(f"{mensaje} (sin cambios; seguimos consultando a NASA)", flush=True)
+
         if a.metodo == "harmony":
             # Un error Harmony no dispara una descarga de HDF5 completa.
             salida = nisar_auto.preparar_harmony(plan, max_mb=a.max_mb,
-                                                notificar=lambda etapa, _detalle: print(etapa, flush=True))
+                                                notificar=mostrar_progreso)
         else:
             salida = nisar_auto.preparar(plan, ruta,
                                         notificar=lambda etapa, _detalle: print(etapa, flush=True))
