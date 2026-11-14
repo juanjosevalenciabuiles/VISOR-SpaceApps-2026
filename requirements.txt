@@ -9,4 +9,6 @@ numpy~=2.5.4
 geopandas~=1.2.0
 # Usada directamente (buscador, geometrías); ~=2.1 equivale a >=2.1,<3: lo instalado por geopandas ya cumple.
 shapely~=2.1
+# GCOV auténtico de NISAR se distribuye como HDF5.
+h5py~=3.16.0
 pytest~=9.2.0
