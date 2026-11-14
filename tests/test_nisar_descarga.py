@@ -111,3 +111,18 @@ def test_la_credencial_no_se_reenvia_a_otro_servidor():
     otra = manejador.redirect_request(pet, None, 302, "Found", {}, "https://bucket.s3.amazonaws.com/x.h5?firma=1")
     misma = manejador.redirect_request(pet, None, 302, "Found", {}, URL + "?v=2")
     assert otra.get_header("Authorization") is None and misma.get_header("Authorization") == "Bearer secreto"
+
+
+def test_cancelacion_durante_transferencia_limpia_parcial(registro, tmp_path, monkeypatch):
+    """El trabajo cooperativo puede cancelar una descarga; nunca queda un .part como resultado."""
+    monkeypatch.setenv(d.VARIABLE_TOKEN, "secreto")
+    class Cancelada(Exception):
+        pass
+
+    def cancelar(_hecho, _total):
+        raise Cancelada("cancelación solicitada")
+
+    with pytest.raises(Cancelada):
+        d.descargar(registro, GRANULE, tmp_path / "crudos", 1.0,
+                    abrir=servidor(), avance=cancelar)
+    assert list((tmp_path / "crudos").glob("*")) == []
