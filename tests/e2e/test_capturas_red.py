@@ -178,6 +178,18 @@ def test_capturas_contexto_ambiental_real(navegador, servidor_real_ctx):
                                ("CTX02_la_mojana", ("-75.2", "8.3", "-74.5", "9.0"))):
             p.confirmar_zona(*coords)
             _esperar_fuentes(p)
+            try:   # foto de Wikimedia Commons (si la página del municipio tiene una con licencia)
+                p.page.wait_for_selector('#ctx-foto[data-origen="wikimedia"]', timeout=30000)
+                p.page.wait_for_function("()=>{const f=document.querySelector('#ctx-foto');"
+                                         "return f && getComputedStyle(f).backgroundImage.includes('wikimedia')}",
+                                         timeout=10000)
+                p.esperar(2500)
+            except Exception:  # noqa: BLE001 — se informa abajo: la ficha cae a la vista satelital
+                pass
+            foto = p.page.locator("#ctx-foto").first
+            print("CTX_FOTO", nombre, foto.get_attribute("data-origen"), foto.inner_text(),
+                  "| ECO:", p.page.locator("#eco-avatar").first.get_attribute("data-clip"),
+                  p.page.locator("#eco-mensaje").first.inner_text().replace("\n", " "))
             texto = p.texto("panel_info")
             print("CTX_PANEL", nombre, " | ".join(texto.split("\n")[:40]))
             assert "Conozcamos esta zona" in texto and "Fuente no disponible" not in texto, texto[:1500]

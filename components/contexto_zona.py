@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
@@ -25,6 +26,7 @@ import streamlit as st
 from components import flujo
 from utils import contexto_ambiental as externo
 from utils import contexto_local
+from utils import wikipedia_lugar
 
 NIVEL_COLOR = {3: "roja", 2: "naranja", 1: "amarilla", 0: "otra"}
 NO_CONFIRMA = ("Las alertas y los eventos son contexto: no confirman lo que muestre el radar, ni el radar los "
@@ -69,11 +71,19 @@ def _local(geometria_texto: str) -> contexto_local.ContextoLocal:
     return contexto_local.contexto(json.loads(geometria_texto))
 
 
+def local_de(zona: dict) -> contexto_local.ContextoLocal:
+    return _local(json.dumps(zona["geometria"], sort_keys=True))
+
+
+def consultando(fuentes: dict[str, dict]) -> bool:
+    return any(f.get("estado") == "CONSULTANDO" for f in fuentes.values())
+
+
 def consultas(zona: dict, inicio: date, fin: date) -> dict[str, dict]:
     """Estado de cada fuente externa para ESTA zona y ESTE período (lanza la consulta si falta)."""
     if not externo_activo():
         apagado = {"estado": "DESACTIVADO", "items": []}
-        return {"ideam": apagado, "eonet": apagado}
+        return {"ideam": apagado, "eonet": apagado, "wiki": apagado}
     geometria = zona["geometria"]
     hoy = datetime.now(timezone.utc).date().isoformat()
     desde, hasta = externo.ventana(inicio, fin)
@@ -81,7 +91,14 @@ def consultas(zona: dict, inicio: date, fin: date) -> dict[str, dict]:
                           lambda: externo.consultar_ideam(geometria), sincrono=_sincrono())
     eonet = externo.pedir("eonet", f"{zona['clave']}|{desde}|{hasta}",
                           lambda: externo.consultar_eonet(geometria, desde, hasta), sincrono=_sincrono())
-    return {"ideam": ideam, "eonet": {**eonet, "ventana": (desde, hasta)}}
+    principal = (local_de(zona).municipios or [None])[0]
+    if principal is None:
+        wiki = {"estado": "SIN_COINCIDENCIAS", "items": []}
+    else:
+        wiki = externo.pedir("wiki", principal.divipola or principal.nombre,
+                             lambda: wikipedia_lugar.consultar(principal.nombre, principal.departamento),
+                             sincrono=_sincrono())
+    return {"ideam": ideam, "eonet": {**eonet, "ventana": (desde, hasta)}, "wiki": wiki}
 
 
 # ---------------------------------------------------------------------------
@@ -214,35 +231,155 @@ def _seccion_territorio(local: contexto_local.ContextoLocal) -> str:
 
 def _radar(activos: list) -> str:
     if activos:
-        return ('<div class="mc-ctx-seccion" id="ctx-radar"><div class="visor-seccion">Qué encontró el radar</div>'
-                '<div class="visor-leyenda-nota">El resultado está abajo, con su ficha. Es un cambio en la señal de '
-                "radar, no una inundación confirmada.</div></div>")
-    return ('<div class="mc-ctx-seccion" id="ctx-radar"><div class="visor-seccion">Qué encontró el radar</div>'
-            '<div class="mc-ctx-estado" data-estado="SIN_ANALISIS">Aún no has realizado un análisis. Pulsa '
-            "«Analizar» en Herramientas SAR cuando elijas las fechas.</div></div>")
+        return ('<div class="mc-ctx-seccion mc-ctx-tarjeta mc-ctx-radar-listo" id="ctx-radar"><div class="visor-seccion">'
+                'Qué encontró el radar</div><div class="visor-leyenda-nota">El resultado está abajo, con su ficha. Es un '
+                "cambio en la señal de radar, no una inundación confirmada.</div></div>")
+    return ('<div class="mc-ctx-seccion mc-ctx-tarjeta" id="ctx-radar"><div class="visor-seccion">Qué encontró el radar'
+            '</div><div class="mc-ctx-estado" data-estado="SIN_ANALISIS">Aún no has realizado un análisis. Pulsa '
+            "«Analizar» en esta ficha cuando quieras comparar dos fechas.</div></div>")
+
+
+# ---------------------------------------------------------------------------
+# Ficha del lugar (estilo Google Maps): imagen, nombre, chips y acciones
+# ---------------------------------------------------------------------------
+
+SATELITE = "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg"
+CREDITO_SATELITE = "Imagen satelital: Sentinel-2 cloudless 2016 · EOX (CC BY 4.0, datos Copernicus)"
+
+
+def tesela_satelital(limites) -> str:
+    """Una tesela del mosaico satelital (EOX, la misma del mapa base) que contiene el centro de la zona."""
+    o, s_, e, n = limites
+    ancho = max(abs(e - o), abs(n - s_), 1e-3)
+    z = int(max(5, min(13, math.floor(math.log2(360 / ancho)))))
+    lat, lon = (s_ + n) / 2, (o + e) / 2
+    x = int((lon + 180) / 360 * 2 ** z)
+    y = int((1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * 2 ** z)
+    return SATELITE.format(z=z, x=x, y=y)
+
+
+def _foto(zona: dict, wiki: dict) -> str:
+    ficha = (wiki.get("items") or [None])[0] if wiki.get("estado") == "CON_RESULTADOS" else None
+    if ficha and ficha.get("imagen") and ficha.get("credito"):
+        c = ficha["credito"]
+        return (f'<div class="mc-ficha-foto" id="ctx-foto" data-origen="wikimedia" role="img" '
+                f'aria-label="Foto de {escape(ficha["title"])}" style="background-image:url(\'{escape(ficha["imagen"])}\')">'
+                f'<a class="mc-ficha-credito" href="{escape(c["pagina"])}" target="_blank" rel="noopener">Foto: '
+                f'{escape(c["autor"])} · {escape(c["licencia"])} · Wikimedia Commons</a></div>')
+    return (f'<div class="mc-ficha-foto mc-ficha-satelite" id="ctx-foto" data-origen="satelite" role="img" '
+            f'aria-label="Vista satelital de la zona" style="background-image:url(\'{tesela_satelital(zona["limites"])}\')">'
+            f'<span class="mc-ficha-credito">{escape(CREDITO_SATELITE)}</span></div>')
+
+
+def _subtitulo(local: contexto_local.ContextoLocal) -> str:
+    if not local.municipios:
+        return "Zona en Colombia"
+    m = local.municipios[0]
+    tipo = "Distrito capital" if "D.C." in m.nombre else "Municipio"
+    extra = f" · y {len(local.municipios) - 1} municipio(s) más" if len(local.municipios) > 1 else ""
+    return f"{tipo} · {m.departamento}, Colombia{extra}"
+
+
+def _chip(texto: str, clase: str = "", titulo: str = "") -> str:
+    return f'<span class="mc-chip-ficha {clase}" title="{escape(titulo)}">{escape(texto)}</span>'
+
+
+def chips(local: contexto_local.ContextoLocal, fuentes: dict[str, dict]) -> str:
+    """Datos clave de un vistazo; cada chip dice el estado real de su fuente (nunca un valor supuesto)."""
+    c = []
+    if local.area_km2 is not None:
+        c.append(_chip(f"{local.area_km2:,.0f} km²".replace(",", "."), titulo="Área de la zona"))
+    if local.municipios:
+        c.append(_chip(f"{len(local.municipios)} municipio{'s' if len(local.municipios) != 1 else ''}",
+                       titulo="Municipios que toca la zona (DANE, MGN 2025)"))
+    ideam = fuentes["ideam"]
+    alertas = [i for i in ideam.get("items") or [] if i.get("gravedad", 0) > 0]
+    if ideam["estado"] == "CON_RESULTADOS" and alertas:
+        mayor = max(i["gravedad"] for i in alertas)
+        c.append(_chip(f"{len(alertas)} alerta{'s' if len(alertas) != 1 else ''} {NIVEL_COLOR[mayor]}",
+                       f"mc-chip-alerta mc-alerta-{NIVEL_COLOR[mayor]}", "Alertas hidrológicas del IDEAM vigentes hoy"))
+    elif ideam["estado"] in ("CON_RESULTADOS", "SIN_COINCIDENCIAS"):
+        c.append(_chip("Sin alertas IDEAM hoy", "mc-chip-ok", "IDEAM: ninguna alerta amarilla, naranja o roja toca la zona"))
+    else:
+        c.append(_chip({"CONSULTANDO": "IDEAM: consultando…", "DESACTIVADO": "IDEAM: sin consulta"}.get(
+            ideam["estado"], "IDEAM no disponible"), "mc-chip-tenue"))
+    eonet = fuentes["eonet"]
+    if eonet["estado"] in ("CON_RESULTADOS", "SIN_COINCIDENCIAS"):
+        n = len(eonet.get("items") or [])
+        c.append(_chip(f"{n} evento{'s' if n != 1 else ''} NASA", titulo="NASA EONET cerca de las fechas en estudio"))
+    else:
+        c.append(_chip({"CONSULTANDO": "NASA: consultando…", "DESACTIVADO": "NASA: sin consulta"}.get(
+            eonet["estado"], "NASA no disponible"), "mc-chip-tenue"))
+    return f'<div class="mc-chips-ficha" id="ctx-chips">{"".join(c)}</div>'
+
+
+def cabecera_html(zona: dict, local: contexto_local.ContextoLocal, fuentes: dict[str, dict]) -> str:
+    wiki = fuentes.get("wiki") or {}
+    ficha = (wiki.get("items") or [None])[0] if wiki.get("estado") == "CON_RESULTADOS" else None
+    nombre = local.municipios[0].nombre if local.municipios else "Zona seleccionada"
+    descripcion = ""
+    if ficha and ficha.get("extract"):
+        enlace = (f' <a href="{escape(ficha["url"])}" target="_blank" rel="noopener">Wikipedia</a>'
+                  if ficha.get("url") else "")
+        descripcion = f'<p class="mc-ficha-desc" id="ctx-descripcion">{escape(ficha["extract"])}{enlace}</p>'
+    return (f'<div class="mc-ficha" id="ctx-ficha" data-zona="{zona["clave"]}">{_foto(zona, wiki)}'
+            '<div class="mc-ficha-cuerpo"><div class="mc-ctx-titulo">Conozcamos esta zona</div>'
+            f'<h2 class="mc-ficha-nombre">{escape(nombre)}</h2>'
+            f'<div class="mc-ficha-sub">{escape(_subtitulo(local))}</div>{descripcion}'
+            f"{chips(local, fuentes)}</div></div>")
+
+
+def barra_municipios(local: contexto_local.ContextoLocal) -> str:
+    """Proporción de la zona en cada municipio (DANE, MGN 2025)."""
+    if not local.municipios:
+        return ""
+    colores = ("var(--theme-accent)", "#7c9cff", "#c58cff", "#ffb35c", "#7fe0a8", "#9aa4b2")
+    partes, leyenda = [], []
+    for i, m in enumerate(local.municipios[:6]):
+        color = colores[i % len(colores)]
+        partes.append(f'<span style="width:{m.fraccion * 100:.1f}%;background:{color}" title="{escape(m.nombre)}"></span>')
+        leyenda.append(f'<li><i style="background:{color}"></i>{escape(m.nombre)} <b>{m.fraccion * 100:.0f} %</b></li>')
+    return ('<div class="mc-ctx-seccion" id="ctx-municipios"><div class="visor-seccion">Cuánto de la zona cae en cada '
+            f'municipio</div><div class="mc-barra-mun">{"".join(partes)}</div>'
+            f'<ul class="mc-barra-leyenda">{"".join(leyenda)}</ul></div>')
+
+
+def alerta_principal(datos: dict) -> str:
+    alertas = [i for i in datos.get("items") or [] if i.get("gravedad", 0) > 0]
+    if datos.get("estado") != "CON_RESULTADOS" or not alertas:
+        return ""
+    i = max(alertas, key=lambda a: a["gravedad"])
+    return (f'<div class="mc-alerta-principal mc-alerta-{NIVEL_COLOR[i["gravedad"]]}" id="ctx-alerta-principal">'
+            f'<span class="mc-alerta-icono" aria-hidden="true">⚠</span><div><b>{escape((i.get("value") or "").capitalize())}'
+            f'</b> · {escape(i["title"])}<div class="visor-leyenda-nota">IDEAM, vigente hoy · por zona hidrográfica, no es '
+            "una medición en esta zona</div></div></div>")
 
 
 def _contenido(zona: dict, activos: list) -> bool:
-    """Dibuja el panel; devuelve True si alguna fuente sigue consultándose."""
+    """Dibuja el cuerpo de la ficha; devuelve True si alguna fuente sigue consultándose."""
     inicio, fin, origen = periodo_actual()
-    local = _local(json.dumps(zona["geometria"], sort_keys=True))
+    local = local_de(zona)
     fuentes = consultas(zona, inicio, fin)
     frases = "".join(f"<li>{escape(f)}</li>" for f in frases_principales(local, inicio, fin, origen, fuentes))
     st.markdown(
         f'<div class="mc-ctx" id="ctx-zona" data-zona="{zona["clave"]}">'
-        '<div class="mc-ctx-titulo">Conozcamos esta zona</div>'
+        f"{alerta_principal(fuentes['ideam'])}{_radar(activos)}"
         f'<div class="mc-ctx-seccion" id="ctx-principal"><div class="visor-seccion">Lo principal</div>'
         f'<ul class="mc-ctx-lista">{frases}</ul></div>'
-        f"{_radar(activos)}{_seccion_territorio(local)}{_seccion_ideam(fuentes['ideam'])}"
+        f"{barra_municipios(local)}{_seccion_territorio(local)}{_seccion_ideam(fuentes['ideam'])}"
         f"{_seccion_eonet(fuentes['eonet'])}"
-        f'<div class="mc-aviso" id="ctx-no-confirma">{escape(NO_CONFIRMA)}</div></div>',
+        f'<div class="mc-aviso" id="ctx-no-confirma">{escape(NO_CONFIRMA)}</div>'
+        f'<div class="visor-leyenda-nota" id="ctx-fuentes">Descripción del lugar: {escape(wikipedia_lugar.ATRIBUCION)}. '
+        "Solo se muestran fotos con autor y licencia declarados en Wikimedia Commons; si no, la vista satelital.</div>"
+        "</div>",
         unsafe_allow_html=True)
-    return any(f.get("estado") == "CONSULTANDO" for f in fuentes.values())
+    return consultando(fuentes)
 
 
 @st.fragment(run_every=2.0)
 def _vigilar(clave: str, con_resultado: bool) -> None:
-    """Mientras alguna fuente consulta, se refresca cada 2 s; al terminar, vuelve a la vista normal."""
+    """Mientras alguna fuente consulta, se refresca cada 2 s; al terminar, vuelve a la vista normal
+    (rerun completo: así también se actualizan la foto, los chips y ECO)."""
     zona = zona_actual()
     if zona is None or zona["clave"] != clave:
         st.rerun(scope="app")
@@ -251,8 +388,20 @@ def _vigilar(clave: str, con_resultado: bool) -> None:
         st.rerun(scope="app")
 
 
-def render(activos: list) -> bool:
-    """Dibuja el contexto en el panel derecho. Devuelve True si hay zona confirmada."""
+def _acciones(zona: dict, acciones: dict | None) -> None:
+    if not acciones:
+        return
+    with st.container(horizontal=True, key="ctx_acciones", gap="small"):
+        st.button("Analizar", key="ctx_analizar", icon=":material/satellite_alt:", type="primary",
+                  on_click=acciones["analizar"], help="Abrir el análisis de radar de esta zona")
+        st.button("Centrar", key="ctx_centrar", icon=":material/center_focus_strong:",
+                  on_click=acciones["centrar"], args=(zona["limites"],), help="Encuadrar la zona en el mapa")
+        st.button("Cambiar zona", key="ctx_cambiar", icon=":material/edit_location_alt:",
+                  on_click=acciones["cambiar"], help="Quitar esta zona y elegir otra")
+
+
+def render(activos: list, acciones: dict | None = None) -> bool:
+    """Dibuja la ficha del lugar en el panel derecho. Devuelve True si hay zona confirmada."""
     zona = zona_actual()
     if zona is None:
         st.markdown('<div class="mc-ctx mc-ctx-vacio" id="ctx-sin-zona">Selecciona una zona para conocer qué sucede '
@@ -260,7 +409,10 @@ def render(activos: list) -> bool:
         return False
     inicio, fin, _ = periodo_actual()
     estados = consultas(zona, inicio, fin)
-    if any(f.get("estado") == "CONSULTANDO" for f in estados.values()):
+    # La cabecera y los botones van fuera del fragmento: sus clics recargan la app completa.
+    st.markdown(cabecera_html(zona, local_de(zona), estados), unsafe_allow_html=True)
+    _acciones(zona, acciones)
+    if consultando(estados):
         _vigilar(zona["clave"], bool(activos))
     else:
         _contenido(zona, activos)

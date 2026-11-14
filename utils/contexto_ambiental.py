@@ -263,7 +263,7 @@ def consultar_ideam(aoi_geojson: dict, abrir=None) -> dict:
 import threading as _threading  # noqa: E402
 import time as _time  # noqa: E402
 
-TTL_S = {"eonet": 3600, "ideam": 900}
+TTL_S = {"eonet": 3600, "ideam": 900, "wiki": 86400}
 _consultas: dict[tuple[str, str], dict] = {}
 _cerrojo_consultas = _threading.Lock()
 

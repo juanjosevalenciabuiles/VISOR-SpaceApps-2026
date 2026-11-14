@@ -20,7 +20,7 @@ from html import escape
 
 import streamlit as st
 
-from components import barra_lateral, flujo, panel_info
+from components import barra_lateral, eco, flujo, panel_info
 from components import contexto_zona
 from components import herramientas_sar as herramientas
 from components import resultados as ui_resultados
@@ -28,7 +28,7 @@ from components.barra_lateral import Controles
 from components.panel_info import insignia
 from utils import alcance_geografico
 from utils.config import CHIGORODO_CENTRO, CHIGORODO_ZOOM, MAPA_CENTRO, MAPA_ZOOM, Fenomeno
-from utils import procedencia
+from utils import procedencia, trabajos
 from utils.geotiff import Capa
 
 ESTADO_INICIAL = {
@@ -74,6 +74,12 @@ def abrir_sar() -> None:
         st.session_state["ui_explorador_previo"] = st.session_state["ui_explorador"]
     st.session_state["ui_sar"] = "abierto"
     st.session_state["ui_explorador"] = False
+
+
+def cambiar_zona() -> None:
+    """Quita la zona confirmada y abre el paso «Área» para elegir otra."""
+    flujo.quitar_zona()
+    abrir_sar()
 
 
 def minimizar_sar() -> None:
@@ -302,16 +308,16 @@ def panel_explorador(resultados: list | None = None, activo=None) -> Controles:
 
 
 GUIA_INICIO = (
-    '<div class="visor-panel" id="guia-inicio"><div class="visor-panel-titulo">Cómo empezar</div>'
-    '<p class="visor-texto">Todavía no hay ningún resultado en el mapa. V.I.S.O.R. solo muestra lo que tú '
+    '<div class="mc-guia" id="guia-inicio"><div class="mc-ctx-titulo">Cómo empezar</div>'
+    '<ol class="mc-pasos-guia">'
+    '<li><span class="mc-paso-num">1</span><div><b>Busca un lugar</b><small>Escribe un municipio en el '
+    "Explorador o dibuja un rectángulo en el mapa.</small></div></li>"
+    '<li><span class="mc-paso-num">2</span><div><b>Confirma la zona</b><small>Aquí verás su foto, alertas del '
+    "IDEAM y datos del territorio.</small></div></li>"
+    '<li><span class="mc-paso-num">3</span><div><b>Analiza con radar</b><small>Elige dos fechas y compara: '
+    "solo entonces se calcula y se dibuja el resultado.</small></div></li></ol>"
+    '<p class="visor-leyenda-nota">Todavía no hay ningún resultado en el mapa. V.I.S.O.R. solo muestra lo que tú '
     "analices en esta sesión o abras a propósito desde el historial.</p>"
-    '<ol class="visor-lista">'
-    "<li><b>Localiza</b> el lugar por su nombre en el Explorador.</li>"
-    "<li><b>Define la zona</b>: dibuja un rectángulo o un polígono sobre el mapa y confírmalo.</li>"
-    "<li><b>Busca imágenes</b> de radar (Sentinel-1) en el catálogo de ASF.</li>"
-    "<li><b>Elige dos fechas</b> comparables.</li>"
-    "<li><b>Analiza</b>: solo entonces se calcula y se dibuja el resultado.</li>"
-    "<li><b>Revisa</b> el resultado, su procedencia y expórtalo a QGIS.</li></ol>"
     '<div class="visor-aviso visor-aviso-general">Un cambio en la señal de radar no confirma una inundación ni '
     "ningún otro fenómeno.</div></div>")
 
@@ -338,7 +344,8 @@ def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, 
             st.markdown(ui_resultados.ficha_html(res), unsafe_allow_html=True)
             ui_resultados.boton_qgis(res)
         # Contexto de la zona confirmada (sin pulsar nada); sin zona, una invitación a elegirla.
-        hay_zona = contexto_zona.render(activos)
+        hay_zona = contexto_zona.render(activos, {"analizar": abrir_sar, "centrar": centrar_en,
+                                                   "cambiar": cambiar_zona})
         if not activos and not demo and not hay_zona:
             st.markdown(GUIA_INICIO, unsafe_allow_html=True)
         if demo:
@@ -348,6 +355,23 @@ def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, 
     if activos:
         with panel:
             st.markdown("".join(ui_resultados.leyenda_html(r) for r in activos), unsafe_allow_html=True)
+
+
+def guia_eco(activos: list) -> None:
+    """ECO en la esquina inferior derecha, con un mensaje sacado del estado real de la app."""
+    zona = contexto_zona.zona_actual()
+    lugar, ocupado = None, False
+    if zona is not None:
+        lugar = contexto_zona.local_de(zona).lugar
+        inicio, fin, _ = contexto_zona.periodo_actual()
+        ocupado = contexto_zona.consultando(contexto_zona.consultas(zona, inicio, fin))
+    trabajo = None
+    if st.session_state.get("trabajo_activo"):
+        try:
+            trabajo = trabajos.leer(st.session_state["trabajo_activo"])
+        except Exception:  # noqa: BLE001 — ECO nunca rompe la app
+            trabajo = None
+    eco.render(eco.decidir(lugar, zona is not None, ocupado, trabajo, bool(activos), flujo.es_historico()))
 
 
 def herramientas_sar() -> None:
