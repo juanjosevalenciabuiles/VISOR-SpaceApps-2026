@@ -10,6 +10,13 @@ on:
       - tests/test_opera_preflight.py
       - tests/test_dswx_preflight.py
       - .github/workflows/preflight-agua.yml
+  pull_request:
+    paths:
+      - scripts/verificar_opera_asf.py
+      - scripts/verificar_dswx_cmr.py
+      - tests/test_opera_preflight.py
+      - tests/test_dswx_preflight.py
+      - .github/workflows/preflight-agua.yml
   workflow_dispatch:
 
 permissions:
