@@ -94,7 +94,7 @@ def generar(informe: Path, raiz: Path | None = None,
                     categoria += validos[1].astype(np.uint8) * 2
                     out.write(categoria, 1, window=ventana)
                     valores, cantidades = np.unique(categoria, return_counts=True)
-                    for valor, cantidad in zip(valores, cantidades):
+                    for valor, cantidad in zip(valores, cantidades, strict=True):
                         cuentas[int(valor)] += int(cantidad)
                     comunes = np.argwhere(categoria == 3)
                     if comunes.size:
