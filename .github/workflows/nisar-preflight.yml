@@ -33,7 +33,7 @@ jobs:
       - name: Buscar NISAR VALIDATED REAL en ASF/CMR (solo metadatos)
         run: python scripts/nisar_auto.py --inicio 2026-10-21 --fin 2026-11-14 > nisar_preflight_real.json
       - name: Consultar capacidades Harmony GCOV (público, sin token)
-        run: python scripts/nisar_harmony_preflight.py > harmony_capacidades.json
+        run: python scripts/nisar_harmony_preflight.py | tee harmony_capacidades.json
       - name: Guardar evidencia sin credenciales ni archivos grandes
         if: always()
         uses: actions/upload-artifact@v4
