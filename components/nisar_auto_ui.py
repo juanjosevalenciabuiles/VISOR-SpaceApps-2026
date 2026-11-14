@@ -11,7 +11,7 @@ import hashlib
 import json
 import os
 import uuid
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 import streamlit as st
 
@@ -134,7 +134,7 @@ def render(region, error: str | None):
                 try:
                     t = _ejecutar_en_cola(guardado["resultado"], plan)
                     st.session_state["nisar_auto_job"] = t["job_id"]
-                except (OSError, ValueError) as exc:
+                except (OSError, ValueError):
                     st.error("No se pudo iniciar el trabajo NISAR; verifica el disco y vuelve a intentarlo.")
     elif guardado:
         st.info("La zona o las fechas cambiaron. Busca de nuevo antes de descargar.")
