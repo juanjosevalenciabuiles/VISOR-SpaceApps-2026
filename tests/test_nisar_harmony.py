@@ -187,3 +187,76 @@ def test_cap_8_mb_es_pequeno_para_hdf5_pero_suficiente_cog(monkeypatch, tmp_path
     with pytest.raises(h.ErrorHarmony):
         h.obtener(spec, tmp_path, cliente=c, dormir=lambda _: None, limite_bytes=8 * 1024**2)
     assert not any(p.suffix == ".h5" for p in tmp_path.rglob("*"))
+
+
+
+def test_html_login_10kb_no_se_guarda_como_tiff(tmp_path):
+    url = "https://harmony.earthdata.nasa.gov/resultados_frequencyA_HHHH.tif"
+    pagina_login = b"<html><body>Earthdata Login</body></html>" + b" " * 10000
+    destino = tmp_path / "HHHH.tif"
+    with pytest.raises(h.ErrorHarmony, match="cabecera TIFF"):
+        h._descargar_cota(url, destino, 1024**2,
+                          abrir=lambda req, timeout: Respuesta(pagina_login, url))
+    assert not destino.exists()
+    assert not list(tmp_path.glob("*.part"))
+
+
+def test_content_type_html_rechazado_antes_de_guardar(tmp_path):
+    url = "https://harmony.earthdata.nasa.gov/frequencyA_HHHH.tif"
+    class Html(Respuesta):
+        def __init__(self):
+            super().__init__(b"<html>Login</html>" * 200, url)
+            self.headers["Content-Type"] = "text/html; charset=utf-8"
+
+    with pytest.raises(h.ErrorHarmony, match="página de autenticación"):
+        h._descargar_cota(url, tmp_path / "HHHH.tif", 1024**2,
+                          abrir=lambda req, timeout: Html())
+    assert not list(tmp_path.iterdir())
+
+
+def test_descarga_usa_sesion_autenticada_de_cliente(tmp_path):
+    url = "https://harmony.earthdata.nasa.gov/frequencyA_HHHH.tif"
+    data = tiff()
+
+    class RespuestaRequests:
+        headers = {"Content-Type": "image/tiff"}
+        status_code = 200
+
+        def __init__(self):
+            self.url = url
+
+        def raise_for_status(self):
+            pass
+
+        def iter_content(self, chunk_size):
+            yield data
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    class Sesion:
+        llamadas = 0
+
+        def get(self, url_arg, *, stream, timeout, headers):
+            assert url_arg == url
+            assert stream is True
+            assert headers["Accept-Encoding"] == "identity"
+            self.llamadas += 1
+            return RespuestaRequests()
+
+    sesion = Sesion()
+    cliente = NS(session=sesion)
+    destino = tmp_path / "HHHH.tif"
+    tam, digest = h._descargar_cota(url, destino, 1024**2, cliente=cliente)
+    assert sesion.llamadas == 1
+    assert tam == len(data) and len(digest) == 64
+    assert destino.read_bytes() == data
+
+
+def test_no_descarga_anonima_si_falta_cliente(tmp_path):
+    with pytest.raises(h.ErrorHarmony, match="cliente Harmony autenticado"):
+        h._descargar_cota("https://harmony.earthdata.nasa.gov/a.tif",
+                          tmp_path / "a.tif", 1024**2)
