@@ -21,12 +21,13 @@ from html import escape
 import streamlit as st
 
 from components import barra_lateral, flujo, panel_info
+from components import contexto_ambiental as contexto_ui
 from components import herramientas_sar as herramientas
 from components import resultados as ui_resultados
 from components.barra_lateral import Controles
 from components.panel_info import insignia
 from utils.config import CHIGORODO_CENTRO, CHIGORODO_ZOOM, MAPA_CENTRO, MAPA_ZOOM, Fenomeno
-from utils import procedencia
+from utils import procedencia, colombia
 from utils.geotiff import Capa
 
 ESTADO_INICIAL = {
@@ -84,6 +85,9 @@ def cerrar_sar() -> None:
 
 
 def ir_a(lat: float, lon: float, zoom: float) -> None:
+    if not colombia.contiene_punto(lon, lat):
+        st.session_state["ir_error"] = "Modo Colombia: solo se permiten ubicaciones dentro de Colombia."
+        return
     anterior = st.session_state.get("vista") or {}
     st.session_state["vista"] = {"centro": [float(lat), float(lon)], "zoom": float(zoom),
                                  "n": int(anterior.get("n", 0)) + 1}
@@ -350,6 +354,8 @@ def herramientas_sar() -> None:
             unsafe_allow_html=True,
         )
         herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
+        # Módulo secundario: nunca requiere ni modifica el resultado SAR.
+        contexto_ui.render()
     with st.container(key="sar_minimizado"):
         st.button("Herramientas SAR · restaurar", key="restaurar_sar", icon=":material/open_in_full:",
                   on_click=abrir_sar)
