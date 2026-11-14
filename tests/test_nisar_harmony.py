@@ -6,12 +6,10 @@ from __future__ import annotations
 
 import io
 import json
-from pathlib import Path
 from types import SimpleNamespace as NS
 
 import numpy as np
 import pytest
-import rasterio
 from rasterio.io import MemoryFile
 from rasterio.transform import from_origin
 
