@@ -11,4 +11,6 @@ geopandas~=1.2.0
 shapely~=2.1
 # GCOV auténtico de NISAR se distribuye como HDF5.
 h5py~=3.16.0
+# Cliente oficial de NASA Earthdata Harmony: subset COG antes de descargar.
+harmony-py~=1.8.0
 pytest~=9.2.0
