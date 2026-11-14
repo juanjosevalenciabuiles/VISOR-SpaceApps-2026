@@ -240,7 +240,17 @@ def preparar_harmony(plan: Plan, carpeta: Path | None = None, notificar=None, co
                   "comprobar": comprobar, "limite_bytes": restante}
         if dormir is not None:
             kwargs["dormir"] = dormir
-        salida = harmony.obtener(spec, carpeta, **kwargs)
+        try:
+            salida = harmony.obtener(spec, carpeta, **kwargs)
+        except harmony.ErrorHarmony as exc:
+            raise ErrorAutoNISAR(str(exc)) from None
+        except Exception as exc:
+            from utils import trabajos
+            if isinstance(exc, (trabajos.Cancelado, trabajos.TiempoAgotado)):
+                raise
+            # Los errores HTTP pueden contener URLs firmadas: jamás publicarlas
+            # en los registros persistentes ni en la interfaz.
+            raise ErrorAutoNISAR("NASA Harmony no completó el recorte: consulta autenticación y conectividad.") from None
         usados += salida["bytes_totales"]
         escenas.append({
             "granule": c.granule, "metodo": "HARMONY_COG_SUBSET",
