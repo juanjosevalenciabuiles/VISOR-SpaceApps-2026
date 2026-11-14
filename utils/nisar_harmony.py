@@ -200,9 +200,14 @@ def _descargar_cota(url, destino: Path, max_bytes: int, abrir=None, comprobar=No
         else:
             # El cliente oficial conserva el flujo de autenticación Earthdata
             # y gestiona la redirección OAuth sin reenviar la credencial a S3.
+            # El bearer de Earthdata SOLO debe salir hacia hosts NASA.
+            # Una URL S3/CloudFront ya firmada se pide SIN Authorization.
+            host = (urllib.parse.urlsplit(url).hostname or "").lower()
+            headers = {"Accept-Encoding": "identity", "User-Agent": "VISOR-NISAR-COG/1.0"}
+            if not host.endswith(".earthdata.nasa.gov"):
+                headers["Authorization"] = None
             respuesta = cliente.session.get(
-                url, stream=True, timeout=60,
-                headers={"Accept-Encoding": "identity", "User-Agent": "VISOR-NISAR-COG/1.0"},
+                url, stream=True, timeout=60, headers=headers,
             )
         with respuesta as resp:
             destino_final = getattr(resp, "url", None) or resp.geturl()
