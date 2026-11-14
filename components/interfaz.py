@@ -20,7 +20,7 @@ from html import escape
 
 import streamlit as st
 
-from components import barra_lateral, panel_info
+from components import barra_lateral, flujo, panel_info
 from components import herramientas_sar as herramientas
 from components import resultados as ui_resultados
 from components.barra_lateral import Controles
@@ -47,6 +47,7 @@ PASOS_SAR = ("01 · Área", "02 · Escenas", "03 · Análisis", "04 · Resultado
 def inicializar_estado() -> None:
     for clave, valor in ESTADO_INICIAL.items():
         st.session_state.setdefault(clave, valor)
+    flujo.inicializar()
     if st.session_state["ui_sar"] not in ESTADOS_SAR:
         st.session_state["ui_sar"] = "cerrado"
 
@@ -178,14 +179,19 @@ def mostrar_ayuda() -> None:
 **Cómo usar el visor**
 
 - El mapa ocupa toda la pantalla. Arrástralo y usa la rueda o los botones **+ / −** para el zoom.
-- **Explorador** (izquierda): fenómeno, mapa base, capas y opacidad.
-- **Información** (derecha): qué muestra la capa, de dónde viene, leyenda y créditos.
+- Al abrir, el mapa está vacío: **no hay ningún resultado hasta que analices** o abras uno del historial.
+- **Explorador** (izquierda): busca un lugar por su nombre, controla el resultado en el mapa, el historial
+  y el mapa base.
+- **Información** (derecha): qué muestra el resultado, de dónde viene, leyenda y créditos.
 - **Ir a…**: lleva el mapa a unas coordenadas (por defecto, el AOI de Chigorodó), a Chigorodó o
   de vuelta a la vista general de Antioquia.
-- **Resultados SAR** (explorador): capas opcionales de `data/analisis/` que se superponen a la del
-  fenómeno, cada una con su interruptor, opacidad, leyenda y ficha científica.
-- **Herramientas SAR**: flujo de búsqueda y análisis de imágenes de radar. Puedes minimizarlo o
-  cerrarlo sin perder el mapa ni sus capas.
+- **Herramientas SAR**: define la zona (dibújala con las herramientas ▭ y ⬠ del mapa), busca imágenes,
+  elige dos fechas y pulsa **Analizar**. Solo entonces aparece el resultado, uno a la vez.
+- **Historial** (explorador): resultados guardados de análisis anteriores. Se abren con «Ver» y quedan
+  rotulados como HISTÓRICO; abrirlos no ejecuta nada.
+- Si cambias la zona, las fechas o los parámetros, el resultado anterior se retira del mapa (el archivo
+  no se borra).
+- **Demostración** (explorador): capas sintéticas de ejemplo, apagadas por defecto.
 - Cierra los paneles para ver el mapa completo; vuelve a abrirlos desde la barra superior.
 
 **Qué significan las etiquetas**
@@ -213,22 +219,26 @@ desarrolló con asistencia de IA (Claude, de Anthropic), bajo revisión del equi
 
 def estado_html(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple = (),
                 capa_visible: bool = True) -> str:
-    """Dos grupos separados y rotulados: la capa del fenómeno y los resultados SAR activos.
-    Así una capa DEMO del fenómeno nunca se confunde con un resultado real, ni lo oculta."""
-    fen = (f'<span class="mc-grupo" title="Capa del fenómeno"><span class="mc-grupo-rot">Fenómeno</span>'
-           f'<span class="mc-chip">{fenomeno.icono} {escape(fenomeno.nombre)}</span>'
-           f"{insignia_procedencia(capa)}"
-           + ('' if capa_visible else '<span class="mc-grupo-nota">capa oculta</span>') + "</span>")
-    if not activos:
-        return f'<div class="mc-estado">{fen}</div>'
-    visibles = list(activos)[:2]
-    res = "".join(f'<span class="mc-chip mc-chip-res">{escape(r.nombre)}</span>{insignia(r.capa.procedencia)}'
-                  for r in visibles)
-    if len(activos) > 2:
-        res += f'<span class="mc-grupo-nota">+{len(activos) - 2}</span>'
-    return (f'<div class="mc-estado">{fen}<span class="mc-separador"></span>'
-            f'<span class="mc-grupo" title="Resultados SAR activos"><span class="mc-grupo-rot">Resultado SAR</span>'
-            f"{res}</span></div>")
+    """Qué hay en el mapa ahora. Sin resultado ni DEMO lo dice con todas las letras; la capa DEMO
+    (solo si se encendió a propósito) y el resultado van en grupos separados y rotulados."""
+    grupos = []
+    if capa is not None and capa_visible:
+        grupos.append(
+            '<span class="mc-grupo" title="Capa de demostración"><span class="mc-grupo-rot">Demostración</span>'
+            f'<span class="mc-chip">{fenomeno.icono} {escape(fenomeno.nombre)}</span>'
+            f"{insignia_procedencia(capa)}</span>")
+    if activos:
+        res = "".join(
+            f'<span class="mc-chip mc-chip-res">{escape(r.nombre)}</span>'
+            f'<span class="mc-insignia mc-insignia-origen">{flujo.etiqueta_origen()}</span>'
+            f"{insignia(r.capa.procedencia)}" for r in list(activos)[:1])
+        grupos.append('<span class="mc-grupo" title="Resultado en el mapa"><span class="mc-grupo-rot">Resultado SAR'
+                      f"</span>{res}</span>")
+    if not grupos:
+        grupos.append('<span class="mc-grupo" title="No hay ningún resultado en el mapa">'
+                      '<span class="mc-insignia mc-insignia-tenue">SIN RESULTADO</span>'
+                      '<span class="mc-grupo-nota">Busca un lugar, define la zona y analiza</span></span>')
+    return '<div class="mc-estado">' + '<span class="mc-separador"></span>'.join(grupos) + "</div>"
 
 
 def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple = (),
@@ -241,7 +251,7 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple 
         )
         st.markdown(estado_html(fenomeno, capa, activos, capa_visible), unsafe_allow_html=True, width="content")
         st.space("stretch")
-        st.button("Explorador", key="btn_explorador", help="Explorador: fenómeno, mapa base, capas y resultados SAR", icon=":material/layers:", on_click=alternar_explorador,
+        st.button("Explorador", key="btn_explorador", help="Explorador: buscar lugar, resultado en el mapa, historial y mapa base", icon=":material/layers:", on_click=alternar_explorador,
                   type="primary" if st.session_state["ui_explorador"] else "secondary")
         st.button("Información", key="btn_info", help="Información científica de las capas activas", icon=":material/info:", on_click=alternar_info,
                   type="primary" if st.session_state["ui_info"] else "secondary")
@@ -267,34 +277,59 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple 
             mostrar_ayuda()
 
 
-def panel_explorador(resultados: list | None = None) -> Controles:
+def panel_explorador(resultados: list | None = None, activo=None) -> Controles:
     panel = st.container(key="panel_explorador")
     with panel:
         with st.container(horizontal=True, vertical_alignment="center", key="cabecera_explorador"):
             st.markdown('<div class="mc-titulo-panel">Explorador</div>', unsafe_allow_html=True)
             st.button("Contraer", key="cerrar_explorador", icon=":material/chevron_left:", type="tertiary",
                       on_click=alternar_explorador)
-    return barra_lateral.render(panel, titulo=False, resultados=resultados or [], centrar=centrar_en)
+    return barra_lateral.render(panel, titulo=False, resultados=resultados or [], centrar=centrar_en,
+                                activo=activo, ir_a=ir_a, abrir_zona=abrir_sar)
+
+
+GUIA_INICIO = (
+    '<div class="visor-panel" id="guia-inicio"><div class="visor-panel-titulo">Cómo empezar</div>'
+    '<p class="visor-texto">Todavía no hay ningún resultado en el mapa. V.I.S.O.R. solo muestra lo que tú '
+    "analices en esta sesión o abras a propósito desde el historial.</p>"
+    '<ol class="visor-lista">'
+    "<li><b>Localiza</b> el lugar por su nombre en el Explorador.</li>"
+    "<li><b>Define la zona</b>: dibuja un rectángulo o un polígono sobre el mapa y confírmalo.</li>"
+    "<li><b>Busca imágenes</b> de radar (Sentinel-1) en el catálogo de ASF.</li>"
+    "<li><b>Elige dos fechas</b> comparables.</li>"
+    "<li><b>Analiza</b>: solo entonces se calcula y se dibuja el resultado.</li>"
+    "<li><b>Revisa</b> el resultado, su procedencia y expórtalo a QGIS.</li></ol>"
+    '<div class="visor-aviso visor-aviso-general">Un cambio en la señal de radar no confirma una inundación ni '
+    "ningún otro fenómeno.</div></div>")
 
 
 def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, controles: Controles,
                       resultados: list | None = None) -> None:
     activos = [r for r in (resultados or []) if r.dibujable and r.id in controles.resultados]
+    demo = controles.mostrar_capa
     panel = st.container(key="panel_info")
     with panel:
         with st.container(horizontal=True, vertical_alignment="center", key="cabecera_info"):
             st.markdown('<div class="mc-titulo-panel">Información</div>', unsafe_allow_html=True)
             st.button("Cerrar", key="cerrar_info", icon=":material/close:", type="tertiary",
                       on_click=alternar_info)
-        # El resultado activo va primero: es lo último que encendió la persona usuaria.
         for res in activos:
-            st.caption("RESULTADO SAR ACTIVO")
+            if flujo.es_historico():
+                abierto = str((st.session_state.get("resultado_activo") or {}).get("abierto", ""))[:16]
+                st.caption("RESULTADO HISTÓRICO")
+                st.markdown('<div class="mc-aviso" id="aviso-historico">Abierto desde el historial '
+                            f'({escape(abierto.replace("T", " "))} UTC). Es un resultado guardado de un análisis '
+                            "anterior: no se ejecutó un análisis nuevo.</div>", unsafe_allow_html=True)
+            else:
+                st.caption("RESULTADO DE ESTE ANÁLISIS")
             st.markdown(ui_resultados.ficha_html(res), unsafe_allow_html=True)
             ui_resultados.boton_qgis(res)
-        if activos:
-            st.caption("CAPA DEL FENÓMENO")
-        panel_info.render(fenomeno, capa, error)
-    barra_lateral.render_leyenda(fenomeno, capa, controles, panel)
+        if not activos and not demo:
+            st.markdown(GUIA_INICIO, unsafe_allow_html=True)
+        if demo:
+            st.caption("CAPA DE DEMOSTRACIÓN")
+            panel_info.render(fenomeno, capa, error)
+    barra_lateral.render_leyenda(fenomeno, capa if demo else None, controles, panel)
     if activos:
         with panel:
             st.markdown("".join(ui_resultados.leyenda_html(r) for r in activos), unsafe_allow_html=True)
@@ -309,9 +344,9 @@ def herramientas_sar() -> None:
             st.button("Cerrar", key="cerrar_sar", icon=":material/close:", type="tertiary",
                       on_click=cerrar_sar)
         st.markdown(
-            '<div class="mc-aviso">Búsqueda de solo lectura en ASF y análisis de productos RTC ya presentes en '
-            "<code>data/sar/</code>. No descarga ni procesa en HyP3. Los resultados son indicios de cambio de "
-            "radar, no inundaciones confirmadas.</div>",
+            '<div class="mc-aviso">Zona → imágenes → fechas → Analizar. Nada se calcula ni se dibuja hasta que '
+            "pulses «Analizar». Usa productos RTC ya presentes en <code>data/sar/</code>: no descarga ni procesa "
+            "en HyP3. Los resultados son indicios de cambio de radar, no inundaciones confirmadas.</div>",
             unsafe_allow_html=True,
         )
         herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)

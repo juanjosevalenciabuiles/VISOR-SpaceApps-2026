@@ -8,9 +8,9 @@ TAMANOS = [(1920, 1080), (1440, 900), (1366, 768), (1280, 720), (1200, 800), (10
 def test_sin_superposiciones(abrir, ancho, alto):
     p = abrir(ancho, alto)
     assert p.superposiciones() == []
-    # Con un resultado activo la barra superior tiene dos grupos: no debe desbordarse.
-    p.page.locator(".st-key-panel_explorador").evaluate("e=>e.scrollTop=e.scrollHeight")
-    p.alternar("res_coincidencia_vv_vh_20260924_20261006")
+    # Con un resultado y la DEMO la barra superior tiene dos grupos: no debe desbordarse.
+    p.ver_historico("coincidencia_vv_vh_20260924_20261006")
+    p.demo()
     barra = p.page.evaluate("""()=>{const b=document.querySelector('.st-key-barra_superior');
         const der=Math.max(...[...b.querySelectorAll('button')].filter(x=>x.offsetWidth).map(x=>x.getBoundingClientRect().right));
         return {desborde:b.scrollWidth>b.clientWidth+1, botones:der<=b.getBoundingClientRect().right+1}}""")

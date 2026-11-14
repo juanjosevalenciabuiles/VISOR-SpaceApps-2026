@@ -185,10 +185,25 @@ with col_resultado:
         st.stop()
 
     nombres = [p.name for p in informes]
-    elegido = st.session_state.get("sar_informe")
-    indice = nombres.index(elegido) if elegido in nombres else 0
-    informe = informes[st.selectbox("Resultado", range(len(informes)), index=indice,
-                                    format_func=lambda i: nombres[i].replace("_analisis.json", ""))]
+    elegido = st.session_state.get("sar_informe")     # solo lo fija una ejecución de esta sesión
+    # Ningún resultado guardado se muestra por existir: o es el que acabas de calcular, o lo eliges.
+    indice = nombres.index(elegido) if elegido in nombres else None
+    seleccion = st.selectbox("Resultado", range(len(informes)), index=indice, key="sar_informe_elegido",
+                             placeholder=f"Historial: {len(informes)} resultado(s) guardado(s). Elige uno para verlo",
+                             format_func=lambda i: nombres[i].replace("_analisis.json", ""))
+    if seleccion is None:
+        st.markdown(
+            '<div class="visor-panel"><div class="visor-panel-titulo">Ningún resultado en pantalla</div>'
+            '<p class="visor-texto">Pulsa <b>Ejecutar análisis</b> para calcular uno nuevo, o elige uno del '
+            "historial (se mostrará rotulado como resultado guardado).</p></div>",
+            unsafe_allow_html=True,
+        )
+        st.stop()
+    informe = informes[seleccion]
+    if nombres[seleccion] != elegido:
+        st.markdown('<span class="mc-insignia mc-insignia-origen">HISTÓRICO</span> '
+                    '<span class="visor-leyenda-nota">Resultado guardado de un análisis anterior: no se ejecutó '
+                    "un análisis nuevo.</span>", unsafe_allow_html=True)
     try:
         p = json.loads(informe.read_text(encoding="utf-8"))
         ruta_dif = informe.parent / p["salidas"]["diferencia_db"]

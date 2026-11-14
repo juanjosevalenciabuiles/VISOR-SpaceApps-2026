@@ -30,6 +30,7 @@ from utils.analisis_sar import (
     ErrorSAR, EscenaRTC, ParametrosCambio, analizar_par, describir_escena, prefijo_libre,
 )
 from utils.buscador_sar import ParEscenas
+from utils import sesion
 from utils.combinacion_sar import combinar_vv_vh
 from utils.config import DATA_DIR
 
@@ -149,7 +150,7 @@ def analizar_disponibles(
     disponibles: list[Disponibilidad],
     aoi: tuple[float, float, float, float],
     umbrales: dict[str, float],
-    ventana_speckle: int = 5,
+    ventana_speckle: int | dict[str, int] = 5,
     carpeta_salida: Path | None = None,
     zona: str | None = None,
     aceptar_mismo_dia: bool = False,
@@ -157,7 +158,10 @@ def analizar_disponibles(
     """Corre el motor en cada polarización con RTC completos y combina VV/VH si hay ambas.
 
     Si algún RTC se asoció solo por el día, se detiene salvo `aceptar_mismo_dia`;
-    aun aceptada, la asociación queda registrada como NO confirmada."""
+    aun aceptada, la asociación queda registrada como NO confirmada.
+
+    `ventana_speckle`: un valor para todas las polarizaciones o uno por polarización
+    (el producto reproducible de Chigorodó usa VV 3 px y VH 5 px)."""
     carpeta = CARPETA_ANALISIS if carpeta_salida is None else Path(carpeta_salida)
     carpeta.mkdir(parents=True, exist_ok=True)
     completas = [d for d in disponibles if d.completa]
@@ -175,8 +179,9 @@ def analizar_disponibles(
         if d.verificar:
             informe.avisos.append(f"{d.polarizacion}: asociación RTC ↔ escena NO confirmada (solo coincide el día); "
                                   "aceptada expresamente por el analista.")
+        ventana = ventana_speckle.get(d.polarizacion, 5) if isinstance(ventana_speckle, dict) else ventana_speckle
         parametros = ParametrosCambio(umbral_disminucion_db=float(umbrales.get(d.polarizacion, 3.0)),
-                                      ventana_speckle=int(ventana_speckle))
+                                      ventana_speckle=int(ventana))
         parametros_usados[d.polarizacion] = {"umbral_disminucion_db": parametros.umbral_disminucion_db,
                                              "ventana_speckle": parametros.ventana_speckle}
         prefijo = prefijo_libre(carpeta, f"cambio_{d.polarizacion}_{sello}")
@@ -190,6 +195,9 @@ def analizar_disponibles(
     registro = carpeta / f"{prefijo_libre(carpeta, f'flujo_{sello}')}_registro.json"
     registro.write_text(json.dumps({
         "generado_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        # Identidad de la ejecución: misma zona, escenas, parámetros y motor ⇒ mismo run_id.
+        "run_id": sesion.run_id(aoi, par.antes.nombre, par.despues.nombre, parametros_usados),
+        "par": sesion.clave_par(par.antes.nombre, par.despues.nombre),
         "par_catalogo_asf": par.para_motor(),
         "rtc": [d.resumen() for d in disponibles],
         "asociaciones_no_confirmadas": por_dia,

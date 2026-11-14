@@ -100,7 +100,9 @@ class Servidor:
         self.datos = datos
         self.puerto = _puerto_libre()
         self.url = f"http://localhost:{self.puerto}"
-        entorno = {**os.environ, "VISOR_DATA_DIR": str(datos), "VISOR_ASF_SIMULADO": str(CATALOGO)}
+        # Sin red en las pruebas: la búsqueda de lugares usa solo el catálogo local.
+        entorno = {**os.environ, "VISOR_DATA_DIR": str(datos), "VISOR_ASF_SIMULADO": str(CATALOGO),
+                   "VISOR_GEOCODIFICADOR_URL": "desactivado"}
         self.registro = open(datos.parent / f"streamlit_{self.puerto}.log", "w")
         self.proceso = subprocess.Popen(
             [sys.executable, "-m", "streamlit", "run", "app.py", "--server.port", str(self.puerto),
@@ -174,13 +176,17 @@ TESELA_RE = re.compile(r"(\.(png|jpe?g|webp)$)|(/tile/\d+/\d+/\d+$)|(/\d+/\d+/\d
 def enrutar(route):
     global TESELA
     url = route.request.url.split("?")[0]
+    if RECURSOS and "spritesheet" in url:                       # iconos de las herramientas de dibujo
+        return route.fulfill(path=str(Path(RECURSOS) / "leaflet-draw/dist/images" / url.rsplit("/", 1)[-1]))
     if TESELA_RE.search(url):
         TESELA = TESELA or _tesela()
         return route.fulfill(body=TESELA, content_type="image/png")
     if not RECURSOS:
         return route.continue_()
     base = Path(RECURSOS)
-    for nombre, ruta in (("leaflet.js", "leaflet/dist/leaflet.js"), ("leaflet.css", "leaflet/dist/leaflet.css")):
+    for nombre, ruta in (("leaflet.draw.js", "leaflet-draw/dist/leaflet.draw.js"),
+                         ("leaflet.draw.css", "leaflet-draw/dist/leaflet.draw.css"),
+                         ("leaflet.js", "leaflet/dist/leaflet.js"), ("leaflet.css", "leaflet/dist/leaflet.css")):
         if url.endswith(nombre):
             return route.fulfill(path=str(base / ruta))
     if "jquery" in url and url.endswith(".js"):
@@ -242,7 +248,7 @@ class Pagina:
         return self.mapa.evaluate("()=>[map.getZoom(), +map.getCenter().lat.toFixed(4), +map.getCenter().lng.toFixed(4)]")
 
     def clic(self, clave: str):
-        self.page.locator(f".st-key-{clave} button").first.click()
+        self.page.locator(f".st-key-{clave} button:visible").first.click()
         self.esperar()
 
     def alternar(self, clave: str):
@@ -254,6 +260,71 @@ class Pagina:
 
     def texto(self, clave: str) -> str:
         return self.page.locator(f".st-key-{clave}").first.inner_text()
+
+    # --- Recorrido: resultados, historial, DEMO y zona -------------------------------------
+
+    def capas_resultado(self) -> list[dict]:
+        """Rásteres superpuestos en el mapa (resultados o DEMO). Al abrir la app debe ser []."""
+        return self.mapa.evaluate("()=>[...document.querySelectorAll('img.leaflet-image-layer')]"
+                                  ".map(i=>({op:+getComputedStyle(i).opacity, src:i.src}))")
+
+    def trazos(self) -> int:
+        return self.mapa.evaluate("()=>document.querySelectorAll('path.leaflet-interactive').length")
+
+    def expandir(self, clave: str):
+        cab = self.page.locator(f".st-key-{clave} summary").first
+        cab.scroll_into_view_if_needed()
+        if self.page.locator(f".st-key-{clave} details").first.get_attribute("open") is None:
+            cab.click()
+            self.page.wait_for_timeout(500)
+
+    def ver_historico(self, id_resultado: str):
+        self.expandir("historial")
+        boton = self.page.locator(f".st-key-hist_ver_{id_resultado} button").first
+        boton.scroll_into_view_if_needed()
+        boton.click()
+        self.esperar()
+
+    def demo(self, fenomeno: str | None = None):
+        """Enciende a propósito la capa DEMO (y, si se indica, cambia de fenómeno)."""
+        self.expandir("demo")
+        if not self.page.locator(".st-key-capa_sar input").first.is_checked():
+            self.alternar("capa_sar")
+        if fenomeno:
+            self.page.locator(".st-key-fenomeno label").filter(has_text=fenomeno).first.click()
+            self.esperar()
+
+    def pestana_sar(self, n: int):
+        self.page.locator(".st-key-panel_sar [role=tab]").nth(n).click()
+        self.esperar(800)
+
+    def escribir(self, clave: str, texto: str):
+        campo = self.page.locator(f".st-key-{clave} input").first
+        campo.scroll_into_view_if_needed()
+        campo.fill(texto)
+        campo.press("Enter")
+        self.page.wait_for_timeout(400)
+
+    def confirmar_zona(self, oeste="-76.80", sur="7.55", este="-76.55", norte="7.80"):
+        """Abre Herramientas SAR y confirma una zona por coordenadas (ruta «Avanzado»)."""
+        if not self.visible("panel_sar"):
+            self.clic("btn_sar")
+        self.pestana_sar(0)
+        self.expandir("zona_avanzado")
+        for clave, valor in (("sar_oeste", oeste), ("sar_sur", sur), ("sar_este", este), ("sar_norte", norte)):
+            self.escribir(clave, valor)
+        self.esperar(600)
+        self.clic("zona_usar_coordenadas")
+
+    def dibujar_rectangulo(self, x=640, y=330, ancho=120, alto=110):
+        """Dibuja un rectángulo con la herramienta del mapa, como lo haría una persona."""
+        marco = self.page.frame_locator("iframe[title*='streamlit_folium']").first
+        marco.locator(".leaflet-draw-draw-rectangle").click()
+        self.page.mouse.move(x, y)
+        self.page.mouse.down()
+        self.page.mouse.move(x + ancho, y + alto, steps=8)
+        self.page.mouse.up()
+        self.esperar(1200)
 
     def superposiciones(self) -> list[str]:
         cajas = self.page.evaluate("""()=>{const o={};for(const k of ['barra_superior','panel_explorador','panel_info',

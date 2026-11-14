@@ -10,7 +10,9 @@ def test_mapa_unico_y_superficies(abrir):
     assert not p.visible("panel_sar")
     assert p.mapa.evaluate("()=>document.querySelector('.leaflet-control-attribution').offsetHeight>0")
     assert not p.page.evaluate("()=>document.documentElement.scrollWidth>innerWidth")
-    assert "DEMO · DATOS SINTÉTICOS" in p.texto("barra_superior")
+    # Primera carga: ni resultados ni DEMO; el mapa base sí.
+    assert "SIN RESULTADO" in p.texto("barra_superior") and "DEMO" not in p.texto("barra_superior")
+    assert p.capas_resultado() == [] and "Cómo empezar" in p.texto("panel_info")
     assert not p.errores
 
 
@@ -30,8 +32,7 @@ def test_navegacion_y_cambios_sin_recrear_el_mapa(abrir):
     p.page.wait_for_timeout(800)
     assert p.vista() == v, "la rueda sobre un panel no mueve el mapa"
 
-    p.page.locator(".st-key-fenomeno label").filter(has_text="Deslizamientos").first.click()
-    p.esperar()
+    p.demo("Deslizamientos")
     assert p.mapa_intacto() and p.vista() == v
     rgb = p.page.evaluate("()=>getComputedStyle(document.documentElement).getPropertyValue('--theme-rgb')")
     assert rgb.replace(" ", "") == "244,164,99"
@@ -41,8 +42,7 @@ def test_navegacion_y_cambios_sin_recrear_el_mapa(abrir):
 
 def test_paneles_conservan_su_estado(abrir):
     p = abrir()
-    p.page.locator(".st-key-fenomeno label").filter(has_text="Deforestación").first.click()
-    p.esperar()
+    p.demo("Deforestación")
     p.clic("cerrar_explorador")
     assert not p.visible("panel_explorador")
     p.clic("btn_explorador")

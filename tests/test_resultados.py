@@ -228,24 +228,31 @@ def test_app_activa_resultado_sin_perder_controles(tmp_path, monkeypatch):
     at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=120).run()
     assert not at.exception and len(at.error) == 0
 
-    clave = "res_coincidencia_vv_vh_chigorodo"
-    assert at.toggle(key=clave).value is False
-    assert at.slider(key=f"res_op_{clave.removeprefix('res_')}").disabled
+    # Primera carga: hay archivos en disco y aun así nada se dibuja; la DEMO está apagada.
+    assert at.session_state["resultado_activo"] is None and at.toggle(key="capa_sar").value is False
+    texto = " ".join(m.value for m in at.markdown)
+    assert "SIN RESULTADO" in texto and "Cómo empezar" in texto
+    # El historial lista los archivos con su insignia, pero ninguna ficha ni cifra de resultado.
+    assert "No es una inundación confirmada" not in texto and "Píxeles" not in texto
+
+    # Abrir del historial: un único resultado, rotulado HISTÓRICO.
+    at.button(key="hist_ver_coincidencia_vv_vh_chigorodo").click().run()
+    assert at.session_state["resultado_activo"]["origen"] == "historico"
     at.radio(key="fenomeno").set_value("deforestacion").run()
-    at.toggle(key=clave).set_value(True).run()
-    at.slider(key="res_op_coincidencia_vv_vh_chigorodo").set_value(0.5).run()
+    at.slider(key="res_opacidad").set_value(0.5).run()
     assert not at.exception
     texto = " ".join(m.value for m in at.markdown)
     assert "PROCEDENCIA NO DECLARADA" in texto and "No es una inundación confirmada" in texto
+    assert "HISTÓRICO" in texto and "no se ejecutó un análisis nuevo" in texto
     assert "LÍNEA TEMPORAL · CONCEPTUAL" in texto                    # sin ficha: no hay fechas
 
-    # Cambiar de fenómeno no apaga el resultado ni su opacidad.
+    # Cambiar el fenómeno de la DEMO no apaga el resultado ni su opacidad, ni enciende la DEMO.
     at.radio(key="fenomeno").set_value("deslizamiento").run()
-    assert at.toggle(key=clave).value is True and at.slider(key="res_op_coincidencia_vv_vh_chigorodo").value == 0.5
-    assert at.toggle(key="capa_sar").value is True
+    assert at.session_state["resultado_activo"]["id"] == "coincidencia_vv_vh_chigorodo"
+    assert at.slider(key="res_opacidad").value == 0.5 and at.toggle(key="capa_sar").value is False
 
-    # Con solo el resultado reproducible activo, la línea temporal muestra sus fechas.
-    at.toggle(key=clave).set_value(False).run()
-    at.toggle(key="res_coincidencia_vv_vh_20260924_20261006").set_value(True).run()
+    # Abrir otro lo sustituye (no se acumulan) y la línea temporal muestra sus fechas.
+    at.button(key="hist_ver_coincidencia_vv_vh_20260924_20261006").click().run()
+    assert at.session_state["resultado_activo"]["id"] == "coincidencia_vv_vh_20260924_20261006"
     texto = " ".join(m.value for m in at.markdown)
     assert "T₁ · 2026-09-24" in texto and "T₂ · 2026-10-06" in texto and "REAL SIN VALIDAR" in texto
