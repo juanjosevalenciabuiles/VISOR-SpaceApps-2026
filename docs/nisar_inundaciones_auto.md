@@ -196,3 +196,30 @@ git switch --detach origin/feature/nisar-inundaciones-auto
 \`\`\`
 
 **Condición pendiente:** revisión cartográfica de ubicación de clase 3 respecto al área de interés, verificación de comparabilidad radiométrica y desarrollo de metodología de agua nueva con evidencia independiente; solo después sería defendible una hipótesis de inundación.
+
+
+## Ubicación real de la cobertura NISAR respecto a Chigorodó (auditoría espacial)
+
+Resultado REAL del usuario: \`scripts/nisar_mapa_cobertura_qa.py\` terminó \`MAPA_COBERTURA_QA_NO_INUNDACION\`, archivo \`data/nisar/qa/cobertura_5c0b3e2c4c197d.tif\`, **0,021 MiB** (mapa de disponibilidad de observación, NO el total de insumos radar), CRS EPSG:32618 a 10 metros. Las clases de cobertura suman los 7.681.200 píxeles de la cuadrícula:
+- 0 ninguna fecha utilizable: **6.927.803** píxeles.
+- 1 solo 22-oct: **20.055** píxeles = 2,0055 km².
+- 2 solo 3-nov: **0** píxeles.
+- 3 ambas fechas: **733.342** píxeles = **73,3342 km²**.
+
+Rectángulo WGS84 que **contiene** los píxeles clase 3, **NO polígono exacto**:
+\`[-76.80094488411208, 7.549817616041104, -76.74743307770407, 7.77877995585116]\`.
+
+**LIMITACIÓN GEOGRÁFICA CRÍTICA:** La cabecera urbana de Chigorodó se referencia por Minvivienda Colombia en \`POINT (-76.6774845 7.6645455)\`, fuente: https://www.minvivienda.gov.co/node/38689 (marca página «Desactualizado», pero las coordenadas de cabecera son coherentes con [Decreto de Antioquia 2025](https://www.antioquia.gov.co/images/gaceta/2025/09/GACETA%2025.243%20-%20D.pdf), que registra \`(-76.681531,7.666147)\`). **La cabecera está al ESTE del máximo este (-76.7474) del rectángulo QA, y por tanto FUERA de la cobertura utilizable del par.** No presentarlo como análisis representativo del casco urbano. Puede haber observaciones válidas sobre zonas rurales occidentales, pero verificar dentro de límites oficiales y fuentes de exposición antes de recomendar el uso para inundaciones.
+
+Añadida herramienta QA \`scripts/nisar_verificar_punto_qa.py\` para consultar si un punto exacto cae en clase 0/1/2/3 de un raster YA generado, sin descargar ni clasificar inundación, y pruebas sintéticas asociadas:
+
+\`\`\`bash
+cd ~/visor-nisar-prueba
+git fetch origin feature/nisar-inundaciones-auto
+git switch --detach origin/feature/nisar-inundaciones-auto
+~/workspace/.venv/bin/python scripts/nisar_verificar_punto_qa.py \
+  --raster data/nisar/qa/cobertura_5c0b3e2c4c197d.tif \
+  --lon -76.6774845 --lat 7.6645455
+\`\`\`
+
+**Próxima mejora científica:** cambiar de selección guiada solo por huellas (41,38% de AOI) a selección guiada también por si la zona exacta de interés (población/río/infraestructura) tiene observaciones QA en dos fechas. Para la cabecera buscar otra trayectoria/pareja NISAR o reevaluar área/fechas, y solo con cobertura útil y datos de referencia validar hipótesis de inundación. El fallback Sentinel-1 es explícito, no equiparar C-band con L-band.
