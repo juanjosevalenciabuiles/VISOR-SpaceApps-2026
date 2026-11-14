@@ -63,6 +63,8 @@ def _ir_a_lugar(lugar, ir_a) -> None:
     # Un resultado pertenece a su zona: si el lugar queda fuera de ella, se retira de la pantalla (los
     # archivos y el Historial no cambian) para que nunca parezca un resultado del lugar nuevo.
     zona = flujo.zona_confirmada()
+    if str(st.session_state.get("aviso_resultado") or "").startswith("Se retiró el resultado del mapa al ir a"):
+        st.session_state["aviso_resultado"] = None            # aviso de una navegación anterior: ya no aplica
     if st.session_state.get("resultado_activo"):
         dentro = zona is not None and zona[0] <= lugar.longitud <= zona[2] and zona[1] <= lugar.latitud <= zona[3]
         if not dentro:
