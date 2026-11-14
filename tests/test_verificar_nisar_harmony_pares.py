@@ -12,7 +12,7 @@ from rasterio.transform import from_origin
 
 from scripts.verificar_nisar_harmony_pares import ErrorAuditoria, auditar
 
-CAPAS = ("HHHH", "mask", "numberOfLooks")
+CAPAS = ("HHHH", "HVHV", "mask", "numberOfLooks")
 AOI = [-76.8, 7.55, -76.55, 7.8]
 
 
@@ -54,7 +54,7 @@ def _reporte(raiz, escenas):
 def test_par_autentico_estructural_y_sin_inundaciones(tmp_path):
     escenas = [_escena(tmp_path, 1), _escena(tmp_path, 2)]
     resultado = auditar(_reporte(tmp_path, escenas), tmp_path)
-    assert resultado["fechas"] == 2 and resultado["archivos"] == 6
+    assert resultado["fechas"] == 2 and resultado["archivos"] == 8
     assert resultado["grillas_temporales_iguales"] is True
     assert resultado["total_bytes"] == sum(s["bytes_totales"] for s in escenas)
     assert resultado["escenas"][0]["capas"]["HHHH"]["fraccion_hh_positiva_finita"] == 1.0
@@ -83,3 +83,55 @@ def test_no_traversal_de_cache(tmp_path):
     escenas[0]["carpeta_relativa"] = "../afuera"
     with pytest.raises(ErrorAuditoria, match="fuera del directorio"):
         auditar(_reporte(tmp_path, escenas), tmp_path)
+
+
+
+def test_solape_qa_descarte_0_255_y_looks_hh_hv(tmp_path):
+    from scripts.nisar_solape_qa import calcular
+
+    escenas = [_escena(tmp_path, 1), _escena(tmp_path, 2)]
+    informe = _reporte(tmp_path, escenas)
+    carpeta = tmp_path / "data" / "nisar" / "harmony"
+    cambios = [
+        {"mask": {(0, 0): 0, (0, 1): 255},
+         "HHHH": {(0, 2): 0},
+         "HVHV": {(0, 4): np.nan}},
+        {"mask": {(0, 0): 0, (1, 1): 255},
+         "numberOfLooks": {(0, 3): 0}},
+    ]
+    for idx, c in enumerate(cambios, start=1):
+        base = carpeta / f"escena_{idx}"
+        for capa, pixels in c.items():
+            path = base / f"{capa}.tif"
+            with rasterio.open(path, "r+") as dst:
+                x = dst.read(1)
+                for ij, value in pixels.items():
+                    x[ij] = value
+                dst.write(x, 1)
+        manifest = base / "manifest.json"
+        info = json.loads(manifest.read_text())
+        for file in info["archivos"]:
+            path = base / file["archivo"]
+            file["bytes"] = path.stat().st_size
+            file["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        info["bytes_totales"] = sum(f["bytes"] for f in info["archivos"])
+        manifest.write_text(json.dumps(info), encoding="utf-8")
+        escenas[idx - 1]["bytes_totales"] = info["bytes_totales"]
+    informe = _reporte(tmp_path, escenas)
+    resultado = calcular(informe, tmp_path)
+    assert resultado["pixeles_en_cuadricula"] == 1024
+    assert resultado["por_fecha"][0]["usable"] == 1020
+    assert resultado["por_fecha"][1]["usable"] == 1021
+    assert resultado["pixeles_validos_comunes"] == 1018
+    assert resultado["area_valida_comun_km2"] == 0.4072
+    assert resultado["por_fecha"][0]["mask_fuera_255"] == 1
+    assert resultado["por_fecha"][1]["mask_fuera_255"] == 1
+    assert "NO extensión de agua ni inundación" in resultado["advertencia"]
+
+
+def test_solape_qa_rechaza_par_desalineado(tmp_path):
+    from scripts.nisar_solape_qa import calcular
+
+    escenas = [_escena(tmp_path, 1), _escena(tmp_path, 2, desplazar=20)]
+    with pytest.raises(ErrorAuditoria, match="no comparten cuadrícula"):
+        calcular(_reporte(tmp_path, escenas), tmp_path)
