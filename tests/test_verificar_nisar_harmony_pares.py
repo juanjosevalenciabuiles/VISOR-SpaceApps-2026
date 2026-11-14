@@ -135,3 +135,64 @@ def test_solape_qa_rechaza_par_desalineado(tmp_path):
     escenas = [_escena(tmp_path, 1), _escena(tmp_path, 2, desplazar=20)]
     with pytest.raises(ErrorAuditoria, match="no comparten cuadrícula"):
         calcular(_reporte(tmp_path, escenas), tmp_path)
+
+
+
+def test_mapa_qa_compacto_es_cobertura_no_agua(tmp_path):
+    from scripts.nisar_mapa_cobertura_qa import generar
+
+    escenas = [_escena(tmp_path, 1), _escena(tmp_path, 2)]
+    informe = _reporte(tmp_path, escenas)
+    meta = generar(informe, tmp_path)
+    assert meta["estado"] == "MAPA_COBERTURA_QA_NO_INUNDACION"
+    assert meta["pixeles_por_clase"]["3"] == 1024
+    assert meta["pixeles_por_clase"]["0"] == 0
+    assert meta["area_comun_qa_km2"] == 0.4096
+    assert "NO extensión" in meta["advertencia"]
+    with rasterio.open(meta["archivo"]) as img:
+        assert img.driver == "GTiff" and img.count == 1
+        assert img.dtypes == ("uint8",)
+        assert img.crs.to_epsg() == 32618
+        assert img.res == (20.0, 20.0)
+        assert np.all(img.read(1) == 3)
+        assert img.tags()["AREA"] == "COBERTURA_QA_NISAR_NO_INUNDACION"
+        assert img.colormap(1)[0][3] == 0
+    assert json.loads(Path(meta["meta"]).read_text())["pixeles_por_clase"]["3"] == 1024
+    with pytest.raises(ErrorAuditoria, match="ya existe"):
+        generar(informe, tmp_path)
+
+
+def test_mapa_qa_distingue_coberturas_temporales(tmp_path):
+    from scripts.nisar_mapa_cobertura_qa import generar
+
+    escenas = [_escena(tmp_path, 1), _escena(tmp_path, 2)]
+    carpeta = tmp_path / "data" / "nisar" / "harmony"
+
+    # Fecha 1: un píxel inválido, quedará solo la fecha 2.
+    # Fecha 2: otro píxel inválido, quedará solo la fecha 1.
+    for indice, posicion in ((1, (0, 0)), (2, (0, 1))):
+        base = carpeta / f"escena_{indice}"
+        ruta = base / "mask.tif"
+        with rasterio.open(ruta, "r+") as ds:
+            imagen = ds.read(1)
+            imagen[posicion] = 255
+            ds.write(imagen, 1)
+        manifest = base / "manifest.json"
+        contenido = json.loads(manifest.read_text())
+        for archivo in contenido["archivos"]:
+            f = base / archivo["archivo"]
+            archivo["bytes"] = f.stat().st_size
+            archivo["sha256"] = hashlib.sha256(f.read_bytes()).hexdigest()
+        contenido["bytes_totales"] = sum(a["bytes"] for a in contenido["archivos"])
+        manifest.write_text(json.dumps(contenido))
+        escenas[indice - 1]["bytes_totales"] = contenido["bytes_totales"]
+    meta = generar(_reporte(tmp_path, escenas), tmp_path)
+    assert meta["pixeles_por_clase"]["1"] == 1
+    assert meta["pixeles_por_clase"]["2"] == 1
+    assert meta["pixeles_por_clase"]["3"] == 1022
+    assert meta["area_comun_qa_km2"] == 0.4088
+    with rasterio.open(meta["archivo"]) as ds:
+        data = ds.read(1)
+        assert int(data[0, 0]) == 2
+        assert int(data[0, 1]) == 1
+        assert int(data[1, 1]) == 3
