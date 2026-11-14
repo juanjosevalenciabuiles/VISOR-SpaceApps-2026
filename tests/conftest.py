@@ -12,3 +12,6 @@ import tempfile
 os.environ.setdefault("VISOR_TRABAJOS_DIR", tempfile.mkdtemp(prefix="visor_trabajos_"))
 os.environ.setdefault("VISOR_TRABAJOS_SINCRONOS", "1")
 os.environ.setdefault("VISOR_DIAGNOSTICO", "desactivado")
+# Las pruebas heredadas de cartografía MUNDIAL siguen probando el backend global.
+# El modo público por defecto es CO, y los nuevos tests Colombia fuerzan CO.
+os.environ.setdefault("VISOR_REGION_MODE", "GLOBAL")
