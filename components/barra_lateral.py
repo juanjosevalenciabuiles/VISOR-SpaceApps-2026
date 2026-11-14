@@ -13,7 +13,7 @@ import streamlit as st
 
 from components import flujo, leyenda
 from components.panel_info import insignia
-from utils import lugares, sesion
+from utils import lugares, sesion, colombia
 from utils import mapas_base
 from utils.capas_contexto import CAPAS_CONTEXTO, disponibles, recortar
 from utils.config import FENOMENOS, Fenomeno, carto_estado
@@ -76,7 +76,9 @@ def _ir_a_lugar(lugar, ir_a) -> None:
 def buscador_lugar(ir_a, abrir_zona=None) -> None:
     """«¿Qué lugar quieres analizar?»: busca por nombre y lleva el mapa allí."""
     st.caption("¿QUÉ LUGAR QUIERES ANALIZAR?")
-    st.text_input("Lugar", key="lugar_texto", placeholder="Ciudad, municipio o lugar · ej.: Chigorodó, Nairobi, Tokio",
+    if colombia.modo() == "CO":
+        st.caption("🇨🇴 MODO COLOMBIA · búsqueda y análisis limitados al país")
+    st.text_input("Lugar", key="lugar_texto", placeholder="Ciudad o municipio de Colombia · ej.: Chigorodó, Bogotá",
                   label_visibility="collapsed")
     st.button("Buscar", key="lugar_buscar", icon=":material/search:", type="primary", on_click=_buscar_lugar,
               args=(ir_a,))
