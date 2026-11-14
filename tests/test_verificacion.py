@@ -224,3 +224,28 @@ def test_regional_que_no_reproduce_se_advierte(tmp_path):
     v.auditar_regional(inf, tmp_path)
     c = next(c for c in inf.comprobaciones if c.id == "REG-01")
     assert c.estado in (v.ADVERTENCIA, v.FALLIDA) and "QGIS" in c.detalle
+
+
+def test_ficha_descriptiva_del_motor_no_es_fallo(tmp_path):
+    """Las máscaras del motor llevan un JSON descriptivo (fuente, fecha, producto, unidades) sin
+    bloque `procedencia`: el verificador las trata como NO DECLARADAS, no como ficha que no coincide.
+    Así ocurre con los productos reales de Chigorodó (12-nov-2026)."""
+    from test_analisis_sar import ANTES, DESPUES, campo, crear_rtc
+
+    from utils.analisis_sar import ParametrosCambio, analizar_par
+
+    despues = campo()
+    despues[10:20, 10:20] = 0.005                      # −23 dB: disminución marcada
+    a = crear_rtc(tmp_path / ANTES, campo())
+    d = crear_rtc(tmp_path / DESPUES, despues)
+    analisis = tmp_path / "analisis"
+    analizar_par(a, d, analisis, parametros=ParametrosCambio(ventana_speckle=1))
+    lateral = next(analisis.glob("*_mascara.json"))
+    assert "procedencia" not in json.loads(lateral.read_text(encoding="utf-8"))
+
+    inf = v.Informe()
+    v.auditar_resultados(inf, analisis, None)
+    e = {c.id: c for c in inf.comprobaciones}
+    fichas = [c for k, c in e.items() if k.startswith("DAT-") and k.endswith("e")]
+    assert fichas and all(c.estado == v.APROBADA for c in fichas), [(c.id, c.detalle) for c in fichas]
+    assert inf.veredicto != v.NO_APTO, [(c.id, c.estado) for c in inf.comprobaciones]
