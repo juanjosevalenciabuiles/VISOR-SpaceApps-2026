@@ -181,13 +181,15 @@ def test_capturas_contexto_ambiental_real(navegador, servidor_real_ctx):
             try:   # foto de Wikimedia Commons (si la página del municipio tiene una con licencia)
                 p.page.wait_for_selector('#ctx-foto[data-origen="wikimedia"]', timeout=30000)
                 p.page.wait_for_function("()=>{const f=document.querySelector('#ctx-foto');"
-                                         "return f && getComputedStyle(f).backgroundImage.includes('wikimedia')}",
+                                         "const i=f&&f.querySelector('img'); return i && i.complete && i.naturalWidth>0}",
                                          timeout=10000)
                 p.esperar(2500)
             except Exception:  # noqa: BLE001 — se informa abajo: la ficha cae a la vista satelital
                 pass
             foto = p.page.locator("#ctx-foto").first
             print("CTX_FOTO", nombre, foto.get_attribute("data-origen"), foto.inner_text(),
+                  "| imagen cargada:", p.page.evaluate("()=>{const i=document.querySelector('#ctx-foto img');"
+                                                       "return i ? i.naturalWidth : -1}"),
                   "| ECO:", p.page.locator("#eco-avatar").first.get_attribute("data-clip"),
                   p.page.locator("#eco-mensaje").first.inner_text().replace("\n", " "))
             texto = p.texto("panel_info")

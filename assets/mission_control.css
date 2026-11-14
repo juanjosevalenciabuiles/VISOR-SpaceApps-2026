@@ -319,8 +319,8 @@ i.mc-transparente { background: repeating-conic-gradient(rgba(255, 255, 255, 0.2
 .st-key-panel_info { max-height: calc(100vh - var(--mc-arriba) - 228px); } /* deja sitio a ECO */
 .mc-ficha { margin: .2rem -6px .4rem; border-radius: 16px; overflow: hidden;
   background: rgba(7, 19, 34, .55); border: 1px solid rgba(var(--theme-rgb), .18); }
-.mc-ficha-foto { position: relative; height: 150px; background-size: cover; background-position: center;
-  background-color: #0b1a2a; }
+.mc-ficha-foto { position: relative; height: 150px; background-color: #0b1a2a; overflow: hidden; }
+.mc-ficha-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .mc-ficha-foto::after { content: ""; position: absolute; inset: 0;
   background: linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(7,19,34,.92) 100%); }
 .mc-ficha-satelite { filter: saturate(1.1); }
@@ -329,12 +329,13 @@ i.mc-transparente { background: repeating-conic-gradient(rgba(255, 255, 255, 0.2
   text-overflow: ellipsis; text-shadow: 0 1px 2px #000; }
 a.mc-ficha-credito:hover { text-decoration: underline; }
 .mc-ficha-cuerpo { padding: .55rem .8rem .75rem; }
-.mc-ficha .mc-ctx-titulo { font-size: .66rem; font-weight: 700; letter-spacing: .08em; color: var(--mc-tenue); }
+.mc-ficha .mc-ctx-titulo { font-size: .7rem; font-weight: 700; letter-spacing: .02em; color: var(--mc-tenue); }
 .mc-ficha-nombre { font-size: 1.45rem !important; font-weight: 750 !important; line-height: 1.15 !important;
   margin: .1rem 0 .1rem !important; padding: 0 !important; color: var(--mc-texto) !important; }
 .mc-ficha-sub { font-size: .78rem; color: var(--theme-accent); margin-bottom: .35rem; }
-.mc-ficha-desc { font-size: .8rem; line-height: 1.45; color: #d1d6de; margin: 0 0 .5rem; }
-.mc-ficha-desc a { font-size: .72rem; }
+.mc-ficha p.mc-ficha-desc { font-size: .8rem !important; line-height: 1.45 !important; color: #d1d6de; margin: 0 0 .5rem !important; }
+.mc-ficha-desc a { font-size: .72rem !important; }
+.mc-ficha-sub { font-size: .76rem !important; line-height: 1.35; }
 .mc-chips-ficha { display: flex; flex-wrap: wrap; gap: .3rem; }
 .mc-chip-ficha { font-size: .7rem; padding: .18rem .55rem; border-radius: 999px; white-space: nowrap;
   background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); color: var(--mc-texto); }
@@ -390,7 +391,7 @@ a.mc-ficha-credito:hover { text-decoration: underline; }
 .eco-avatar video, .eco-avatar img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.12); display: block; }
 .eco-avatar .eco-fijo { display: none; }
 .eco-quieto .eco-fijo { display: block; filter: saturate(.6); }
-.st-key-eco_ocultar { position: absolute !important; right: -4px; top: auto; bottom: 78px; z-index: 2; }
+.st-key-eco_ocultar { position: absolute !important; right: 2px; bottom: 2px; z-index: 2; }
 .st-key-eco_ocultar button { min-height: 0 !important; padding: 0 .25rem !important; border-radius: 999px !important;
   background: rgba(8, 22, 36, .9) !important; }
 .st-key-eco_ocultar button p { display: none; }

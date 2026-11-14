@@ -258,15 +258,17 @@ def tesela_satelital(limites) -> str:
 
 
 def _foto(zona: dict, wiki: dict) -> str:
+    """Foto del lugar (Wikimedia Commons, con autor y licencia) o, si no hay, la vista satelital."""
     ficha = (wiki.get("items") or [None])[0] if wiki.get("estado") == "CON_RESULTADOS" else None
     if ficha and ficha.get("imagen") and ficha.get("credito"):
         c = ficha["credito"]
-        return (f'<div class="mc-ficha-foto" id="ctx-foto" data-origen="wikimedia" role="img" '
-                f'aria-label="Foto de {escape(ficha["title"])}" style="background-image:url(\'{escape(ficha["imagen"])}\')">'
+        return (f'<div class="mc-ficha-foto" id="ctx-foto" data-origen="wikimedia">'
+                f'<img class="mc-ficha-img" src="{escape(ficha["imagen"])}" alt="Foto de {escape(ficha["title"])}" '
+                'referrerpolicy="no-referrer">'
                 f'<a class="mc-ficha-credito" href="{escape(c["pagina"])}" target="_blank" rel="noopener">Foto: '
                 f'{escape(c["autor"])} · {escape(c["licencia"])} · Wikimedia Commons</a></div>')
-    return (f'<div class="mc-ficha-foto mc-ficha-satelite" id="ctx-foto" data-origen="satelite" role="img" '
-            f'aria-label="Vista satelital de la zona" style="background-image:url(\'{tesela_satelital(zona["limites"])}\')">'
+    return (f'<div class="mc-ficha-foto mc-ficha-satelite" id="ctx-foto" data-origen="satelite">'
+            f'<img class="mc-ficha-img" src="{tesela_satelital(zona["limites"])}" alt="Vista satelital de la zona">'
             f'<span class="mc-ficha-credito">{escape(CREDITO_SATELITE)}</span></div>')
 
 
@@ -275,7 +277,8 @@ def _subtitulo(local: contexto_local.ContextoLocal) -> str:
         return "Zona en Colombia"
     m = local.municipios[0]
     tipo = "Distrito capital" if "D.C." in m.nombre else "Municipio"
-    extra = f" · y {len(local.municipios) - 1} municipio(s) más" if len(local.municipios) > 1 else ""
+    otros = len(local.municipios) - 1
+    extra = f" · y {otros} municipio{'s' if otros != 1 else ''} más" if otros else ""
     return f"{tipo} · {m.departamento}, Colombia{extra}"
 
 
@@ -295,7 +298,8 @@ def chips(local: contexto_local.ContextoLocal, fuentes: dict[str, dict]) -> str:
     alertas = [i for i in ideam.get("items") or [] if i.get("gravedad", 0) > 0]
     if ideam["estado"] == "CON_RESULTADOS" and alertas:
         mayor = max(i["gravedad"] for i in alertas)
-        c.append(_chip(f"{len(alertas)} alerta{'s' if len(alertas) != 1 else ''} {NIVEL_COLOR[mayor]}",
+        color = NIVEL_COLOR[mayor] if len(alertas) == 1 or mayor == 2 else NIVEL_COLOR[mayor] + "s"
+        c.append(_chip(f"{len(alertas)} alerta{'s' if len(alertas) != 1 else ''} {color}",
                        f"mc-chip-alerta mc-alerta-{NIVEL_COLOR[mayor]}", "Alertas hidrológicas del IDEAM vigentes hoy"))
     elif ideam["estado"] in ("CON_RESULTADOS", "SIN_COINCIDENCIAS"):
         c.append(_chip("Sin alertas IDEAM hoy", "mc-chip-ok", "IDEAM: ninguna alerta amarilla, naranja o roja toca la zona"))
