@@ -77,6 +77,29 @@ recuperado exactamente, detección con speckle gamma (ENL 4,9) con más de 97 % 
 menos de 2 % de falsos cambios, reducción de varianza del filtro acorde a la teoría,
 reconstrucción de la máscara desde el dB continuo y conversión de unidades del CRS.
 
+### 13-nov-2026 · Aceptación con datos reales e integración
+
+| Commit | Cambio | Por qué importa |
+| --- | --- | --- |
+| `0323169` | El verificador ya no trata la ficha descriptiva del motor como huella falsa | Con los productos reales de Chigorodó `verificar.sh` daba NO APTO; una ficha que declara SHA-256 o estado incorrecto sigue siendo fallo crítico |
+| `5f302c9` | PR #5 fusionada en la rama de Mission Control | Una sola rama con motor, buscador ASF, Fase C y QGIS |
+| `2455c8f` | El trabajo manual «Consulta real a ASF» ya no recoge las pruebas de navegador | Nunca había llegado a ejecutar la consulta |
+| `be885f8` | Etiqueta real del par recomendado en la prueba de red | La consulta real a ASF pasa (ejecutada a mano en GitHub Actions) |
+
+Comprobado con los cuatro RTC reales de Chigorodó (24-sep y 6-oct-2026, VV/VH), sin escribir en
+`data/` y con SHA-256 idénticos antes y después:
+
+- El motor regenera `…_dif_db.tif` (diferencia máxima 0,0 dB) y las máscaras VV y VH (0 píxeles
+  distintos) frente a los archivos existentes.
+- Combinación VV ≤ −7,5 dB / VH ≤ −3 dB: 0 = 815.237 · 1 = 11 · 2 = 27.992 · 3 = 12.293 · 255 = 91;
+  40.296 px detectados = 3.626,64 ha. Diferencia con el TIFF exploratorio: 15.860 px, documentada.
+- `bash verificar.sh` con esos productos: 41 aprobadas, 0 fallidas.
+- Paquetes QGIS reales (coincidencia y diferencia en dB): equivalentes automáticos de Q1–Q8
+  correctos. **La inspección visual en QGIS Desktop sigue sin hacerse.**
+
+Sigue sin comprobar con datos auténticos: cruce SAR × JRC (REG-01), lector NISAR GCOV y cualquier
+municipio distinto de Chigorodó. Son indicios de cambio de retrodispersión, no inundaciones
+confirmadas; no hay validación independiente.
 ### 13-nov-2026 · Alcance regional y cruce SAR × JRC (rama `feature/regional-uraba`)
 
 El equipo decidió que V.I.S.O.R. deje de limitarse a Chigorodó: región piloto Chigorodó, Carepa, Apartadó y
