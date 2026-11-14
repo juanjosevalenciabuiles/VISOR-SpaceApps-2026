@@ -268,6 +268,12 @@ def obtener(spec: Especificacion, carpeta: Path, *, cliente=None, abrir=None,
                 p = final / item["archivo"]
                 if not p.is_file() or p.stat().st_size != item["bytes"]:
                     raise ErrorHarmony("El caché Harmony existe, pero está incompleto.")
+                sha = hashlib.sha256()
+                with p.open("rb") as archivo:
+                    for bloque in iter(lambda: archivo.read(BLOQUE), b""):
+                        sha.update(bloque)
+                if sha.hexdigest() != item["sha256"]:
+                    raise ErrorHarmony("El caché Harmony fue alterado y no debe reutilizarse.")
             if set(item["capa"] for item in meta["archivos"]) == set(spec.capas):
                 return meta
         raise ErrorHarmony("La carpeta de descarga Harmony ya existe y no coincide con el plan.")
