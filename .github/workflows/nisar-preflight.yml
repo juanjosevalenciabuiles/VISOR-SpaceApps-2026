@@ -29,7 +29,7 @@ jobs:
       - name: Instalar dependencias para pruebas y lectura GCOV
         run: python -m pip install -r requirements.txt
       - name: Probar catálogo, descarga simulada, lector y selección automática
-        run: python -m pytest -q tests/test_nisar_catalogo.py tests/test_nisar_descarga.py tests/test_nisar_gcov.py tests/test_nisar_auto.py tests/test_nisar_harmony.py
+        run: python -m pytest -q tests/test_nisar_catalogo.py tests/test_nisar_descarga.py tests/test_nisar_gcov.py tests/test_nisar_auto.py tests/test_nisar_harmony.py tests/test_verificar_nisar_harmony_pares.py
       - name: Buscar NISAR VALIDATED REAL en ASF/CMR (solo metadatos)
         run: python scripts/nisar_auto.py --inicio 2026-10-21 --fin 2026-11-14 > nisar_preflight_real.json
       - name: Consultar capacidades Harmony GCOV (público, sin token)
