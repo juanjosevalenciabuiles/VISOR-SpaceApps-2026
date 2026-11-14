@@ -40,9 +40,15 @@ def _ejecutar_en_cola(resultado, plan):
         ctx.fase("datos", trabajos.EN_CURSO, "Descargando NISAR auténtico, sin sobrescribir")
         ctx.comprobar("antes de descargar")
 
-        def notificar(etapa, _granule):
+        def notificar(etapa, detalle):
             ctx.comprobar(etapa)
-            ctx.fase("datos" if etapa == "descarga" else "preparacion", trabajos.EN_CURSO, etapa)
+            if etapa == "progreso":
+                hecho, total = detalle
+                if hecho == total or hecho % (128 * 1024 * 1024) < nisar_descarga.BLOQUE:
+                    ctx.fase("datos", trabajos.EN_CURSO,
+                             f"Descargados {hecho / 1e9:.2f} de {total / 1e9:.2f} GB")
+            else:
+                ctx.fase("datos" if etapa == "descarga" else "preparacion", trabajos.EN_CURSO, etapa)
 
         salida = nisar_auto.preparar(plan, ruta, notificar=notificar)
         ctx.fase("datos", trabajos.APTO, "HDF5 descargados/reutilizados con tamaño comprobado")
