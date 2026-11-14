@@ -200,3 +200,59 @@ def preparar(plan: Plan, registro: Path, carpeta_crudos: Path | None = None,
         "plan": plan.resumen(), "creado_utc": datetime.now(timezone.utc).isoformat(),
         "advertencia": "No se han generado mapas de inundación; solo insumos geocodificados auténticos."
     }
+
+
+
+def preparar_harmony(plan: Plan, carpeta: Path | None = None, notificar=None, comprobar=None,
+                     max_mb: int = 512, caps: dict | None = None, cliente=None,
+                     abrir=None, dormir=None) -> dict:
+    """Primera opción: COG por AOI/variable con NASA Harmony SIN descargar HDF5.
+
+    Nunca se cambia la resolución. Un fallo NO provoca descarga íntegra de GB.
+    El archivo es insumo gamma0, no clasificador de agua/inundaciones.
+    """
+    from utils import nisar_harmony as harmony
+
+    if not 64 <= max_mb <= 512:
+        raise ErrorAutoNISAR("Límite Harmony: selecciona entre 64 y 512 MB.")
+    try:
+        alcance_geografico.validar_limites(plan.aoi)
+    except alcance_geografico.FueraDeAlcance as exc:
+        raise ErrorAutoNISAR(str(exc)) from None
+    if not os.environ.get("EARTHDATA_TOKEN", "").strip() and cliente is None:
+        raise ErrorAutoNISAR("Para usar Harmony configura EARTHDATA_TOKEN en los Secrets de Replit.")
+    caps = caps if caps is not None else harmony.capacidades()
+    carpeta = Path(carpeta) if carpeta is not None else DATA_DIR / "nisar" / "harmony"
+    # Crear solo el mínimo de archivos científicos: HH/HV (o VV/VH), máscara y looks.
+    presupuestado = max_mb * 1024**2
+    escenas = []
+    usados = 0
+    for c in plan.candidatos:
+        if comprobar:
+            comprobar()
+        spec = harmony.especificar(c, plan.aoi, caps)
+        restante = presupuestado - usados
+        if restante < 64 * 1024**2:
+            raise ErrorAutoNISAR("Se alcanzó el límite de almacenamiento para este par.")
+        if notificar:
+            notificar("Harmony", f"Recortando {c.granule}")
+        kwargs = {"cliente": cliente, "abrir": abrir, "notificar": notificar,
+                  "comprobar": comprobar, "limite_bytes": restante}
+        if dormir is not None:
+            kwargs["dormir"] = dormir
+        salida = harmony.obtener(spec, carpeta, **kwargs)
+        usados += salida["bytes_totales"]
+        escenas.append({
+            "granule": c.granule, "metodo": "HARMONY_COG_SUBSET",
+            "carpeta_relativa": salida["carpeta_relativa"],
+            "archivos": [a["archivo"] for a in salida["archivos"]],
+            "bytes_totales": salida["bytes_totales"],
+        })
+    return {
+        "estado": "NISAR_COG_PREPARADO_SIN_CLASIFICAR", "sensor": "NISAR", "banda": "L",
+        "resultado": "GAMMA0_POTENCIA_NO_INUNDACION",
+        "metodo": "NASA_HARMONY",
+        "bytes_totales": usados, "escenas": escenas,
+        "plan": plan.resumen(), "creado_utc": datetime.now(timezone.utc).isoformat(),
+        "advertencia": "NISAR banda L, sin interpolación. No confirma agua ni inundación."
+    }
