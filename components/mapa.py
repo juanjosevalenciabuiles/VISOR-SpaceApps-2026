@@ -66,7 +66,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #06121e; }
 /* Fondo oscuro sin clave: las teselas de OpenStreetMap con los colores invertidos (solo el fondo). */
 .visor-base-oscura { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.88) saturate(.55); }
 /* Aviso cuando las teselas del fondo no cargan (sin red, 401/403/429, proveedor caído). */
-.visor-aviso-teselas { display: none; max-width: 300px; padding: 8px 10px; border-radius: 10px;
+.visor-aviso-teselas { display: none; position: fixed; top: 86px; left: 50%; transform: translateX(-50%);
+               width: min(340px, 86vw); padding: 8px 10px; border-radius: 10px; z-index: 1000;
                background: rgba(58,20,20,.92); color: #ffd6d6; border: 1px solid rgba(255,105,97,.6);
                font: 12px/1.35 Inter, -apple-system, "Segoe UI", sans-serif; }
 .visor-aviso-teselas.visible { display: block; }
