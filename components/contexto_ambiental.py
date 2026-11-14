@@ -14,7 +14,7 @@ import streamlit as st
 from shapely.geometry import box, mapping
 
 from components import flujo
-from utils import contexto_ambiental, sesion
+from utils import contexto_ambiental
 
 
 def _contexto():
