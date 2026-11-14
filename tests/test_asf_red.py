@@ -26,5 +26,5 @@ def test_catalogo_real_de_chigorodo():
     assert r.escenas, "ASF no devolvió escenas"
     assert all(e.plataforma.startswith("S1") for e in r.escenas)
     if r.recomendado:
-        assert r.recomendado.estado == "recomendado (sin validar)"
+        assert r.recomendado.estado == "Recomendado (sin validar)"
         assert r.recomendado.antes.inicio < r.recomendado.despues.inicio
