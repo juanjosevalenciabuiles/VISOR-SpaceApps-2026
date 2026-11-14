@@ -24,45 +24,41 @@ def colores_opacos(src: str) -> set:
     return {tuple(int(v) for v in c) for c in np.unique(im.reshape(-1, 4), axis=0) if c[3] > 0}
 
 
-def mostrar_resultados(p):
-    p.page.locator(".st-key-panel_explorador").evaluate("e=>e.scrollTop=e.scrollHeight")
-
-
-def test_resultado_exploratorio_capa_opcional(abrir):
+def test_resultado_exploratorio_desde_el_historial(abrir):
     p = abrir()
     p.marcar_mapa()
-    assert len(capas_imagen(p)) == 1                       # solo la capa del fenómeno
-    mostrar_resultados(p)
-    p.alternar(EXPLORATORIO)
+    assert capas_imagen(p) == []                           # nada al abrir
+    p.ver_historico(EXPLORATORIO.removeprefix("res_"))
     capas = capas_imagen(p)
-    assert len(capas) == 2 and p.mapa_intacto()
-    assert colores_opacos(capas[1]["src"]) <= COLORES    # clases 1–3; 0 y NoData transparentes
+    assert len(capas) == 1 and p.mapa_intacto()
+    assert colores_opacos(capas[0]["src"]) <= COLORES    # clases 1–3; 0 y NoData transparentes
 
     barra = p.texto("barra_superior")
-    assert "DEMO · DATOS SINTÉTICOS" in barra and "PROCEDENCIA NO DECLARADA" in barra
-    assert barra.index("DEMO") < barra.index("PROCEDENCIA NO DECLARADA")
+    assert "HISTÓRICO" in barra and "PROCEDENCIA NO DECLARADA" in barra and "DEMO" not in barra
     info = p.texto("panel_info")
     assert "No es una inundación confirmada" in info and "No declarado en el archivo" in info
-    assert "Sentinel" not in info.split("CAPA DEL FENÓMENO")[0]
+    assert "no se ejecutó un análisis nuevo" in info
     assert "CONCEPTUAL" in p.texto("linea_temporal").upper()
 
-    deslizador = p.page.locator(f".st-key-res_op_{EXPLORATORIO.removeprefix('res_')} input[type=range]").first
+    deslizador = p.page.locator(".st-key-res_opacidad input[type=range]").first
     deslizador.focus()
     for _ in range(6):
         p.page.keyboard.press("ArrowLeft")
     p.esperar()
-    assert abs(capas_imagen(p)[1]["op"] - 0.55) < 0.01
-    p.page.locator(".st-key-fenomeno label").filter(has_text="Deforestación").first.click()
-    p.esperar()
+    assert abs(capas_imagen(p)[0]["op"] - 0.55) < 0.01
+    # La DEMO, encendida a propósito, se dibuja DEBAJO y en su propio grupo; el resultado conserva su opacidad.
+    p.demo("Deforestación")
     capas = capas_imagen(p)
     assert len(capas) == 2 and abs(capas[1]["op"] - 0.55) < 0.01 and p.mapa_intacto()
+    barra = p.texto("barra_superior")
+    assert barra.index("DEMO") < barra.index("PROCEDENCIA NO DECLARADA")
     assert not p.errores
 
 
 def test_resultado_reproducible_real_sin_validar(abrir):
     p = abrir()
-    mostrar_resultados(p)
-    p.alternar(REPRODUCIBLE)
+    p.ver_historico(REPRODUCIBLE.removeprefix("res_"))
+    p.demo()
     barra = p.texto("barra_superior")
     assert "REAL SIN VALIDAR" in barra and "DEMO" in barra
     info = p.texto("panel_info")
@@ -84,8 +80,8 @@ def test_exportar_para_qgis(abrir, servidor):
     huella = hashlib.sha256(origen.read_bytes()).hexdigest()
     p = abrir(descargas=True)
     p.marcar_mapa()
-    mostrar_resultados(p)
-    p.alternar(REPRODUCIBLE)
+    assert p.page.locator("[class*='st-key-qgis_']").count() == 0, "sin resultado activo no se exporta nada"
+    p.ver_historico(REPRODUCIBLE.removeprefix("res_"))
     with p.page.expect_download() as d:
         p.page.locator(".st-key-qgis_coincidencia_vv_vh_20260924_20261006 button").first.click()
     descarga = d.value
@@ -102,11 +98,10 @@ def test_diferencia_db_continua(abrir, servidor):
     huella = hashlib.sha256(origen.read_bytes()).hexdigest()
     p = abrir(descargas=True)
     p.marcar_mapa()
-    mostrar_resultados(p)
-    p.alternar("res_cambio_vv_20260924_20261006_dif_db")
+    p.ver_historico("cambio_vv_20260924_20261006_dif_db")
     capas = capas_imagen(p)
-    assert len(capas) == 2 and p.mapa_intacto()
-    im = np.array(Image.open(io.BytesIO(base64.b64decode(capas[1]["src"].split(",", 1)[1]))).convert("RGBA"))
+    assert len(capas) == 1 and p.mapa_intacto()
+    im = np.array(Image.open(io.BytesIO(base64.b64decode(capas[0]["src"].split(",", 1)[1]))).convert("RGBA"))
     visibles = im[im[..., 3] > 0]
     azules = (visibles[:, 2] > 200) & (visibles[:, 0] < 120)
     assert azules.any(), "la disminución (−10 dB) se ve en azul"

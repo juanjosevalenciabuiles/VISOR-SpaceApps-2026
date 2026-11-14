@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from utils.config import sufijo_clave_carto
+from utils.config import carto_estado, sufijo_clave_carto
 
 _OSM = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 _CARTO = f'{_OSM} &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -30,9 +30,40 @@ class MapaBase:
     max_zoom_nativo: int | None = None   # si el proveedor llega menos lejos, se amplía la imagen
     subdominios: str = "abc"
     usa_clave_carto: bool = False
+    clase_css: str | None = None         # p. ej. el filtro que oscurece las teselas de OSM
+    cobertura: str = "Mundial."          # alcance real de las teselas
+
+
+_POLITICA_OSM = ("Servidor público de la Fundación OpenStreetMap: uso moderado, solo las teselas de la vista, "
+                 "sin descargas masivas; para tráfico alto hay que usar otro proveedor "
+                 "(operations.osmfoundation.org/policies/tiles).")
 
 
 MAPAS_BASE: dict[str, MapaBase] = {
+    "osm_oscuro": MapaBase(
+        clave="osm_oscuro",
+        nombre="Oscuro · OpenStreetMap",
+        uso="Fondo oscuro Mission Control sin clave: calles, carreteras, ríos y nombres de OpenStreetMap "
+            "con los colores invertidos en el navegador. Resalta las capas SAR.",
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        atribucion=_OSM,
+        proveedor="OpenStreetMap",
+        licencia="Datos © OpenStreetMap (ODbL). " + _POLITICA_OSM,
+        max_zoom=19,
+        subdominios="",
+        clase_css="visor-base-oscura",
+    ),
+    "calles": MapaBase(
+        clave="calles",
+        nombre="Calles · OpenStreetMap",
+        uso="Mapa de calles legible en todo el mundo: carreteras, puentes, ríos, lagos y nombres de lugares.",
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        atribucion=_OSM,
+        proveedor="OpenStreetMap",
+        licencia="Datos © OpenStreetMap (ODbL). " + _POLITICA_OSM,
+        max_zoom=19,
+        subdominios="",
+    ),
     "carto_oscuro": MapaBase(
         clave="carto_oscuro",
         nombre="Oscuro · Dark Matter",
@@ -104,12 +135,61 @@ MAPAS_BASE: dict[str, MapaBase] = {
     ),
 }
 
+# Sin clave de CARTO el oscuro de CARTO saldría con marca de agua: el predeterminado sin clave es el
+# oscuro de OpenStreetMap. `predeterminado()` decide en cada ejecución.
 MAPA_BASE_PREDETERMINADO = "carto_oscuro"
+PREDETERMINADO_SIN_CLAVE = "osm_oscuro"
+
+
+# Fondos que fallaron la última comprobación de servicios (utils/diagnostico): clave → motivo.
+_caidos: dict[str, str] = {}
+
+
+def registrar_caidos(caidos: dict[str, str]) -> None:
+    """Sustituye la lista de fondos caídos por la de la última comprobación."""
+    _caidos.clear()
+    _caidos.update(caidos)
+
+
+def disponible(mapa: MapaBase, considerar_diagnostico: bool = True) -> tuple[bool, str | None]:
+    """(se puede ofrecer, motivo si no). Un fondo que respondería con marca de agua o 401/403 por falta
+    de clave, o que falló la última comprobación de servicios, no se ofrece como disponible."""
+    if mapa.usa_clave_carto and carto_estado() != "ok":
+        return False, ("requiere CARTO_API_KEY (variable de entorno o Secret de Replit)" if carto_estado() == "ausente"
+                       else "CARTO_API_KEY tiene una forma inválida")
+    if considerar_diagnostico and mapa.clave in _caidos:
+        return False, f"falló la última comprobación: {_caidos[mapa.clave]}"
+    return True, None
+
+
+def todos_caidos() -> bool:
+    """Ningún fondo pasó la última comprobación (p. ej. sin conexión del servidor). Entonces no se
+    oculta ninguno: se siguen ofreciendo los que no requieren clave y la interfaz lo avisa."""
+    return not any(disponible(m)[0] for m in MAPAS_BASE.values())
+
+
+def ofrecidos() -> list[str]:
+    diagnostico = not todos_caidos()
+    return [k for k, m in MAPAS_BASE.items() if disponible(m, diagnostico)[0]]
+
+
+def no_ofrecidos() -> dict[str, str]:
+    diagnostico = not todos_caidos()
+    return {k: disponible(m, diagnostico)[1] for k, m in MAPAS_BASE.items() if not disponible(m, diagnostico)[0]}
+
+
+def predeterminado() -> str:
+    """El primer fondo disponible en orden de preferencia; si ninguno pasó la comprobación, el de OSM."""
+    for clave in (MAPA_BASE_PREDETERMINADO, PREDETERMINADO_SIN_CLAVE, *MAPAS_BASE):
+        if clave in ofrecidos():
+            return clave
+    return PREDETERMINADO_SIN_CLAVE
 
 
 def obtener(clave: str | None) -> MapaBase:
-    """Fondo pedido, o el predeterminado si la clave no existe."""
-    return MAPAS_BASE.get(clave or "", MAPAS_BASE[MAPA_BASE_PREDETERMINADO])
+    """Fondo pedido, o el predeterminado si la clave no existe o ese fondo no está disponible."""
+    mapa = MAPAS_BASE.get(clave or "")
+    return mapa if mapa is not None and (clave in ofrecidos()) else MAPAS_BASE[predeterminado()]
 
 
 def url_teselas(mapa: MapaBase) -> str:

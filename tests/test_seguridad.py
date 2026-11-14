@@ -57,7 +57,8 @@ def test_metadatos_maliciosos_se_muestran_escapados(tmp_path, monkeypatch):
     monkeypatch.chdir(RAIZ)
 
     at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=120).run()
-    at.toggle(key="res_malicioso").set_value(True).run()
+    at.toggle(key="capa_sar").set_value(True).run()              # la DEMO (con su JSON malicioso), a propósito
+    at.button(key="hist_ver_malicioso").click().run()
     at.button(key="btn_ayuda").click().run()
     assert not at.exception
     html = " ".join(str(m.value) for m in at.markdown) + " ".join(str(c.value) for c in at.caption)

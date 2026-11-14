@@ -140,6 +140,17 @@ def test_prefijo_libre(tmp_path):
     assert flujo.prefijo_libre(tmp_path, "a") == "a_r3"
 
 
+def confirmar_zona(at, limites=AOI_CHIGORODO, inicio=date(2026, 9, 20), fin=date(2026, 10, 10)):
+    """Zona por la ruta «Avanzado» (coordenadas) y período fijo del caso de Chigorodó."""
+    for clave, valor in zip(("sar_oeste", "sar_sur", "sar_este", "sar_norte"), limites, strict=True):
+        at.text_input(key=clave).input(f"{valor:.4f}")
+    at.date_input(key="sar_inicio").set_value(inicio)
+    at.date_input(key="sar_fin").set_value(fin)
+    at.button(key="zona_usar_coordenadas").click().run()
+    assert at.session_state["zona"] is not None, at.session_state["error_zona"]
+    return at
+
+
 def test_app_busca_analiza_y_muestra_el_resultado(tmp_path, monkeypatch):
     from streamlit.testing.v1 import AppTest
 
@@ -158,25 +169,54 @@ def test_app_busca_analiza_y_muestra_el_resultado(tmp_path, monkeypatch):
 
     at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=180).run()
     at.button(key="btn_sar").click().run()
-    assert at.text_input(key="sar_oeste").value == "-76.8000"
+    # Sin zona confirmada no hay región: nada se busca ni se analiza.
+    assert at.text_input(key="sar_oeste").value in ("", None) and at.session_state["zona"] is None
+    assert not any(b.key == "sar_buscar" for b in at.button)
+    confirmar_zona(at)
     at.button(key="sar_buscar").click().run()
     assert not at.exception and at.session_state["sar_busqueda"] is not None
     par = at.selectbox(key="sar_par")
     assert par.value == 0 and par.options[0].startswith("★ 2026-09-24 → 2026-10-06 · S1C")
     texto = " ".join(m.value for m in at.markdown)
     assert "RECOMENDADO (SIN VALIDAR)" in texto and "S1C_IW_20260924T232218_DVP_RTC30" in texto
+    assert at.session_state["resultado_activo"] is None and not salida.exists(), "buscar no analiza"
 
     at.slider(key="sar_umbral_VV").set_value(7.5)
-    at.select_slider(key="sar_ventana").set_value(1)
+    at.select_slider(key="sar_ventana_VV").set_value(1)
+    at.select_slider(key="sar_ventana_VH").set_value(1)
+    at.run()
+    assert at.session_state["resultado_activo"] is None and not salida.exists(), "mover un control no analiza"
     at.button(key="sar_analizar").click().run()
     assert not at.exception, at.exception
     inf = at.session_state["mc_informe_sar"]
     assert "coincidencia_VV_VH_20260924_20261006.tif" in inf["archivos"]
-    # El resultado nuevo aparece en el explorador, con ficha REAL SIN VALIDAR y umbrales por polarización.
-    at.toggle(key="res_coincidencia_vv_vh_20260924_20261006").set_value(True).run()
+    # El resultado nuevo queda en el mapa como resultado de ESTE análisis, ligado a su ejecución.
+    activo = at.session_state["resultado_activo"]
+    assert activo["id"] == "coincidencia_vv_vh_20260924_20261006" and activo["origen"] == "analisis"
+    assert activo["run_id"] == inf["run_id"]
     texto = " ".join(m.value for m in at.markdown)
-    assert "REAL SIN VALIDAR" in texto and "VV −7,5 dB · VH −3 dB" in texto
+    assert "REAL SIN VALIDAR" in texto and "VV −7,5 dB · VH −3 dB" in texto and "ANÁLISIS DE ESTA SESIÓN" in texto
     assert len(at.warning) == 0
+    archivos = sorted(p.name for p in salida.iterdir())
+    # El análisis queda como un TRABAJO persistente con todas sus fases en APTO y SHA-256 de cada archivo.
+    from utils import trabajos
+    t = trabajos.listar(1)[0]
+    assert t["job_id"] == inf["job_id"] and t["estado"] == "APTO" and t["run_id"] == inf["run_id"]
+    assert {f["estado"] for f in t["fases"]} == {"APTO"} and t["aoi"]["crs"] == "EPSG:4326"
+    assert {a["nombre"] for a in t["archivos"]} >= set(inf["archivos"]) and all(len(a["sha256"]) == 64
+                                                                                for a in t["archivos"])
+    texto = " ".join(m.value for m in at.markdown)
+    assert 'id="trabajo-estado" data-estado="APTO"' in texto and "Preparando datos" in texto
+    # Filtro de pares: el analizado pasa a «Usadas» (el elegido sigue visible en cualquier filtro).
+    filtro = at.radio(key="sar_filtro_pares")
+    assert filtro.value == "Nuevas" and filtro.options == ["Nuevas (5)", "Usadas (1)", "Todas (6)"]
+    for _ in range(3):                                  # reruns: ni repite el análisis ni cambia nada
+        at.run()
+    assert sorted(p.name for p in salida.iterdir()) == archivos
+    assert at.session_state["resultado_activo"]["id"] == activo["id"]
+    # Cambiar el umbral retira el resultado: ya no corresponde a lo elegido.
+    at.slider(key="sar_umbral_VV").set_value(5.0).run()
+    assert at.session_state["resultado_activo"] is None and "ya no corresponde" in (at.session_state["aviso_resultado"] or "")
 
 
 def test_app_informa_error_de_conexion_sin_romperse(monkeypatch):
@@ -188,8 +228,9 @@ def test_app_informa_error_de_conexion_sin_romperse(monkeypatch):
     monkeypatch.chdir(RAIZ)
     at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=180).run()
     at.button(key="btn_sar").click().run()
+    confirmar_zona(at)
     at.button(key="sar_buscar").click().run()
-    assert not at.exception
+    assert not at.exception and at.session_state["resultado_activo"] is None
     assert "No se pudo conectar" in " ".join(m.value for m in at.markdown)
 
 
@@ -290,6 +331,7 @@ def _app(tmp_path, monkeypatch, sar):
     monkeypatch.chdir(RAIZ)
     at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=180).run()
     at.button(key="btn_sar").click().run()
+    confirmar_zona(at)
     at.button(key="sar_buscar").click().run()
     return at, salida
 

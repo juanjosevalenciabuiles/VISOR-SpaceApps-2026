@@ -16,6 +16,8 @@ data/crudos/
 # Entradas RTC de HyP3 y resultados del análisis: son locales, no van a GitHub.
 data/sar/
 data/analisis/
+# Registro de trabajos de análisis (estado, fases, SHA-256): local de cada instancia.
+data/trabajos/
 *.zip
 *.SAFE
 

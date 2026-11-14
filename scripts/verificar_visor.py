@@ -190,13 +190,19 @@ from streamlit.testing.v1 import AppTest
 at = AppTest.from_file("app.py", default_timeout=180).run()
 assert not at.exception, ("arranque", at.exception)
 assert len(at.error) == 0, ("st.error", [e.value for e in at.error])
-claves = [t.key for t in at.toggle if t.key and t.key.startswith("res_")]
+# Primera carga: aunque haya resultados en data/analisis/, ninguno se muestra ni hay DEMO encendida.
+texto = " ".join(m.value for m in at.markdown)
+assert at.session_state["resultado_activo"] is None, "resultado activo al arrancar"
+assert at.toggle(key="capa_sar").value is False, "DEMO encendida al arrancar"
+assert "SIN RESULTADO" in texto and "No es una inundación confirmada" not in texto, "resultado visible al arrancar"
+claves = [b.key for b in at.button if b.key and b.key.startswith("hist_ver_")]
 for clave in claves:
-    at.toggle(key=clave).set_value(True).run()
+    at.button(key=clave).click().run()
     assert not at.exception, (clave, at.exception)
+    assert at.session_state["resultado_activo"]["origen"] == "historico", (clave, "no quedó rotulado histórico")
     texto = " ".join(m.value for m in at.markdown)
     assert "No es una inundación confirmada" in texto, (clave, "falta el aviso")
-    at.toggle(key=clave).set_value(False).run()
+    assert "no se ejecutó un análisis nuevo" in texto, (clave, "falta el rótulo de histórico")
 print(len(claves))
 """
 
@@ -210,8 +216,10 @@ def app_real(inf: Informe) -> None:
         return
     n = r.stdout.strip().splitlines()[-1] if r.returncode == 0 and r.stdout.strip() else "?"
     inf.si(r.returncode == 0, "APP-01", "Aplicación",
-           "Arranque con los datos reales y cada resultado activado", "Sin excepciones ni st.error; aviso científico "
-           "en cada ficha", CRITICO, f"{n} resultado(s) activados sin errores", r.stderr[-600:])
+           "Arranque vacío con los datos reales y cada resultado abierto desde el historial",
+           "Sin resultados ni DEMO al arrancar; sin excepciones ni st.error; cada uno rotulado HISTÓRICO y con "
+           "aviso científico", CRITICO, f"arranque vacío · {n} resultado(s) abiertos del historial sin errores",
+           r.stderr[-600:])
 
 
 def asf_real(inf: Informe) -> None:

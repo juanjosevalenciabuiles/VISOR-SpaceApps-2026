@@ -25,30 +25,30 @@ def test_flujo_completo(abrir, servidor_propio):
     previas = huellas(analisis)
     p = abrir(url=servidor_propio.url)
     p.marcar_mapa()
-    trazos = "()=>document.querySelectorAll('path.leaflet-interactive').length"
-    antes = p.mapa.evaluate(trazos)
+    antes = p.trazos()
 
     p.clic("btn_sar")
-    assert p.mapa.evaluate(trazos) > antes, "AOI dibujado"
+    assert p.trazos() == antes, "sin zona confirmada no se dibuja ningún AOI"
+    p.confirmar_zona()
+    assert p.trazos() > antes, "zona dibujada"
     p.clic("sar_centrar")
     assert p.vista() == [11, 7.675, -76.675]
 
-    p.page.locator(".st-key-panel_sar [role=tab]").nth(1).click()
+    p.pestana_sar(1)
     p.clic("sar_buscar")
     panel = p.texto("panel_sar")
     assert "CATÁLOGO SIMULADO" in panel and "RECOMENDADO (SIN VALIDAR)" in panel and "6 pares compatibles" in panel
     assert p.page.locator(".st-key-sar_par input").first.input_value().startswith("★ 2026-09-24 → 2026-10-06 · S1C")
-    con_huellas = p.mapa.evaluate(trazos)
-    assert con_huellas >= antes + 3, "AOI y huellas del par"
+    con_huellas = p.trazos()
+    assert con_huellas >= antes + 3, "zona y huellas del par"
 
-    p.page.locator(".st-key-panel_sar [role=tab]").nth(2).click()
-    p.esperar(800)
+    p.pestana_sar(2)
     panel = p.texto("panel_sar")
     assert "S1C_IW_20260924T232218_DVP_RTC30" in panel and "falta" not in panel
-    p.clic("sar_analizar")
-    p.esperar(3000)
-    p.page.locator(".st-key-panel_sar [role=tab]").nth(3).click()
-    p.esperar(800)
+    assert p.capas_resultado() == []
+    assert p.analizar() == "APTO"
+    assert len(p.capas_resultado()) == 1
+    p.pestana_sar(3)
     panel = p.texto("panel_sar")
     assert "coincidencia_VV_VH_20260924_20261006_r2.tif" in panel and "Ningún archivo existente" in panel
 
@@ -56,5 +56,5 @@ def test_flujo_completo(abrir, servidor_propio):
     assert all(despues[n] == h for n, h in previas.items()), "los archivos previos no cambian"
     assert "coincidencia_VV_VH_20260924_20261006_r2.json" in despues
     p.clic("sar_ir_explorador")
-    assert p.page.locator(".st-key-res_coincidencia_vv_vh_20260924_20261006_r2").count() == 1
+    assert "ANÁLISIS DE ESTA SESIÓN" in p.texto("panel_explorador")
     assert p.mapa_intacto() and not p.errores

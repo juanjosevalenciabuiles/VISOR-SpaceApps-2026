@@ -213,7 +213,12 @@ def test_herramientas_sar_no_simulan_resultados():
     texto = inspect.getsource(herramientas_sar) + inspect.getsource(interfaz.herramientas_sar)
     for falso in ("DEMO-S1", "Coherencia InSAR", "Cambio de cobertura", "st.progress", "time.sleep"):
         assert falso not in texto
-    assert "No descarga ni procesa en HyP3" in texto and "sin porcentaje" in texto
+    assert "no descarga ni procesa" in texto and "en HyP3" in texto and "sin porcentaje" in texto
+    # «Analizar» es el único disparador: el cálculo solo corre si se pulsó en esta misma ejecución.
+    assert texto.count("trabajos.crear_o_reutilizar(") == 1 and 'st.session_state.pop("sar_lanzar"' in texto
+    assert "flujo_sar.analizar_disponibles(" not in texto, "el cálculo corre en el trabajo, no en la interfaz"
+    from utils import ejecucion_sar
+    assert inspect.getsource(ejecucion_sar).count("flujo_sar.analizar_disponibles(") == 1
 
 
 # ---------------------------------------------------------------------------
@@ -301,16 +306,21 @@ def test_barra_superior_separa_fenomeno_demo_de_resultado_real():
     demo = SimpleNamespace(es_demo=True, procedencia=None)
     real = SimpleNamespace(nombre="Coincidencia VV/VH",
                            capa=SimpleNamespace(procedencia=p.Procedencia(p.REAL_SIN_VALIDAR, "x")))
-    solo = interfaz.estado_html(FENOMENOS["inundacion"], demo)
-    assert "DEMO · DATOS SINTÉTICOS" in solo and "Resultado SAR" not in solo
-    ambos = interfaz.estado_html(FENOMENOS["inundacion"], demo, [real])
+    fen = FENOMENOS["inundacion"]
+    # Sin capa ni resultado lo dice; nunca muestra la DEMO por su cuenta.
+    vacio = interfaz.estado_html(fen, None)
+    assert "SIN RESULTADO" in vacio and "DEMO" not in vacio
+    solo = interfaz.estado_html(fen, demo)
+    assert "DEMO · DATOS SINTÉTICOS" in solo and "Resultado SAR" not in solo and ">Demostración<" in solo
+    ambos = interfaz.estado_html(fen, demo, [real])
     # Las dos insignias aparecen, cada una en su grupo rotulado, y en ese orden.
-    i_fen, i_demo = ambos.index(">Fenómeno<"), ambos.index("DEMO · DATOS SINTÉTICOS")
+    i_fen, i_demo = ambos.index(">Demostración<"), ambos.index("DEMO · DATOS SINTÉTICOS")
     i_res, i_real = ambos.index(">Resultado SAR<"), ambos.index("REAL SIN VALIDAR")
-    assert i_fen < i_demo < i_res < i_real
-    assert "capa oculta" in interfaz.estado_html(FENOMENOS["inundacion"], demo, [real], capa_visible=False)
-    tres = interfaz.estado_html(FENOMENOS["inundacion"], demo, [real, real, real])
-    assert tres.count("REAL SIN VALIDAR") == 2 and "+1" in tres
+    assert i_fen < i_demo < i_res < i_real and "SIN RESULTADO" not in ambos
+    oculta = interfaz.estado_html(fen, demo, [real], capa_visible=False)
+    assert "DEMO" not in oculta and "REAL SIN VALIDAR" in oculta
+    tres = interfaz.estado_html(fen, None, [real, real, real])
+    assert tres.count("REAL SIN VALIDAR") == 1, "un único resultado en el mapa"
 
 
 def test_insignias_demo_y_real_no_comparten_color():
