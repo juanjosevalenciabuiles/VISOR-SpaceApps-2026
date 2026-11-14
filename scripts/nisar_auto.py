@@ -33,12 +33,16 @@ def main(argv=None):
     ap.add_argument("--max-mb", type=int, default=384, help="presupuesto Harmony, entre 64 y 512 MB")
     ap.add_argument("--max-gb", type=float, default=nisar_auto.MAX_AUTO_GB)
     ap.add_argument("--cobertura-minima", type=float, default=nisar_auto.MIN_COBERTURA_PAR)
+    ap.add_argument("--punto-prioritario", nargs=2, type=float, metavar=("LON", "LAT"),
+                    help="opcional: exigir que ambas huellas CMR cubran el punto; NO verifica QA")
     ap.add_argument("--ejecutar", action="store_true", help="autoriza transferencia, según --metodo")
     a = ap.parse_args(argv)
     try:
         resultado = nisar_catalogo.buscar(*a.bbox, a.inicio, a.fin, madurez="VALIDATED")
         plan = nisar_auto.planear(resultado, max_gb=15.0 if a.metodo == "harmony" else a.max_gb,
-                                 cobertura_minima=a.cobertura_minima)
+                                 cobertura_minima=a.cobertura_minima,
+                                 aceptar_escena_unica=(a.punto_prioritario is None),
+                                 punto_prioritario=tuple(a.punto_prioritario) if a.punto_prioritario else None)
         print(json.dumps({"total_catalogo": resultado.total_catalogo, "plan": plan.resumen()},
                          indent=2, ensure_ascii=False))
         if not a.ejecutar:
