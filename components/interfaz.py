@@ -21,6 +21,7 @@ from html import escape
 import streamlit as st
 
 from components import barra_lateral, flujo, panel_info
+from components import contexto_ambiental as contexto_ui
 from components import herramientas_sar as herramientas
 from components import resultados as ui_resultados
 from components.barra_lateral import Controles
@@ -362,6 +363,8 @@ def herramientas_sar() -> None:
             unsafe_allow_html=True,
         )
         herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
+        # Módulo secundario: nunca requiere ni modifica el resultado SAR.
+        contexto_ui.render()
     with st.container(key="sar_minimizado"):
         st.button("Herramientas SAR · restaurar", key="restaurar_sar", icon=":material/open_in_full:",
                   on_click=abrir_sar)

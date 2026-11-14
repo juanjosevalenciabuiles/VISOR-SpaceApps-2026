@@ -76,6 +76,9 @@ def _ir_a_lugar(lugar, ir_a) -> None:
 def buscador_lugar(ir_a, abrir_zona=None) -> None:
     """«¿Qué lugar quieres analizar?»: busca por nombre y lleva el mapa allí."""
     st.caption("¿QUÉ LUGAR QUIERES ANALIZAR?")
+    if alcance_geografico.restringido():       # aviso de alcance (PR #10) sobre la política única
+        st.caption("🇨🇴 MODO COLOMBIA · búsqueda y análisis limitados al país. "
+                   "Contorno: DANE MGN 2025; datos derivados por ytolosa/mapas-colombia, CC BY 4.0.")
     st.text_input("Lugar", key="lugar_texto", label_visibility="collapsed",
                   placeholder=("Buscar municipio o lugar en Colombia · ej.: Chigorodó, Rionegro, San Andrés"
                                if alcance_geografico.restringido() else
