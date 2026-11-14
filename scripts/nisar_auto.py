@@ -39,10 +39,17 @@ def main(argv=None):
     a = ap.parse_args(argv)
     try:
         resultado = nisar_catalogo.buscar(*a.bbox, a.inicio, a.fin, madurez="VALIDATED")
-        plan = nisar_auto.planear(resultado, max_gb=15.0 if a.metodo == "harmony" else a.max_gb,
-                                 cobertura_minima=a.cobertura_minima,
-                                 aceptar_escena_unica=(a.punto_prioritario is None),
-                                 punto_prioritario=tuple(a.punto_prioritario) if a.punto_prioritario else None)
+        try:
+            plan = nisar_auto.planear(resultado, max_gb=15.0 if a.metodo == "harmony" else a.max_gb,
+                                     cobertura_minima=a.cobertura_minima,
+                                     aceptar_escena_unica=(a.punto_prioritario is None),
+                                     punto_prioritario=tuple(a.punto_prioritario) if a.punto_prioritario else None)
+        except nisar_auto.ErrorAutoNISAR as exc:
+            if not a.ejecutar:
+                # Solo errores de planificación local, sin URLs/tokens de descargas.
+                print(f"Sin par NISAR elegible: {exc}", file=sys.stderr)
+                return 2
+            raise
         print(json.dumps({"total_catalogo": resultado.total_catalogo, "plan": plan.resumen()},
                          indent=2, ensure_ascii=False))
         if not a.ejecutar:
