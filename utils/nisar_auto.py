@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from shapely.geometry import Point
+
 from utils import alcance_geografico, nisar_catalogo as cat, nisar_descarga as desc, nisar_gcov as gcov
 from utils.config import DATA_DIR
 
@@ -34,6 +36,7 @@ class Plan:
     tamano_bytes: int
     termino: str
     avisos: tuple[str, ...]
+    punto_prioritario: tuple[float, float] | None = None  # longitud, latitud WGS84
 
     @property
     def granules(self) -> tuple[str, ...]:
@@ -47,6 +50,8 @@ class Plan:
             "tamano_total_gb": round(self.tamano_bytes / 1e9, 3),
             "frecuencia": "A", "termino": self.termino,
             "avisos": list(self.avisos), "estado": "PLAN_NO_DESCARGADO",
+            "punto_prioritario": list(self.punto_prioritario) if self.punto_prioritario else None,
+            "cobertura_punto": ("SOLO_HUELLAS_CMR_NO_QA" if self.punto_prioritario else "NO_SOLICITADA"),
         }
 
 
@@ -64,7 +69,8 @@ def _termino(polares) -> str:
 
 
 def planear(resultado: cat.ResultadoNISAR, max_gb: float = MAX_AUTO_GB,
-            cobertura_minima: float = MIN_COBERTURA_PAR, aceptar_escena_unica: bool = True) -> Plan:
+            cobertura_minima: float = MIN_COBERTURA_PAR, aceptar_escena_unica: bool = True,
+            punto_prioritario: tuple[float, float] | None = None) -> Plan:
     """Plan sin efectos secundarios. Selección determinista por cobertura y tamaño.
 
     El mínimo de 40 % permite explorar el par NISAR conocido de Chigorodó,
@@ -79,12 +85,32 @@ def planear(resultado: cat.ResultadoNISAR, max_gb: float = MAX_AUTO_GB,
         alcance_geografico.validar_limites(area)
     except alcance_geografico.FueraDeAlcance as exc:
         raise ErrorAutoNISAR(str(exc)) from None
+    if punto_prioritario is not None:
+        try:
+            lon, lat = map(float, punto_prioritario)
+        except (TypeError, ValueError) as exc:
+            raise ErrorAutoNISAR("Punto prioritario inválido: usa longitud y latitud WGS84.") from exc
+        if not (area[0] <= lon <= area[2] and area[1] <= lat <= area[3]):
+            raise ErrorAutoNISAR("El punto prioritario queda fuera del AOI de búsqueda.")
+        if not (-180 <= lon <= 180 and -90 <= lat <= 90):
+            raise ErrorAutoNISAR("Coordenadas de punto prioritario fuera de WGS84.")
+        punto_prioritario = (lon, lat)
+        ancla = Point(lon, lat)
+    else:
+        ancla = None
     limite = int(max_gb * 1e9)
     viables = []
     for p in resultado.pares:
         if p.cobertura_comun < cobertura_minima:
             continue
         cand = (p.antes, p.despues)
+        # La cobertura media del AOI puede ser elevada aun si el sitio
+        # prioritario queda fuera de TODAS las adquisiciones. Rechazar.
+        if ancla is not None and any(
+            getattr(c, "huella", None) is None or not c.huella.covers(ancla)
+            for c in cand
+        ):
+            continue
         if not all(_candidato_ok(c, limite) for c in cand):
             continue
         tam = sum(int(c.tamano_bytes) for c in cand)
@@ -103,10 +129,20 @@ def planear(resultado: cat.ResultadoNISAR, max_gb: float = MAX_AUTO_GB,
         avisos = ["Par temporal CANDIDATO NO VALIDADO: falta inspeccionar HDF5 y congruencia radiométrica.",
                   f"Las huellas solo cubren {cobertura:.0%} de la AOI; NO declarar inundación fuera de esa zona.",
                   "Se descargan datos originales NISAR; no se calculan inundaciones automáticamente."]
-        return Plan("PAR", cand, area, cobertura, tam, termino, tuple(avisos))
+        if ancla is not None:
+            avisos.append(
+                "El punto prioritario aparece en ambas HUELLAS CMR; "
+                "esto NO verifica la cobertura QA del píxel. "
+                "Antes de analizar inundaciones, validar mask/looks e intensidades en ambas fechas."
+            )
+        return Plan("PAR", cand, area, cobertura, tam, termino, tuple(avisos),
+                    punto_prioritario=punto_prioritario)
     if aceptar_escena_unica:
         solos = []
         for c in resultado.candidatos:
+            if ancla is not None and (getattr(c, "huella", None) is None or
+                                      not c.huella.covers(ancla)):
+                continue
             if c.cobertura < MIN_COBERTURA_UNICA or not _candidato_ok(c, limite):
                 continue
             try:
@@ -119,7 +155,15 @@ def planear(resultado: cat.ResultadoNISAR, max_gb: float = MAX_AUTO_GB,
             cub, tam, c, termino = solos[0]
             return Plan("ESCENA_UNICA", (c,), area, -cub, tam, termino,
                         ("Solo hay una fecha apta con suficiente cobertura.",
-                         "UNA imagen NISAR NO permite identificar un cambio temporal ni confirmar inundaciones.",))
+                         "UNA imagen NISAR NO permite identificar un cambio temporal ni confirmar inundaciones.",),
+                        punto_prioritario=punto_prioritario)
+    if ancla is not None:
+        raise ErrorAutoNISAR(
+            "No existe un par NISAR candidato cuyas dos huellas CMR cubran "
+            "el punto prioritario con el presupuesto y la cobertura mínima actuales. "
+            "Prueba ampliar el período o reducir --cobertura-minima (solo metadatos). "
+            "NO descargar el par anterior para este punto."
+        )
     raise ErrorAutoNISAR(
         "No se encontró un par NISAR comparable dentro de los límites de cobertura y almacenamiento. "
         "Amplía las fechas o selecciona una zona más pequeña; nunca se inventará un par."
