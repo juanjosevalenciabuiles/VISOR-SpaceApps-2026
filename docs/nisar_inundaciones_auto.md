@@ -223,3 +223,25 @@ git switch --detach origin/feature/nisar-inundaciones-auto
 \`\`\`
 
 **Próxima mejora científica:** cambiar de selección guiada solo por huellas (41,38% de AOI) a selección guiada también por si la zona exacta de interés (población/río/infraestructura) tiene observaciones QA en dos fechas. Para la cabecera buscar otra trayectoria/pareja NISAR o reevaluar área/fechas, y solo con cobertura útil y datos de referencia validar hipótesis de inundación. El fallback Sentinel-1 es explícito, no equiparar C-band con L-band.
+
+
+## Búsqueda por punto prioritario antes de repetir Harmony
+
+**Evidencia REAL (2026-11-14):** el usuario ejecutó \`scripts/nisar_verificar_punto_qa.py\` para la cabecera de Chigorodó \`(-76.6774845,7.6645455)\` sobre \`cobertura_5c0b3e2c4c197d.tif\`. La respuesta mostró \`en_cuadricula: true\`, **\`clase_qa: 0\`**, \`puede_comparar_ambas_fechas: false\`. La pareja 22-oct/3-nov track 148 NO permite comparar ese punto; **NO inferir ausencia de inundación**.
+
+**Causa de selección:** \`utils/nisar_auto.py::planear()\` elegía la máxima cobertura de huellas *promedio AOI*, sin exigir que el punto de interés urbano estuviese en el solape de ambas huellas. Corregido opcionalmente (manteniendo compatibilidad con otros flujos): nuevo parámetro \`punto_prioritario=(lon,lat)\` y opción CLI \`--punto-prioritario LON LAT\`. Cuando se indica, rechaza pares que no incluyan ese punto dentro de AMBAS huellas CMR, no admite una sola fecha como sustitución para cambio temporal, y declara **\`SOLO_HUELLAS_CMR_NO_QA\`**. Un par candidato debe pasar igualmente QA raster por píxel y congruencia radiométrica antes de utilizarse. Si ninguno aplica, debe comunicar que no hay par y **NO descargar**.
+
+**Prueba siguiente de solo catálogo, sin token ni transferencia de raster**:
+
+\`\`\`bash
+cd ~/visor-nisar-prueba
+git fetch origin feature/nisar-inundaciones-auto
+git switch --detach origin/feature/nisar-inundaciones-auto
+~/workspace/.venv/bin/python scripts/nisar_auto.py \
+  --inicio 2026-10-21 --fin 2026-11-14 --metodo harmony \
+  --bbox -76.80 7.55 -76.55 7.80 \
+  --punto-prioritario -76.6774845 7.6645455 \
+  --cobertura-minima 0.01
+\`\`\`
+
+Sin \`--ejecutar\` no se crea trabajo Harmony ni se descargan HDF5/COG. \`--cobertura-minima 0.01\` permite detectar pares que cubren menos de 40% del AOI, útil para priorizar el punto; NO garantiza cobertura QA. Si no hay pares por huellas, ampliar ventana temporal o seleccionar AOI, no usar la pareja occidental como si representara Chigorodó urbano.
