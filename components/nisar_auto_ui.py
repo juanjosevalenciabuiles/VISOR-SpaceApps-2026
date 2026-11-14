@@ -59,7 +59,7 @@ def _ejecutar_en_cola(resultado, plan):
         identificador, {
             "tipo": "adquisicion_nisar_gcov",
             "sensor": "NISAR", "procesador": "nisar_gcov",
-            "aoi": {"limites": list(plan.aoi)}, "escenas": list(plan.granules),
+            "aoi": {"limites": list(plan.aoi)}, "escenas": {"antes": plan.granules[0], "despues": plan.granules[-1]},
         }, tarea,
     )
     return t
