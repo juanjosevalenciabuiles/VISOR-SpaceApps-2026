@@ -188,7 +188,11 @@ def buscar_local(texto: str) -> list[Lugar]:
         orden = 0 if any(consulta == n or consulta.startswith(n + " ") for n in nombres) else \
             1 if any(n.startswith(palabras[0]) for n in nombres) else 2
         puntuados.append((orden, lugar.etiqueta, lugar))
-    return [l for _, _, l in sorted(puntuados)[:MAX_RESULTADOS]]
+    from utils import colombia
+    ordenados = [l for _, _, l in sorted(puntuados)]
+    if colombia.modo() == "CO":
+        ordenados = [l for l in ordenados if l.pais == "Colombia" and colombia.contiene_punto(l.longitud, l.latitud)]
+    return ordenados[:MAX_RESULTADOS]
 
 
 def proveedor() -> str | None:
@@ -236,6 +240,9 @@ def interpretar(respuesta: list) -> list[Lugar]:
         except (TypeError, ValueError):
             caja = []
         lugares.append(Lugar(nombre, region, pais, lat, lon, _zoom(caja if len(caja) == 4 else None), EN_LINEA))
+    from utils import colombia
+    if colombia.modo() == "CO":
+        lugares = [l for l in lugares if colombia.contiene_punto(l.longitud, l.latitud)]
     return lugares[:MAX_RESULTADOS]
 
 
@@ -249,6 +256,9 @@ def buscar_en_linea(texto: str, abrir=None) -> list[Lugar]:
         return _cache[consulta]
     parametros = {"q": texto.strip(), "format": "jsonv2", "limit": str(MAX_RESULTADOS), "addressdetails": "1",
                   "accept-language": "es"}
+    from utils import colombia
+    if colombia.modo() == "CO":
+        parametros["countrycodes"] = "co"
     clave = os.environ.get("VISOR_GEOCODIFICADOR_CLAVE", "").strip()
     if clave:
         parametros["key"] = clave
