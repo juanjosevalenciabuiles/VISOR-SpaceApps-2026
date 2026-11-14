@@ -160,3 +160,39 @@ git switch --detach origin/feature/nisar-inundaciones-auto
 \`\`\`
 
 La siguiente fase, una vez medido el solape, será diseñar/validar inferencia hidrológica por pixel en el dominio común y distinguir agua permanente de agua potencialmente nueva con referencias externas. Ni la máscara QA ni el ratio radar por sí solos verifican inundaciones.
+
+
+## Hito real: cobertura NISAR validada en ambas fechas (14-nov-2026)
+
+La ejecución real en Replit de \`scripts/nisar_solape_qa.py\` sobre las 8 capas del piloto Chigorodó informó:
+
+- \`SOLAPE_GCOV_QA_NO_INUNDACION\`
+- Cuadrícula 2 fechas: **7 681 200 píxeles** de **10 m** (768,12 km²).
+- \`mask\` 1..254 + \`numberOfLooks\` >0 + \`HHHH\` y \`HVHV\` >0 finitos en 22-oct: **753 397 píxeles = 75,3397 km² (9,8083%)**.
+- Mismos criterios en 3-nov: **733 342 píxeles = 73,3342 km² (9,5472%)**.
+- Intersección **simultáneamente utilizable**: **733 342 píxeles = 73,3342 km² (9,5472%)**; los píxeles útiles del 3-nov están contenidos en los útiles del 22-oct bajo estos criterios.
+- No confundir con cobertura de huellas de catálogo 41,38 %, ni con proporción inundada. El 41,38 % es una aproximación de huellas AOI; 9,5472 % es QA por píxel sobre la cuadrícula del TIFF.
+- La máscara NISAR GCOV distingue valor \`0\` (al menos una muestra del ensemble parcialmente enfocada o inválida), \`255\` (fuera de adquisición) y \`1..254\` (subfranja válida): [ASF NISAR Cookbook](https://asfopensarlab.github.io/NISAR_Cookbook/nisar-data-access/) y [guía GCOV](https://nisar-docs.asf.alaska.edu/gcov/).
+
+### Capa geográfica compacta de disponibilidad QA
+
+Se añadió \`scripts/nisar_mapa_cobertura_qa.py\` para transformar únicamente los estados QA de las dos fechas en un **GeoTIFF técnico comprimido \`uint8\`** que QGIS puede abrir. Conserva CRS, orientación y resolución de 10 m; las clases son:
+
+| Valor | Significado |
+| --- | --- |
+| 0 | No utilizable simultáneamente en ninguna de las fechas (incluye zonas sin adquisición) |
+| 1 | Utilizable solo el 22 oct |
+| 2 | Utilizable solo el 3 nov |
+| 3 | **Utilizable en ambas fechas**; zona técnicamente comparable tras QA |
+
+**Nunca interpretar el valor 3 como agua o inundación.** La salida almacena además recuentos y un rectángulo delimitador aproximado WGS84 de la clase 3 (no su polígono exacto). Solo lectura de originales y nuevo archivo pequeño en \`data/nisar/qa/\`.
+
+\`\`\`bash
+cd ~/visor-nisar-prueba
+git fetch origin feature/nisar-inundaciones-auto
+git switch --detach origin/feature/nisar-inundaciones-auto
+~/workspace/.venv/bin/python scripts/nisar_mapa_cobertura_qa.py \
+  --informe data/nisar/catalogo/preparacion_7d03a543e5754867bba3875d71a7fc6c.json
+\`\`\`
+
+**Condición pendiente:** revisión cartográfica de ubicación de clase 3 respecto al área de interés, verificación de comparabilidad radiométrica y desarrollo de metodología de agua nueva con evidencia independiente; solo después sería defendible una hipótesis de inundación.
