@@ -16,7 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from html import escape
 
@@ -143,8 +143,9 @@ def _estado_fuente(datos: dict, nombre: str) -> str | None:
 def _hora(iso: str | None) -> str:
     if not iso:
         return "—"
-    try:
-        return datetime.fromisoformat(iso).astimezone().strftime("%d/%m/%Y %H:%M")
+    try:     # Colombia: UTC−5 todo el año (sin horario de verano); no depende de la base tzdata del sistema
+        colombia = timezone(timedelta(hours=-5))
+        return datetime.fromisoformat(iso).astimezone(colombia).strftime("%d/%m/%Y %H:%M") + " (hora de Colombia)"
     except ValueError:
         return iso
 

@@ -181,8 +181,9 @@ def paso_area(centrar) -> None:
             _candidata(vista, None, "área visible del mapa", "zona_usar_vista", "Área visible")
 
     st.caption("MUNICIPIO")
-    _nota("Los límites municipales oficiales no están incluidos en esta versión. Busca el municipio por su "
-          "nombre para ubicarlo y dibuja la zona: no se usa ningún límite aproximado en su lugar.")
+    _nota("Los límites municipales del DANE (MGN 2025) se usan para decir en qué municipio está tu zona "
+          "(panel derecho), pero todavía no como zona de análisis: busca el municipio por su nombre para "
+          "ubicarlo y dibuja la zona.")
 
     with st.expander("Avanzado: coordenadas o GeoJSON", expanded=False, key="zona_avanzado"):
         st.caption("RECUADRO EN GRADOS (WGS84)")
