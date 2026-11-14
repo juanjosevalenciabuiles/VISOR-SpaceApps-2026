@@ -118,6 +118,11 @@ def descargar(registro: Path, granule: str, carpeta: Path, confirmo_gb: float | 
     except ErrorDescarga:
         parcial.unlink(missing_ok=True)
         raise
+    except Exception:
+        # Cancelación cooperativa del trabajo u otro error durante el callback.
+        # Nunca dejar un .part que parezca un HDF5 utilizable.
+        parcial.unlink(missing_ok=True)
+        raise
     if escritos != tamano:
         parcial.unlink(missing_ok=True)
         raise ErrorDescarga(f"Descarga incompleta ({escritos:,} de {tamano:,} bytes); se descartó.")
