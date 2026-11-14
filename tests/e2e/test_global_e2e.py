@@ -242,15 +242,7 @@ def test_glo_17_movil(abrir, servidor_global):
     elegir_fondo(p, "Calles")
     assert len(fondos(p)) == 1
     p.clic("btn_sar")                            # en el teléfono, el botón de la barra superior
-    p.alternar("zona_por_vista")
-    assert "Mueve o acerca el mapa" in p.texto("panel_sar")
-    p.clic("minimizar_sar")                      # se aparta el panel y se arrastra el mapa con el dedo
-    p.page.mouse.move(120, 150)
-    p.page.mouse.down()
-    p.page.mouse.move(170, 165, steps=6)
-    p.page.mouse.up()
-    p.esperar(1500)
-    p.clic("restaurar_sar")
+    p.alternar("zona_por_vista")                 # el mapa ya conoce su encuadre: se propone tal cual
     panel = p.texto("panel_sar")
     assert "Área visible" in panel, panel[-400:]
     p.clic("zona_usar_vista")

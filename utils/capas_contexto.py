@@ -128,7 +128,7 @@ def _tabla(ruta: str, firma: tuple):
         return None
     if gdf.empty:
         return None
-    gdf.sindex      # índice espacial: el recorte por vista no recorre todo el mundo
+    _ = gdf.sindex  # índice espacial: el recorte por vista no recorre todo el mundo
     return gdf
 
 

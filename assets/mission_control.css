@@ -237,6 +237,9 @@ i.mc-transparente { background: repeating-conic-gradient(rgba(255, 255, 255, 0.2
 @media (max-width: 1180px) {
   .mc-marca-sub, .mc-grupo-rot, .mc-grupo-nota, .mc-chip-res { display: none; }
   .st-key-linea_temporal { display: none !important; }
+  /* Resultado + DEMO: quedan solo las insignias (origen y procedencia); los nombres van en el panel. */
+  .st-key-barra_superior:has(.mc-separador) .mc-chip { display: none; }
+  .st-key-barra_superior:has(.mc-separador) .mc-insignia { font-size: 0.56rem; padding: 0.14rem 0.45rem; }
 }
 @media (max-width: 980px) {
   .st-key-barra_superior button p { display: none; }       /* solo iconos */

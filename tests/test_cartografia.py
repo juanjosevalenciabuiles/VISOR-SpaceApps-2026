@@ -17,7 +17,7 @@ from components import mapa  # noqa: E402
 from components.barra_lateral import Controles  # noqa: E402
 from utils import capas_contexto, config  # noqa: E402
 from utils.capas_contexto import CAPAS_CONTEXTO, CapaContexto, leer_contexto  # noqa: E402
-from utils.config import ANTIOQUIA_BBOX, FENOMENOS  # noqa: E402
+from utils.config import FENOMENOS  # noqa: E402
 from utils.geotiff import leer_geotiff  # noqa: E402
 from utils import mapas_base  # noqa: E402
 from utils.mapas_base import (  # noqa: E402

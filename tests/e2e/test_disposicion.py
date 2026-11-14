@@ -8,6 +8,13 @@ TAMANOS = [(1920, 1080), (1440, 900), (1366, 768), (1280, 720), (1200, 800), (10
 def test_sin_superposiciones(abrir, ancho, alto):
     p = abrir(ancho, alto)
     assert p.superposiciones() == []
+    # Las herramientas de dibujo quedan junto al zoom, sin tapar paneles.
+    dibujo = p.mapa.evaluate("()=>{const r=document.querySelector('.leaflet-draw').getBoundingClientRect();"
+                             "return [r.left,r.top,r.right,r.bottom]}")
+    info = p.page.locator(".st-key-panel_info").bounding_box()
+    if info and p.visible("panel_info"):
+        assert not (dibujo[0] < info["x"] + info["width"] and info["x"] < dibujo[2]
+                    and dibujo[1] < info["y"] + info["height"] and info["y"] < dibujo[3]), "dibujo × información"
     # Con un resultado y la DEMO la barra superior tiene dos grupos: no debe desbordarse.
     p.ver_historico("coincidencia_vv_vh_20260924_20261006")
     p.demo()

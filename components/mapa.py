@@ -40,7 +40,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #06121e; }
 .leaflet-container { background: #06121e; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 /* El zoom pasa a la esquina inferior derecha, justo encima de la atribución: por debajo
    del panel de información (que termina a 190 px del borde) y lejos de la línea temporal. */
-.leaflet-top.leaflet-left { top: auto; left: auto; right: 14px; bottom: 40px; }
+.leaflet-top.leaflet-left { top: auto; left: auto; right: 14px; bottom: 40px;
+               display: flex; flex-direction: row-reverse; align-items: flex-end; gap: 8px; }
+.leaflet-top.leaflet-left .leaflet-control { margin: 0 !important; float: none; clear: none; }
 /* Herramientas de dibujo de la zona (rectángulo, polígono, editar, borrar), encima del zoom.
    Iconos SVG propios: no dependen de la hoja de imágenes del complemento ni de las fuentes. */
 .leaflet-draw-toolbar a { background-color: rgba(8,22,36,.78) !important; background-size: 18px 18px !important;
