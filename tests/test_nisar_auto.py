@@ -68,7 +68,7 @@ def test_preparar_con_producto_simulado_no_lo_publica_como_nisar(monkeypatch, tm
     monkeypatch.setattr(auto.shutil, "disk_usage",
                         lambda *_: NS(free=20_000_000_000))
     llamadas = []
-    def guardar_h5(_registro, granule, carpeta, _confirmo):
+    def guardar_h5(_registro, granule, carpeta, _confirmo, avance=None):
         llamadas.append(granule)
         ruta = Path(carpeta) / (granule + ".h5")
         ruta.write_bytes(b"\x89HDF\r\n\x1a\n" + b"x" * 10)
