@@ -136,8 +136,10 @@ def pytest_(inf: Informe, id_: str, descripcion: str, marcas: str, nivel: str, t
             inf.agregar(id_, "Pruebas", descripcion, "0 fallidas", nivel, FALLIDA, f"superó {tiempo} s")
             return None
         d = _junit(junit)
-    if d["pruebas"] == 0:
-        # Estas baterías nunca están vacías: 0 pruebas (o un junit ilegible) es un fallo, no una omisión.
+    if d["pruebas"] - len(d["omitidas"]) == 0:
+        # Estas baterías nunca están vacías: 0 pruebas ejecutadas (o un junit ilegible) es un fallo, no
+        # una omisión. Las omitidas no cuentan: sin Playwright, pytest anota la carpeta tests/e2e como
+        # una «prueba omitida» y una batería vacía parecía tener una prueba.
         inf.agregar(id_, "Pruebas", descripcion, "0 fallidas y al menos una prueba ejecutada", nivel, FALLIDA,
                     (r.stdout + r.stderr)[-400:] or "no se recogió ninguna prueba")
         return d
