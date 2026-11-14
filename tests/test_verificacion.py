@@ -186,6 +186,28 @@ def test_cero_pruebas_recogidas_es_fallo_no_omision():
     assert c.estado == v.FALLIDA and inf.veredicto == v.NO_APTO
 
 
+def test_cero_pruebas_es_fallo_tambien_sin_playwright(tmp_path):
+    """En Replit no hay Playwright: pytest anota tests/e2e como «omitida» al recogerla. El verificador
+    ya daba NO APTO (pytest termina con código 5), pero registraba «0 fallidas» seguido de la omisión,
+    y la prueba anterior, que mira el último registro, fallaba solo en Replit (13-nov-2026)."""
+    sys.path.insert(0, str(RAIZ / "scripts"))
+    import verificar_visor
+    falso = tmp_path / "sin_playwright" / "playwright"
+    falso.mkdir(parents=True)
+    (falso / "__init__.py").write_text('raise ModuleNotFoundError("No module named playwright")\n', encoding="utf-8")
+    entorno = {"PYTHONPATH": os.pathsep.join(filter(None, [str(falso.parent), os.environ.get("PYTHONPATH")])),
+               "CI": "", "VISOR_E2E_EXIGIR": ""}
+    inf = v.Informe()
+    d = verificar_visor.pytest_(inf, "PYT-T", "batería vacía", "marca_que_no_existe_en_ninguna_prueba",
+                                v.CRITICO, 300, entorno)
+    assert d["pruebas"] == len(d["omitidas"]) == 1, d      # solo la carpeta e2e, omitida al recogerla
+    # Un único registro, fallido y con el motivo exacto; la omisión de e2e no se añade detrás.
+    assert [c.id for c in inf.comprobaciones] == ["PYT-T"], [c.id for c in inf.comprobaciones]
+    c = inf.comprobaciones[-1]
+    assert c.estado == v.FALLIDA and "al menos una prueba ejecutada" in c.criterio
+    assert inf.veredicto == v.NO_APTO
+
+
 def test_ficha_descriptiva_del_motor_no_es_fallo(tmp_path):
     """Las máscaras del motor llevan un JSON descriptivo (fuente, fecha, producto, unidades) sin
     bloque `procedencia`: el verificador las trata como NO DECLARADAS, no como ficha que no coincide.
