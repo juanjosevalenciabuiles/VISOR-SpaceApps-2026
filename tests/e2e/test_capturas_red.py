@@ -81,6 +81,7 @@ def test_capturas_con_servicios_reales(pagina):
     tabla = p.texto("sistema")
     assert "Oscuro · OpenStreetMap" in tabla and "APTO" in tabla and "SNAP" in tabla
     capturar(p, "03_estado_del_sistema_real")
+    p.page.locator(".st-key-sistema").first.screenshot(path=str(DESTINO / f"03b_estado_del_sistema_detalle_{NAVEGADOR}.png"))
     p.expandir("sistema")
 
     # Zona por el área visible (sin coordenadas) → catálogo ASF real → par 24-sep/06-oct → Analizar.
@@ -111,6 +112,7 @@ def test_capturas_con_servicios_reales(pagina):
         if "tokio" in nombre:
             capa_contexto(p, "vias")
         assert teselas_reales(p) > 0, f"{consulta}: teselas reales de {fondo}"
+        assert p.capas_resultado() == [], "el resultado de Chigorodó no viaja a otra ciudad"
         capturar(p, nombre)
 
     p.mapa.locator(".leaflet-control-zoom-fullscreen").click()

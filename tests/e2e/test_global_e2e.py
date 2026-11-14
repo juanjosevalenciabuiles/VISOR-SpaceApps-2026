@@ -221,6 +221,9 @@ def test_glo_13_15_nueva_zona_tras_analizar_y_reanalisis(abrir, servidor_global)
     # GLO-13: otra zona (Medellín) retira el raster y sus cifras; el historial conserva ambos.
     p.clic("btn_explorador")
     buscar(p, "medellin")
+    # Ir a otro lugar ya retira el resultado de Chigorodó: nunca parece un resultado de Medellín.
+    assert p.capas_resultado() == [] and "SIN RESULTADO" in p.texto("barra_superior")
+    assert "Se retiró el resultado del mapa al ir a Medellín" in p.texto("panel_explorador")
     p.confirmar_zona("-75.65", "6.2", "-75.5", "6.3")
     assert p.capas_resultado() == [] and "SIN RESULTADO" in p.texto("barra_superior")
     p.clic("btn_explorador")
