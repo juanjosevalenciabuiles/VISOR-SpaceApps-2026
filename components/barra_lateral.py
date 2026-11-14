@@ -77,7 +77,8 @@ def buscador_lugar(ir_a, abrir_zona=None) -> None:
     """«¿Qué lugar quieres analizar?»: busca por nombre y lleva el mapa allí."""
     st.caption("¿QUÉ LUGAR QUIERES ANALIZAR?")
     if colombia.modo() == "CO":
-        st.caption("🇨🇴 MODO COLOMBIA · búsqueda y análisis limitados al país")
+        st.caption("🇨🇴 MODO COLOMBIA · búsqueda y análisis limitados al país. "
+                   "Contorno: DANE MGN 2025; datos derivados por ytolosa/mapas-colombia, CC BY 4.0.")
     st.text_input("Lugar", key="lugar_texto", placeholder="Ciudad o municipio de Colombia · ej.: Chigorodó, Bogotá",
                   label_visibility="collapsed")
     st.button("Buscar", key="lugar_buscar", icon=":material/search:", type="primary", on_click=_buscar_lugar,
