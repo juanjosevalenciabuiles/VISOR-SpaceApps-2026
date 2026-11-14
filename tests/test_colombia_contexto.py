@@ -1,7 +1,6 @@
 """Modo Colombia y contexto EONET; pruebas puras sin red ni datos SAR."""
 from __future__ import annotations
 
-import io
 import json
 import urllib.error
 from datetime import date
