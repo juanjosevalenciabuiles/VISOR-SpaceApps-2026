@@ -75,6 +75,12 @@ def validar_zona(limites) -> tuple[float, float, float, float]:
             f"La zona mide {ancho:.0f} × {alto:.0f} km: a 30 m serían unos {px / 1e6:.0f} millones de píxeles y el "
             f"motor admite {MAX_PIXELES / 1e6:.0f} millones. Reduce la zona (por ejemplo a menos de "
             f"{math.sqrt(MAX_PIXELES) * RESOLUCION_ESTIMADA_M / 1000:.0f} km por lado) antes de analizar.")
+    # Protección de servidor: el motor real procesa el rectángulo envolvente.
+    from utils import colombia
+    try:
+        colombia.validar_aoi(zona)
+    except colombia.FueraDeColombia as exc:
+        raise ErrorZona(str(exc)) from None
     return zona
 
 
