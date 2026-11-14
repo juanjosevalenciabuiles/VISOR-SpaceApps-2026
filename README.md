@@ -174,6 +174,25 @@ Combina las máscaras VV y VH del motor (mismo par de fechas, misma cuadrícula)
 
 Produce `coincidencia_VV_VH_20260924_20261006.tif` y `.json` (no sobrescribe el exploratorio) e indica si ambos son **EQUIVALENTES** píxel a píxel. Para que la ficha quede como REAL SIN VALIDAR, junto a cada máscara debe estar su informe del motor (`…_analisis.json`), de donde se lee el satélite. Para solo resumir un GeoTIFF de clases existente: `--describir data/analisis/coincidencia_VV_VH_Chigorodo.tif`.
 
+## Modo Colombia (alcance geográfico)
+
+La versión pública está **restringida temporalmente al territorio continental e insular de Colombia**. La
+política vive en un solo módulo, `utils/alcance_geografico.py`, y la usan por igual la interfaz y el servidor:
+
+| Dónde | Qué se comprueba |
+| --- | --- |
+| Mapa | Vista inicial con todo el país (San Andrés incluido), paneo limitado a la extensión con margen, velo oscuro fuera del contorno (no captura clics) y rótulo «Zona no disponible en esta versión» |
+| Búsqueda de lugares | Catálogo local filtrado; Nominatim con `countrycodes=co`; cada resultado se verifica contra la geometría, no por el texto del país |
+| «Ir a…» | No navega a coordenadas fuera de Colombia |
+| Zona de análisis | El **rectángulo que procesa el motor** debe estar entero en Colombia (un polígono cuenta por su rectángulo envolvente); no se recorta en silencio |
+| Servidor | Revalidación antes de consultar ASF, al empezar cada trabajo y dentro del motor (`comprobar_alcance`) antes de leer píxeles |
+| Historial | Los resultados guardados fuera de Colombia no se muestran ni exportan (los archivos no se tocan) |
+
+- `VISOR_REGION_MODE=CO` es el valor por defecto; `GLOBAL` restituye la navegación mundial (solo configuración interna o de pruebas). Un valor desconocido se trata como CO.
+- Límite: Marco Geoestadístico Nacional 2025 del DANE, simplificación [ytolosa/mapas-colombia](https://github.com/ytolosa/mapas-colombia) (CC BY 4.0), variante `real`, nivel `municipal` para validar y simplificado (~300 m) para dibujar. Ficha completa en `data/contexto/colombia/FUENTE.json`; se regenera con `scripts/preparar_limite_colombia.py`.
+- Es un límite de fuente estadística, no jurídico; no incluye mar territorial. **La simplificación no contiene Gorgona ni Malpelo**. Una zona costera que incluya mar se rechaza.
+- Si falta el archivo del límite, en modo CO no se admite ninguna zona nueva ni se ofrecen lugares.
+
 ## Sistema cartográfico multicapa
 
 El mapa tiene capas independientes, de abajo hacia arriba: **mapa base → capa SAR → hidrografía y carreteras → cobertura y área de referencia**. Cambiar el fondo, el fenómeno o la opacidad no reinicia el mapa: se conservan la ubicación, el zoom y la capa SAR.

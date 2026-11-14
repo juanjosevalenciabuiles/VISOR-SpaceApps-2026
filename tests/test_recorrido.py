@@ -294,6 +294,7 @@ def test_reproduccion_real_chigorodo_desde_la_app(tmp_path, monkeypatch):
     from utils import buscador_sar as bus
     from utils import flujo_sar as flujo
     from utils import resultados
+    monkeypatch.setenv("VISOR_REGION_MODE", "CO")     # el caso real debe seguir funcionando en Modo Colombia
     rtcs = sorted(Path(REALES).glob("S1C_IW_2026*_RTC30_*.tif"))
     assert len(rtcs) == 4, [p.name for p in rtcs]
     huellas = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in rtcs}

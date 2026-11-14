@@ -118,3 +118,34 @@ def test_capturas_con_servicios_reales(pagina):
     p.mapa.locator(".leaflet-control-zoom-fullscreen").click()
     capturar(p, "09_pantalla_completa")
     assert not p.errores
+
+
+@pytest.fixture(scope="module")
+def servidor_real_co(tmp_path_factory):
+    # Modo Colombia con servicios reales: Nominatim con countrycodes=co y teselas reales.
+    s = Servidor(preparar_datos(tmp_path_factory.mktemp("reales_co") / "data"),
+                 {"VISOR_GEOCODIFICADOR_URL": None, "VISOR_ASF_SIMULADO": None, "VISOR_DIAGNOSTICO": None,
+                  "VISOR_REGION_MODE": "CO"})
+    yield s
+    s.cerrar()
+
+
+def test_capturas_modo_colombia_con_servicios_reales(navegador, servidor_real_co):
+    ctx = navegador.new_context(viewport={"width": 1440, "height": 900})
+    p = Pagina(ctx.new_page(), servidor_real_co.url, red_real=True)
+    try:
+        capturar(p, "CO01_inicio_modo_colombia")
+        assert teselas_reales(p) > 0 and "COLOMBIA" in p.texto("barra_superior").upper()
+        abrir_explorador(p)
+        ir(p, "Chigorodó, Antioquia")
+        assert "Nominatim" in p.texto("panel_explorador")
+        p.mapa.evaluate("()=>map.setView([7.9,-77.0],9,{animate:false})")   # frontera con Panamá y golfo
+        capturar(p, "CO02_uraba_frontera_panama_oscurecida")
+        ir(p, "San Andrés isla")
+        capturar(p, "CO03_san_andres")
+        ir(p, "Tokio")
+        assert "no está en Colombia" in p.texto("panel_explorador")
+        capturar(p, "CO04_tokio_rechazado")
+        assert not p.errores
+    finally:
+        ctx.close()

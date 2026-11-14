@@ -22,7 +22,7 @@ import streamlit as st
 
 from components import flujo
 from utils import buscador_sar as bus
-from utils import ejecucion_sar, flujo_sar, sesion, trabajos
+from utils import alcance_geografico, ejecucion_sar, flujo_sar, sesion, trabajos
 from utils.analisis_sar import VERSION_MOTOR, ErrorSAR  # noqa: F401 — ErrorSAR se reexporta a las pruebas
 from utils.ejecucion_sar import verificar_salida  # noqa: F401 — se conserva el nombre público
 from utils.resultados import id_resultado
@@ -677,7 +677,9 @@ def _trabajos_recientes() -> None:
                 f'<br><span class="visor-leyenda-nota">{escape(str(escenas.get("antes", "?"))[17:25])} → '
                 f'{escape(str(escenas.get("despues", "?"))[17:25])} · zona {escape(zona)}'
                 f'{" · " + escape(t["error"]) if t.get("error") else ""}</span></div>', unsafe_allow_html=True)
-            if t["estado"] == trabajos.APTO and t.get("principal") and (_carpeta_analisis() / t["principal"]).is_file():
+            aoi_ok = alcance_geografico.admitida(aoi) if aoi else not alcance_geografico.restringido()
+            if t["estado"] == trabajos.APTO and t.get("principal") and (_carpeta_analisis() / t["principal"]).is_file() \
+                    and aoi_ok:
                 st.button("Abrir resultado", key=f"sar_abrir_trabajo_{t['job_id']}", icon=":material/history:",
                           type="tertiary", on_click=_abrir_trabajo, args=(t,))
 

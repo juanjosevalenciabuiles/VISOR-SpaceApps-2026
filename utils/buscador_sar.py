@@ -133,6 +133,12 @@ def validar_region(oeste, sur, este, norte, max_lado: float = MAX_LADO_GRADOS) -
             f"La región es demasiado amplia ({este - oeste:.1f}° × {norte - sur:.1f}°). "
             f"El máximo es {max_lado:g}° por lado: divide la búsqueda en zonas más pequeñas."
         )
+    # Modo Colombia: se comprueba aquí, antes de cualquier consulta a ASF (vale para todas las páginas).
+    from utils import alcance_geografico
+    try:
+        alcance_geografico.validar_limites((oeste, sur, este, norte), "La región de búsqueda")
+    except alcance_geografico.FueraDeAlcance as e:
+        raise ErrorBusqueda(str(e)) from None
     return Region(oeste, sur, este, norte)
 
 

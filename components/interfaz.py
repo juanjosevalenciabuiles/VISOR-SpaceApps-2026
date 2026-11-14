@@ -25,6 +25,7 @@ from components import herramientas_sar as herramientas
 from components import resultados as ui_resultados
 from components.barra_lateral import Controles
 from components.panel_info import insignia
+from utils import alcance_geografico
 from utils.config import CHIGORODO_CENTRO, CHIGORODO_ZOOM, MAPA_CENTRO, MAPA_ZOOM, Fenomeno
 from utils import procedencia
 from utils.geotiff import Capa
@@ -110,6 +111,11 @@ def _ir_a_coordenadas() -> None:
     except ValueError as e:
         st.session_state["ir_error"] = str(e)
         return
+    try:          # Modo Colombia: no se navega a coordenadas fuera del país
+        alcance_geografico.validar_punto(lat, lon, "El punto")
+    except alcance_geografico.FueraDeAlcance as e:
+        st.session_state["ir_error"] = str(e)
+        return
     st.session_state["ir_error"] = None
     ir_a(lat, lon, st.session_state["ir_zoom"])
 
@@ -130,7 +136,11 @@ def ir_a_chigorodo() -> None:
 
 
 def volver_al_inicio() -> None:
-    ir_a(MAPA_CENTRO[0], MAPA_CENTRO[1], MAPA_ZOOM)
+    if alcance_geografico.restringido():
+        (lat, lon), zoom = alcance_geografico.VISTA_INICIAL["centro"], alcance_geografico.VISTA_INICIAL["zoom"]
+        ir_a(lat, lon, zoom)
+    else:
+        ir_a(MAPA_CENTRO[0], MAPA_CENTRO[1], MAPA_ZOOM)
 
 
 # ---------------------------------------------------------------------------
@@ -244,11 +254,13 @@ def estado_html(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple = (
 def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple = (),
                    capa_visible: bool = True) -> None:
     with st.container(key="barra_superior", horizontal=True, vertical_alignment="center", gap="small"):
-        st.markdown(
-            '<div class="mc-marca"><span class="mc-marca-nombre">V.I.S.O.R.</span>'
-            '<span class="mc-marca-sub">Mission Control · Earth Explorer</span></div>',
-            unsafe_allow_html=True, width="content",
-        )
+        sub = ('<span class="mc-marca-sub mc-insignia-pais" id="insignia-colombia" title="En esta versión solo se '
+               'explora y analiza el territorio colombiano (continental e insular).">'
+               f'<span class="mc-insignia-larga">{escape(alcance_geografico.INSIGNIA)}</span>'
+               '<span class="mc-insignia-corta">COLOMBIA</span></span>' if alcance_geografico.restringido()
+               else '<span class="mc-marca-sub">Mission Control · Earth Explorer</span>')
+        st.markdown(f'<div class="mc-marca"><span class="mc-marca-nombre">V.I.S.O.R.</span>{sub}</div>',
+                    unsafe_allow_html=True, width="content")
         st.markdown(estado_html(fenomeno, capa, activos, capa_visible), unsafe_allow_html=True, width="content")
         st.space("stretch")
         st.button("Explorador", key="btn_explorador", help="Explorador: buscar lugar, resultado en el mapa, historial y mapa base", icon=":material/layers:", on_click=alternar_explorador,

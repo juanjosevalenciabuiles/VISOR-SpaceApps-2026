@@ -289,3 +289,13 @@ i.mc-transparente { background: repeating-conic-gradient(rgba(255, 255, 255, 0.2
 .mc-lista-sistema { list-style: none; padding: 0; margin: .2rem 0 .5rem; display: grid; gap: 6px; font-size: .76rem; }
 .mc-lista-sistema li { overflow-wrap: anywhere; }
 .mc-lista-sistema ul { margin: .15rem 0 0; }
+
+/* Modo Colombia: insignia de alcance en la marca (sustituye al subtítulo; no ocupa más espacio). */
+.mc-insignia-pais { color: #2ee6c8 !important; font-weight: 700; letter-spacing: .06em; white-space: nowrap; }
+.mc-insignia-corta { display: none; }
+@media (max-width: 1180px) {
+  /* Con la barra llena (resultado activo) o en el teléfono, la insignia se queda en su forma corta. */
+  .mc-marca .mc-marca-sub.mc-insignia-pais { display: block !important; }
+  .mc-insignia-pais .mc-insignia-larga { display: none; }
+  .mc-insignia-pais .mc-insignia-corta { display: inline; }
+}
