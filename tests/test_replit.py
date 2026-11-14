@@ -134,8 +134,10 @@ def test_sin_credenciales_ni_rutas_absolutas_en_el_codigo():
         assert not re.search(r"[?&]key=[A-Za-z0-9]{8,}", texto), f"posible clave en {ruta.name}"
         if ruta.suffix == ".py":
             assert "/home/" not in texto and "/nix/store" not in texto, ruta.name
-    # La única ruta fija de Nix es el respaldo explícito de start.sh.
-    assert len(re.findall(r"/nix/store/[a-z0-9]{32}-", START.read_text())) == 1
+    # La única ruta fija de Nix es el respaldo explícito de start.sh (dentro de $ALMACEN_NIX).
+    guion = START.read_text()
+    assert len(re.findall(r"[a-z0-9]{32}-expat", guion)) == 1
+    assert len(re.findall(r"/nix/store/[a-z0-9]{32}-", guion)) == 0
     ignorados = (RAIZ / ".gitignore").read_text().splitlines()
     assert {".venv/", ".env", ".streamlit/secrets.toml", ".visor_anterior"} <= set(ignorados)
 
@@ -243,6 +245,21 @@ def test_elige_la_expat_mas_nueva_que_funciona(sim):
 def test_prefiere_lo_que_declara_replit(sim):
     r = sim.ejecutar("--verificar", REPLIT_LD_LIBRARY_PATH=f"/no/existe:{sim.almacen}/ddd-expat-2.7.1/lib")
     assert r.returncode == 0 and f"Expat: usando {sim.almacen}/ddd-expat-2.7.1/lib" in r.stdout
+
+
+def test_la_ruta_de_respaldo_pertenece_al_almacen_configurado(sim):
+    """El respaldo fijo es el último recurso, y vive dentro del almacén (en Replit, /nix/store).
+    Así la simulación no ve la Expat real de Replit (causa del fallo de esta prueba allí)."""
+    guion = START.read_text()
+    assert 'EXPAT_RESPALDO="$ALMACEN_NIX/b56ind0m3byv7pzby5mwsn5qsy1g6lqf-expat-2.8.5/lib"' in guion
+    assert re.search(r'^ALMACEN_NIX="\$\{VISOR_NIX_STORE:-/nix/store\}"$', guion, re.M)
+    for nombre in ("bbb-expat-2.8.5", "ddd-expat-2.7.1", "aaa-expat-2.5.0"):
+        shutil.rmtree(sim.almacen / nombre)
+    respaldo = sim.almacen / "b56ind0m3byv7pzby5mwsn5qsy1g6lqf-expat-2.8.5" / "lib"
+    respaldo.mkdir(parents=True)
+    (respaldo / "libexpat.so.1").touch()
+    r = sim.ejecutar("--verificar")
+    assert r.returncode == 0 and f"Expat: usando {respaldo}" in r.stdout
 
 
 def test_descarta_expat_incompatible_y_falla_con_mensaje_claro(sim):

@@ -26,8 +26,9 @@ from rasterio.enums import Resampling
 from rasterio.errors import RasterioError
 from rasterio.vrt import WarpedVRT
 
-from utils.config import MAX_LADO_PX
+from utils.config import DATA_DIR, MAX_LADO_PX
 from utils.geo import intersecta_antioquia
+from utils.procedencia import Procedencia, evaluar, sha256_archivo
 
 if TYPE_CHECKING:
     from utils.config import Fenomeno
@@ -51,20 +52,26 @@ class Capa:
     metadatos: dict[str, str] = field(default_factory=dict)
     avisos: list[str] = field(default_factory=list)
     categorico: bool = False
+    ficha: dict | None = None                   # JSON lateral completo (ficha de procedencia)
+    procedencia: Procedencia | None = None      # ver utils/procedencia.py
 
     @property
     def rango(self) -> tuple[float, float]:
         return float(self.datos.min()), float(self.datos.max())
 
 
-def _metadatos(src: rasterio.DatasetReader, ruta: Path) -> tuple[dict[str, str], list[str]]:
+def _metadatos(src: rasterio.DatasetReader, ruta: Path) -> tuple[dict[str, str], list[str], dict | None]:
     """Etiquetas del GeoTIFF + archivo lateral opcional `<nombre>.json`.
 
-    Un JSON dañado no tumba la capa, pero se avisa. La marca de demostración
-    (VISOR_DEMO) solo se toma del propio GeoTIFF: un JSON no puede quitarla.
+    Devuelve (metadatos planos, avisos, ficha). Los valores simples del JSON se
+    suman a los metadatos; el JSON completo se conserva como `ficha` para
+    evaluar la procedencia. Un JSON dañado no tumba la capa, pero se avisa.
+    La marca de demostración (VISOR_DEMO) solo se toma del propio GeoTIFF: un
+    JSON no puede quitarla.
     """
     meta = {k.upper(): str(v) for k, v in src.tags().items()}
     avisos: list[str] = []
+    ficha: dict | None = None
     lateral = ruta.with_suffix(".json")
     if lateral.exists():
         try:
@@ -75,11 +82,20 @@ def _metadatos(src: rasterio.DatasetReader, ruta: Path) -> tuple[dict[str, str],
                 clave = str(clave).upper()
                 if clave != "VISOR_DEMO" and isinstance(valor, (str, int, float)):
                     meta[clave] = str(valor)
+            ficha = extra
         except (ValueError, OSError):  # incluye JSON mal formado y mala codificación
             avisos.append(
-                f"No se pudieron leer los metadatos de `data/{lateral.name}`; se ignoraron."
+                f"No se pudieron leer los metadatos de `{_relativa(lateral)}`; se ignoraron."
             )
-    return meta, avisos
+    return meta, avisos, ficha
+
+
+def _relativa(ruta: Path) -> str:
+    """Ruta para mostrar: relativa a la raíz del proyecto (data/…) si es posible."""
+    try:
+        return ruta.resolve().relative_to(DATA_DIR.parent).as_posix()
+    except ValueError:
+        return f"data/{ruta.name}"
 
 
 def leer_geotiff(
@@ -89,7 +105,7 @@ def leer_geotiff(
 ) -> Capa:
     ruta = Path(ruta)
     if not ruta.exists():
-        raise ErrorCapa(f"No se encontró el archivo `data/{ruta.name}`.")
+        raise ErrorCapa(f"No se encontró el archivo `{_relativa(ruta)}`.")
 
     remuestreo = Resampling.nearest if categorico else Resampling.bilinear
     try:
@@ -99,7 +115,7 @@ def leer_geotiff(
                     f"`{ruta.name}` no tiene sistema de coordenadas (CRS); "
                     "no se puede ubicar en el mapa."
                 )
-            meta, avisos = _metadatos(src, ruta)
+            meta, avisos, ficha = _metadatos(src, ruta)
             if src.count > 1:
                 avisos.append(f"El archivo tiene {src.count} bandas; se muestra la banda 1.")
 
@@ -142,16 +158,21 @@ def leer_geotiff(
             "Todos los píxeles válidos tienen el mismo valor; la capa no tiene contraste."
         )
 
+    es_demo = meta.get("VISOR_DEMO") == "1"
+    # La huella solo se calcula si hay una ficha que cotejar.
+    huella = sha256_archivo(ruta) if (ficha is not None and not es_demo) else None
     return Capa(
         datos=datos,
         limites=limites,
         crs_original=crs_original,
         reproyectada=reproyectada,
         forma_original=forma_original,
-        es_demo=meta.get("VISOR_DEMO") == "1",
+        es_demo=es_demo,
         metadatos=meta,
         avisos=avisos,
         categorico=categorico,
+        ficha=ficha,
+        procedencia=evaluar(es_demo, ficha, huella),
     )
 
 

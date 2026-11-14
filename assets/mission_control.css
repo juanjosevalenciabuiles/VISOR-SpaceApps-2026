@@ -1,0 +1,269 @@
+/* V.I.S.O.R. · Mission Control Earth Explorer
+   Un único mapa a pantalla completa con superficies Liquid Glass flotantes.
+
+   Variables que inyecta components/estilos.py según el fenómeno activo:
+     --theme-rgb     componentes RGB exactos del color de tema (p. ej. 79, 220, 244)
+     --theme-accent  el mismo color en hexadecimal
+   El tono se aplica a fondos, bordes y foco. Nunca se usa `opacity` sobre un
+   contenedor: bajaría también la legibilidad del texto. */
+
+:root {
+  --mc-radio: 20px;
+  --mc-borde: rgba(255, 255, 255, 0.12);
+  --mc-texto: #f5f5f7;
+  --mc-tenue: #a1a7b3;
+  --mc-sombra: 0 18px 48px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --mc-desenfoque: blur(28px) saturate(150%);
+  --mc-transicion: background 0.36s ease, border-color 0.36s ease, box-shadow 0.36s ease;
+  --mc-arriba: 88px;      /* bajo la barra superior */
+  --mc-abajo: 118px;      /* sobre la línea temporal */
+  --mc-lateral: 20px;
+  --mc-ancho: 316px;
+}
+
+/* ---------- Lienzo: Streamlit sin márgenes, mapa detrás de todo ---------- */
+html, body, .stApp { overflow: hidden !important; background: #06121e; }
+header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"],
+[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"], footer { display: none !important; }
+.stMain, .stMainBlockContainer, .block-container { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+
+.st-key-lienzo_mapa { position: fixed !important; inset: 0; z-index: 0; }
+.st-key-lienzo_mapa iframe {
+  position: fixed !important; inset: 0 !important; width: 100vw !important;
+  height: 100vh !important; height: 100dvh !important; border: 0 !important;
+}
+
+/* ---------- Vidrio adaptativo ---------- */
+.st-key-barra_superior, .st-key-panel_explorador, .st-key-panel_info, .st-key-panel_sar,
+.st-key-linea_temporal, .st-key-sar_minimizado {
+  position: fixed !important;
+  z-index: 20;
+  color: var(--mc-texto);
+  background:
+    linear-gradient(138deg, rgba(var(--theme-rgb), 0.18) 0%, rgba(var(--theme-rgb), 0.09) 41%, rgba(7, 19, 34, 0.40) 100%),
+    rgba(8, 22, 36, 0.40);
+  border: 1px solid rgba(var(--theme-rgb), 0.24);
+  border-radius: var(--mc-radio);
+  box-shadow: var(--mc-sombra), 0 0 28px rgba(var(--theme-rgb), 0.06);
+  -webkit-backdrop-filter: var(--mc-desenfoque);
+  backdrop-filter: var(--mc-desenfoque);
+  transition: var(--mc-transicion);
+}
+/* Si el navegador no admite desenfoque, el vidrio se vuelve más denso para seguir siendo legible. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .st-key-barra_superior, .st-key-panel_explorador, .st-key-panel_info, .st-key-panel_sar,
+  .st-key-linea_temporal, .st-key-sar_minimizado {
+    background: linear-gradient(138deg, rgba(var(--theme-rgb), 0.16), rgba(8, 22, 36, 0.86) 45%), rgba(8, 22, 36, 0.88);
+  }
+}
+
+/* ---------- Barra superior ---------- */
+.st-key-barra_superior {
+  top: 16px; left: var(--mc-lateral); right: var(--mc-lateral);
+  min-height: 58px; padding: 8px 12px 8px 18px !important;
+  flex-wrap: nowrap !important; overflow: hidden; gap: 0.45rem !important;
+  width: auto !important;   /* Streamlit fija 100 %; aquí manda left/right */
+}
+.st-key-barra_superior > div { flex-shrink: 0; }
+.mc-marca { display: flex; flex-direction: column; line-height: 1.1; white-space: nowrap; }
+.mc-marca-nombre {
+  font-size: 1.32rem; font-weight: 700; letter-spacing: 0.16em;
+  background: linear-gradient(90deg, #ffffff, var(--theme-accent));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.mc-marca-sub { font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mc-tenue); }
+.mc-estado { display: flex; gap: 0.4rem; align-items: center; margin-left: 0.6rem; white-space: nowrap; }
+.mc-grupo { display: inline-flex; gap: 0.35rem; align-items: center; }
+.mc-grupo-rot { font-size: 0.56rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mc-tenue); }
+.mc-grupo-nota { font-size: 0.62rem; color: var(--mc-tenue); }
+.mc-separador { width: 1px; height: 1.3rem; background: var(--mc-borde); margin: 0 0.2rem; }
+.mc-chip-res { border-style: dashed; }
+.mc-chip {
+  padding: 0.28rem 0.75rem; border-radius: 999px; font-size: 0.78rem;
+  border: 1px solid rgba(var(--theme-rgb), 0.6); color: var(--theme-accent);
+  background: rgba(var(--theme-rgb), 0.12);
+}
+.mc-insignia {
+  padding: 0.24rem 0.65rem; border-radius: 999px; font-size: 0.66rem;
+  font-weight: 700; letter-spacing: 0.08em; white-space: nowrap;
+}
+.mc-insignia-demo { color: #1a1300; background: #ffd60a; }
+.mc-insignia-nodeclarada { color: #d1d1d6; border: 1px dashed rgba(209, 209, 214, 0.7); }
+.mc-insignia-real { color: #f2f2f7; border: 1.5px solid rgba(242, 242, 247, 0.85); background: rgba(242, 242, 247, 0.08); }
+.mc-insignia-validado { color: #04140a; background: #30d158; }
+.mc-insignia-tenue { color: var(--mc-tenue); border: 1px solid var(--mc-borde); }
+
+/* Botones de la interfaz flotante */
+[class*="st-key-barra_superior"] button, [class*="st-key-panel_"] button, .st-key-sar_minimizado button {
+  border-radius: 12px !important; transition: var(--mc-transicion);
+}
+[class*="st-key-barra_superior"] button[kind="secondary"], [class*="st-key-panel_"] button[kind="secondary"],
+.st-key-sar_minimizado button {
+  background: rgba(var(--theme-rgb), 0.10) !important; border: 1px solid rgba(var(--theme-rgb), 0.28) !important;
+  color: var(--mc-texto) !important;
+}
+[class*="st-key-barra_superior"] button[kind="primary"], [class*="st-key-panel_"] button[kind="primary"] {
+  background: linear-gradient(115deg, rgba(var(--theme-rgb), 0.55), rgba(var(--theme-rgb), 0.28)) !important;
+  border: 1px solid rgba(var(--theme-rgb), 0.6) !important; color: #ffffff !important;
+}
+[class*="st-key-barra_superior"] button:hover, [class*="st-key-panel_"] button:hover,
+.st-key-sar_minimizado button:hover { border-color: var(--theme-accent) !important; }
+button:focus-visible { outline: 2px solid var(--theme-accent) !important; outline-offset: 2px; }
+
+/* ---------- Paneles laterales ---------- */
+.st-key-panel_explorador, .st-key-panel_sar {
+  top: var(--mc-arriba); left: var(--mc-lateral); width: var(--mc-ancho);
+  max-height: calc(100vh - var(--mc-arriba) - var(--mc-abajo));
+  overflow-y: auto; overscroll-behavior: contain; padding: 10px 16px 16px !important;
+}
+.st-key-panel_info {
+  top: var(--mc-arriba); right: var(--mc-lateral); width: var(--mc-ancho);
+  max-height: calc(100vh - var(--mc-arriba) - 190px);
+  overflow-y: auto; overscroll-behavior: contain; padding: 10px 16px 16px !important;
+}
+.st-key-panel_sar { width: 360px; }
+.mc-titulo-panel {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--theme-accent); white-space: nowrap;
+}
+[class*="st-key-cabecera_"] { justify-content: space-between; margin-bottom: -0.3rem; }
+[class*="st-key-cabecera_"] [data-testid="stElementContainer"]:first-child { flex: 1 1 auto; }
+[class*="st-key-cabecera_"] button[kind="tertiary"] { padding: 0.15rem 0.4rem !important; min-height: 0; color: var(--mc-tenue) !important; }
+[class*="st-key-cabecera_"] button[kind="tertiary"] p { font-size: 0.72rem; }
+[class*="st-key-cabecera_"] button[kind="tertiary"]:hover { color: var(--theme-accent) !important; }
+
+/* Contenido existente dentro de los paneles: sin un segundo vidrio encima */
+[class*="st-key-panel_"] .visor-panel { background: transparent; border: 0; padding: 0; backdrop-filter: none; }
+[class*="st-key-panel_"] .visor-panel-titulo { color: var(--theme-accent); }
+[class*="st-key-panel_"] [data-testid="stCaptionContainer"] {
+  letter-spacing: 0.14em; font-size: 0.66rem; color: var(--mc-tenue); margin-top: 0.4rem;
+}
+.st-key-panel_explorador [role="radiogroup"] label {
+  width: 100%; padding: 0.45rem 0.7rem; margin-bottom: 0.3rem; border-radius: 12px;
+  border: 1px solid var(--mc-borde); background: rgba(255, 255, 255, 0.03);
+}
+.st-key-panel_explorador [role="radiogroup"] label:has(input:checked) {
+  border-color: var(--theme-accent); background: rgba(var(--theme-rgb), 0.14);
+  box-shadow: 0 0 16px rgba(var(--theme-rgb), 0.12);
+}
+.st-key-panel_explorador [data-testid="stSliderThumbValue"], .st-key-panel_explorador [role="slider"] { color: var(--theme-accent); }
+.visor-aviso-general { border-color: rgba(var(--theme-rgb), 0.5) !important; }
+
+[class*="st-key-panel_"] .visor-procedencia { margin: 0.2rem 0 0.4rem; }
+[class*="st-key-panel_"] .visor-procedencia p.visor-texto { margin: 0.45rem 0 0.25rem; font-size: 0.8rem; line-height: 1.45; }
+[class*="st-key-panel_"] p.visor-nota-procedencia { font-size: 0.72rem; color: var(--mc-tenue); margin: 0.35rem 0 0; line-height: 1.4; }
+[class*="st-key-panel_"] p.visor-texto { font-size: 0.86rem; line-height: 1.5; }
+[class*="st-key-panel_"] .visor-lista li { font-size: 0.78rem; line-height: 1.5; }
+[class*="st-key-panel_"] .mc-res p.visor-texto { font-size: 0.8rem; line-height: 1.5; margin: 0.5rem 0; color: #d1d1d6; }
+
+/* ---------- Resultados SAR (data/analisis/) ---------- */
+.mc-resultado { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin: -0.35rem 0 0.1rem; }
+.mc-resultado code, .mc-res-archivo code { font-size: 0.68rem; color: var(--mc-tenue); background: transparent; padding: 0; overflow-wrap: anywhere; }
+.mc-resultado .mc-insignia { font-size: 0.58rem; padding: 0.14rem 0.5rem; }
+.mc-resultado-off { margin: 0.2rem 0 0.4rem; }
+.st-key-panel_explorador [class*="st-key-res_ir_"] button { padding: 0.1rem 0.3rem !important; min-height: 0; color: var(--mc-tenue) !important; }
+.st-key-panel_explorador [class*="st-key-res_ir_"] button p { font-size: 0.7rem; }
+.mc-res-titulo { font-size: 1rem; font-weight: 650; color: var(--mc-texto); }
+.mc-res-archivo { margin-bottom: 0.4rem; line-height: 1.2; }
+.mc-origen { display: block; font-style: normal; font-size: 0.64rem; color: var(--mc-tenue); font-weight: 400; }
+.mc-tabla { width: 100%; border-collapse: collapse; font-size: 0.7rem; color: #d1d1d6; margin-bottom: 0.3rem; }
+.mc-tabla th { font-weight: 600; color: var(--mc-tenue); text-align: right; padding: 0.2rem 0.15rem; border-bottom: 1px solid var(--mc-borde); }
+.mc-tabla td { text-align: right; padding: 0.28rem 0.15rem; border-bottom: 1px solid rgba(255, 255, 255, 0.06); vertical-align: top; }
+.mc-tabla td:first-child, .mc-tabla th:first-child { text-align: left; white-space: nowrap; }
+.mc-tabla td:nth-child(2) { text-align: left; color: var(--mc-tenue); font-size: 0.64rem; }
+.mc-tabla i, i.mc-transparente { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 0.3rem; vertical-align: -1px; border: 1px solid rgba(255, 255, 255, 0.25); }
+i.mc-transparente { background: repeating-conic-gradient(rgba(255, 255, 255, 0.28) 0 25%, transparent 0 50%) 0 0 / 6px 6px; }
+.mc-detalles { margin-top: 0.6rem; font-size: 0.76rem; }
+.mc-detalles summary { cursor: pointer; color: var(--theme-accent); font-size: 0.72rem; letter-spacing: 0.04em; }
+.mc-leyenda-res { margin-top: 0.8rem; }
+.mc-res-leyenda-titulo { font-size: 0.72rem; font-weight: 650; margin-bottom: 0.35rem; color: var(--mc-texto); }
+.mc-linea-fechada .mc-linea-punto { color: var(--mc-texto); }
+.mc-linea-fechada .mc-linea-barra { background: linear-gradient(90deg, rgba(var(--theme-rgb), 0.7), rgba(var(--theme-rgb), 0.25)); }
+
+.mc-falta { color: #ff9f0a; font-size: 0.66rem; }
+.mc-tabla-rtc td { text-align: left !important; }
+.mc-tabla-rtc code { font-size: 0.6rem; overflow-wrap: anywhere; background: transparent; padding: 0; }
+
+.mc-rampa { height: 10px; border-radius: 5px; margin: 0.2rem 0 0.15rem; border: 1px solid rgba(255, 255, 255, 0.15); }
+.mc-rampa-marcas { display: flex; justify-content: space-between; font-size: 0.62rem; color: var(--mc-tenue); margin-bottom: 0.3rem; }
+.mc-tabla-db td:last-child { font-variant-numeric: tabular-nums; }
+
+/* Barras de desplazamiento discretas */
+[class*="st-key-panel_"]::-webkit-scrollbar { width: 8px; }
+[class*="st-key-panel_"]::-webkit-scrollbar-thumb { background: rgba(var(--theme-rgb), 0.28); border-radius: 8px; }
+
+/* ---------- Herramientas SAR ---------- */
+.mc-aviso {
+  font-size: 0.76rem; line-height: 1.45; padding: 0.55rem 0.7rem; border-radius: 12px;
+  border: 1px solid rgba(255, 214, 10, 0.55); background: rgba(255, 214, 10, 0.08); color: #ffe566;
+}
+.mc-paso { padding: 0.2rem 0.1rem; }
+.mc-paso-titulo { font-weight: 650; font-size: 0.95rem; margin-bottom: 0.3rem; }
+.mc-paso p { font-size: 0.82rem; line-height: 1.5; color: #d1d1d6; margin: 0 0 0.5rem; }
+.mc-paso-fuente { font-size: 0.72rem; color: var(--mc-tenue); margin-bottom: 0.6rem; }
+.st-key-panel_sar [data-baseweb="tab-list"] { gap: 0.2rem; }
+.st-key-panel_sar [data-baseweb="tab"] { font-size: 0.74rem; padding: 0.3rem 0.45rem; }
+.st-key-panel_sar [data-baseweb="tab-highlight"] { background-color: var(--theme-accent); }
+.st-key-sar_minimizado {
+  top: var(--mc-arriba); left: var(--mc-lateral); padding: 6px !important; width: auto !important;
+}
+
+/* ---------- Línea temporal conceptual ---------- */
+.st-key-linea_temporal {
+  bottom: 20px; left: 50%; transform: translateX(-50%);
+  width: min(560px, calc(100vw - 2 * var(--mc-ancho) - 80px)); min-width: 300px;
+  padding: 8px 18px 8px !important; gap: 0 !important;
+}
+.mc-linea-titulo { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.16em; color: var(--mc-tenue); }
+.mc-linea-pista { display: flex; align-items: center; gap: 0.6rem; margin: 0.35rem 0 0.25rem; }
+.mc-linea-punto { font-size: 0.7rem; color: var(--mc-tenue); white-space: nowrap; }
+.mc-linea-barra {
+  flex: 1; height: 4px; border-radius: 999px;
+  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.22) 0 6px, transparent 6px 12px);
+}
+.mc-linea-nota { font-size: 0.68rem; color: var(--mc-tenue); line-height: 1.35; }
+
+/* ---------- Pantallas medianas ---------- */
+/* Con un resultado activo la barra tiene dos grupos de estado: los botones pasan a solo iconos. */
+@media (max-width: 1680px) {
+  .st-key-barra_superior:has(.mc-separador) .mc-marca-sub { display: none; }
+  .st-key-barra_superior:has(.mc-separador) button p { display: none; }
+}
+@media (max-width: 1366px) {
+  /* Con resultado activo quedan las insignias; los rótulos van en la descripción emergente. */
+  .st-key-barra_superior:has(.mc-separador) .mc-grupo-rot,
+  .st-key-barra_superior:has(.mc-separador) .mc-chip-res { display: none; }
+}
+@media (max-width: 1180px) {
+  .mc-marca-sub, .mc-grupo-rot, .mc-grupo-nota, .mc-chip-res { display: none; }
+  .st-key-linea_temporal { display: none !important; }
+}
+@media (max-width: 980px) {
+  .st-key-barra_superior button p { display: none; }       /* solo iconos */
+  .mc-estado .mc-chip { display: none; }                    /* quedan las dos insignias */
+  .mc-estado .mc-insignia { font-size: 0.56rem; padding: 0.14rem 0.45rem; }
+  .st-key-panel_info { top: auto; bottom: 20px; max-height: 42vh; }
+}
+
+/* ---------- Móvil: hojas inferiores ---------- */
+@media (max-width: 720px) {
+  :root { --mc-lateral: 8px; }
+  .st-key-barra_superior { top: 8px; padding: 6px 8px !important; min-height: 52px; }
+  .mc-estado { display: none; }
+  .mc-marca-nombre { font-size: 1.05rem; letter-spacing: 0.1em; }
+  /* Las hojas inferiores dejan libre la franja de atribución del mapa (obligatoria por licencia). */
+  .st-key-panel_explorador, .st-key-panel_sar, .st-key-panel_info {
+    top: auto !important; bottom: 30px; left: 8px; right: 8px; width: auto !important;
+    max-height: 46vh; border-radius: 18px;
+  }
+  .st-key-panel_info { max-height: 40vh; }
+  /* Con el explorador abierto, la información sube (regla emitida por interfaz.css_estado). */
+  .st-key-sar_minimizado { top: auto; bottom: 30px; left: 8px; }
+  .st-key-barra_superior { gap: 0.2rem !important; padding-left: 12px !important; }
+  .st-key-barra_superior button { padding: 0.3rem 0.45rem !important; min-height: 36px; }
+  .st-key-barra_superior button [data-testid="stIconMaterial"] + span, .st-key-popover_ir svg:last-child { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}

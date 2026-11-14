@@ -1,0 +1,624 @@
+{
+ "_nota": "Respuesta REAL del SearchAPI de ASF, consultada el 2026-11-12 (UTC) y reducida a los campos que usa el buscador. Consulta: platform=S1, processingLevel=GRD_HD, beamMode=IW, start=2026-09-20, end=2026-10-10, bbox=-76.85,7.40,-76.40,7.95. Es solo catálogo (metadatos): no contiene imágenes.",
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -74.543571,
+       8.206695
+      ],
+      [
+       -76.812599,
+       8.664301
+      ],
+      [
+       -77.14151,
+       7.16144
+      ],
+      [
+       -74.881966,
+       6.699997
+      ],
+      [
+       -74.543571,
+       8.206695
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "sceneName": "S1D_IW_GRDH_1SDV_20261007T104951_20261007T105016_004908_0093DE_E83D",
+    "fileID": "S1D_IW_GRDH_1SDV_20261007T104951_20261007T105016_004908_0093DE_E83D-GRD_HD",
+    "fileName": "S1D_IW_GRDH_1SDV_20261007T104951_20261007T105016_004908_0093DE_E83D.zip",
+    "platform": "Sentinel-1D",
+    "sensor": "C-SAR",
+    "beamModeType": "IW",
+    "processingLevel": "GRD_HD",
+    "polarization": "VV+VH",
+    "flightDirection": "DESCENDING",
+    "pathNumber": 142,
+    "frameNumber": 566,
+    "orbit": 4908,
+    "startTime": "2026-10-07T10:49:51Z",
+    "stopTime": "2026-10-07T10:50:16Z",
+    "bytes": 1082104783,
+    "url": "https://datapool.asf.alaska.edu/GRD_HD/SD/S1D_IW_GRDH_1SDV_20261007T104951_20261007T105016_004908_0093DE_E83D.zip"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -78.141197,
+       6.935252
+      ],
+      [
+       -75.845924,
+       7.403186
+      ],
+      [
+       -76.283493,
+       9.594655
+      ],
+      [
+       -78.59269,
+       9.132764
+      ],
+      [
+       -78.141197,
+       6.935252
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "sceneName": "S1C_IW_GRDH_1SDV_20261006T232218_20261006T232254_009771_013762_F000",
+    "fileID": "S1C_IW_GRDH_1SDV_20261006T232218_20261006T232254_009771_013762_F000-GRD_HD",
+    "fileName": "S1C_IW_GRDH_1SDV_20261006T232218_20261006T232254_009771_013762_F000.zip",
+    "platform": "Sentinel-1C",
+    "sensor": "C-SAR",
+    "beamModeType": "IW",
+    "processingLevel": "GRD_HD",
+    "polarization": "VV+VH",
+    "flightDirection": "ASCENDING",
+    "pathNumber": 48,
+    "frameNumber": 1205,
+    "orbit": 9771,
+    "startTime": "2026-10-06T23:22:18Z",
+    "stopTime": "2026-10-06T23:22:54Z",
+    "bytes": 1413158551,
+    "url": "https://datapool.asf.alaska.edu/GRD_HD/SC/S1C_IW_GRDH_1SDV_20261006T232218_20261006T232254_009771_013762_F000.zip"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -78.141243,
+       6.935279
+      ],
+      [
+       -75.84597,
+       7.403218
+      ],
+      [
+       -76.283554,
+       9.594688
+      ],
+      [
+       -78.592751,
+       9.132792
+      ],
+      [
+       -78.141243,
+       6.935279
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "sceneName": "S1C_IW_GRDH_1SDV_20261006T232218_20261006T232254_009771_013762_116E",
+    "fileID": "S1C_IW_GRDH_1SDV_20261006T232218_20261006T232254_009771_013762_116E-GRD_HD",
+    "fileName": "S1C_IW_GRDH_1SDV_20261006T232218_20261006T232254_009771_013762_116E.zip",
+    "platform": "Sentinel-1C",
+    "sensor": "C-SAR",
+    "beamModeType": "IW",
+    "processingLevel": "GRD_HD",
+    "polarization": "VV+VH",
+    "flightDirection": "ASCENDING",
+    "pathNumber": 48,
+    "frameNumber": 1205,
+    "orbit": 9771,
+    "startTime": "2026-10-06T23:22:18Z",
+    "stopTime": "2026-10-06T23:22:54Z",
+    "bytes": 1413087108,
+    "url": "https://datapool.asf.alaska.edu/GRD_HD/SC/S1C_IW_GRDH_1SDV_20261006T232218_20261006T232254_009771_013762_116E.zip"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -76.762444,
+       7.443551
+      ],
+      [
+       -78.994957,
+       7.896835
+      ],
+      [
+       -79.197693,
+       6.865724
+      ],
+      [
+       -76.970512,
+       6.409587
+      ],
+      [
+       -76.762444,
+       7.443551
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "sceneName": "S1C_IW_GRDH_1SDV_20261006T105804_20261006T105822_009763_013725_EC4B",
+    "fileID": "S1C_IW_GRDH_1SDV_20261006T105804_20261006T105822_009763_013725_EC4B-GRD_HD",
+    "fileName": "S1C_IW_GRDH_1SDV_20261006T105804_20261006T105822_009763_013725_EC4B.zip",
+    "platform": "Sentinel-1C",
+    "sensor": "C-SAR",
+    "beamModeType": "IW",
+    "processingLevel": "GRD_HD",
+    "polarization": "VV+VH",
+    "flightDirection": "DESCENDING",
+    "pathNumber": 40,
+    "frameNumber": 569,
+    "orbit": 9763,
+    "startTime": "2026-10-06T10:58:04Z",
+    "stopTime": "2026-10-06T10:58:22Z",
+    "bytes": 588483702
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -76.762444,
+       7.443552
+      ],
+      [
+       -78.994949,
+       7.896837
+      ],
+      [
+       -79.197693,
+       6.865726
+      ],
+      [
+       -76.970512,
+       6.409588
+      ],
+      [
+       -76.762444,
+       7.443552
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "sceneName": "S1C_IW_GRDH_1SDV_20261006T105804_20261006T105822_009763_013725_33E3",
+    "fileID": "S1C_IW_GRDH_1SDV_20261006T105804_20261006T105822_009763_013725_33E3-GRD_HD",
+    "fileName": "S1C_IW_GRDH_1SDV_20261006T105804_20261006T105822_009763_013725_33E3.zip",
+    "platform": "Sentinel-1C",
+    "sensor": "C-SAR",
+    "beamModeType": "IW",
+    "processingLevel": "GRD_HD",
+    "polarization": "VV+VH",
+    "flightDirection": "DESCENDING",
+    "pathNumber": 40,
+    "frameNumber": 569,
+    "orbit": 9763,
+    "startTime": "2026-10-06T10:58:04Z",
+    "stopTime": "2026-10-06T10:58:22Z",
+    "bytes": 588479929
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -76.394394,
+       9.212826
+      ],
+      [
+       -78.638138,
+       9.661464
+      ],
+      [
+       -78.994751,
+       7.89689
+      ],
+      [
+       -76.762421,
+       7.443641
+      ],
+      [
+       -76.394394,
+       9.212826
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "sceneName": "S1C_IW_GRDH_1SDV_20261006T105735_20261006T105804_009763_013725_8F2E",
+    "fileID": "S1C_IW_GRDH_1SDV_20261006T105735_20261006T105804_009763_013725_8F2E-GRD_HD",
+    "fileName": "S1C_IW_GRDH_1SDV_20261006T105735_20261006T105804_009763_013725_8F2E.zip",
+    "platform": "Sentinel-1C",
+    "sensor": "C-SAR",
+    "beamModeType": "IW",
+    "processingLevel": "GRD_HD",
+    "polarization": "VV+VH",
+    "flightDirection": "DESCENDING",
+    "pathNumber": 40,
+    "frameNumber": 563,
+    "orbit": 9763,
+    "startTime": "2026-10-06T10:57:35Z",
+    "stopTime": "2026-10-06T10:58:04Z",
+    "bytes": 1112355222
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -76.394394,
+       9.212825
+      ],
+      [
+       -78.638138,
+       9.661462
+      ],
+      [
+       -78.994751,
+       7.896889
+      ],
+      [
+       -76.762421,
+       7.44364
+      ],
+      [
+       -76.394394,
+       9.212825
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "sceneName": "S1C_IW_GRDH_1SDV_20261006T105735_20261006T105804_009763_013725_6DC7",
+    "fileID": "S1C_IW_GRDH_1SDV_20261006T105735_20261006T105804_009763_013725_6DC7-GRD_HD",
+    "fileName": "S1C_IW_GRDH_1SDV_20261006T105735_20261006T105804_009763_013725_6DC7.zip",
+    "platform": "Sentinel-1C",
+    "sensor": "C-SAR",
+    "beamModeType": "IW",
+    "processingLevel": "GRD_HD",
+    "polarization": "VV+VH",
+    "flightDirection": "DESCENDING",
+    "pathNumber": 40,
+    "frameNumber": 563,
+    "orbit": 9763,
+    "startTime": "2026-10-06T10:57:35Z",
+    "stopTime": "2026-10-06T10:58:04Z",
+    "bytes": 1112353948
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -74.543556,
+       8.206743
+      ],
+      [
+       -76.812584,
+       8.664365
+      ],
+      [
+       -77.141502,
+       7.161505
+      ],
+      [
+       -74.881958,
+       6.700048
+      ],
+      [
+       -74.543556,
+       8.206743
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "sceneName": "S1C_IW_GRDH_1SDV_20261001T104938_20261001T105003_009690_0134C4_8B63",
+    "fileID": "S1C_IW_GRDH_1SDV_20261001T104938_20261001T105003_009690_0134C4_8B63-GRD_HD",
+    "fileName": "S1C_IW_GRDH_1SDV_20261001T104938_20261001T105003_009690_0134C4_8B63.zip",
+    "platform": "Sentinel-1C",
+    "sensor": "C-SAR",
+    "beamModeType": "IW",
+    "processingLevel": "GRD_HD",
+    "polarization": "VV+VH",
+    "flightDirection": "DESCENDING",
+    "pathNumber": 142,
+    "frameNumber": 566,
+    "orbit": 9690,
+    "startTime": "2026-10-01T10:49:38Z",
+    "stopTime": "2026-10-01T10:50:03Z",
+    "bytes": 1074755526,
+    "url": "https://datapool.asf.alaska.edu/GRD_HD/SC/S1C_IW_GRDH_1SDV_20261001T104938_20261001T105003_009690_0134C4_8B63.zip"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -78.016907,
+       6.328568
+      ],
+      [
+       -75.745865,
+       6.793961
+      ],
+      [
+       -76.100227,
+       8.561233
+      ],
+      [
+       -78.381424,
+       8.100699
+      ],
+      [
+       -78.016907,
+       6.328568
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "sceneName": "S1D_IW_GRDH_1SDV_20260930T232221_20260930T232250_004814_009098_5AEA",
+    "fileID": "S1D_IW_GRDH_1SDV_20260930T232221_20260930T232250_004814_009098_5AEA-GRD_HD",
+    "fileName": "S1D_IW_GRDH_1SDV_20260930T232221_20260930T232250_004814_009098_5AEA.zip",
+    "platform": "Sentinel-1D",
+    "sensor": "C-SAR",
+    "beamModeType": "IW",
+    "processingLevel": "GRD_HD",
+    "polarization": "VV+VH",
+    "flightDirection": "ASCENDING",
+    "pathNumber": 48,
+    "frameNumber": 18,
+    "orbit": 4814,
+    "startTime": "2026-09-30T23:22:21Z",
+    "stopTime": "2026-09-30T23:22:50Z",
+    "bytes": 1204991709,
+    "url": "https://datapool.asf.alaska.edu/GRD_HD/SD/S1D_IW_GRDH_1SDV_20260930T232221_20260930T232250_004814_009098_5AEA.zip"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -74.543671,
+       8.206665
+      ],
+      [
+       -76.812698,
+       8.664249
+      ],
+      [
+       -77.141579,
+       7.161464
+      ],
+      [
+       -74.882027,
+       6.700043
+      ],
+      [
+       -74.543671,
+       8.206665
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "sceneName": "S1D_IW_GRDH_1SDV_20260925T104951_20260925T105016_004733_008DB9_B883",
+    "fileID": "S1D_IW_GRDH_1SDV_20260925T104951_20260925T105016_004733_008DB9_B883-GRD_HD",
+    "fileName": "S1D_IW_GRDH_1SDV_20260925T104951_20260925T105016_004733_008DB9_B883.zip",
+    "platform": "Sentinel-1D",
+    "sensor": "C-SAR",
+    "beamModeType": "IW",
+    "processingLevel": "GRD_HD",
+    "polarization": "VV+VH",
+    "flightDirection": "DESCENDING",
+    "pathNumber": 142,
+    "frameNumber": 566,
+    "orbit": 4733,
+    "startTime": "2026-09-25T10:49:51Z",
+    "stopTime": "2026-09-25T10:50:16Z",
+    "bytes": 1080154438,
+    "url": "https://datapool.asf.alaska.edu/GRD_HD/SD/S1D_IW_GRDH_1SDV_20260925T104951_20260925T105016_004733_008DB9_B883.zip"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -78.141106,
+       6.935157
+      ],
+      [
+       -75.845749,
+       7.403087
+      ],
+      [
+       -76.283173,
+       9.594022
+      ],
+      [
+       -78.592461,
+       9.132133
+      ],
+      [
+       -78.141106,
+       6.935157
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "sceneName": "S1C_IW_GRDH_1SDV_20260924T232218_20260924T232254_009596_013189_1338",
+    "fileID": "S1C_IW_GRDH_1SDV_20260924T232218_20260924T232254_009596_013189_1338-GRD_HD",
+    "fileName": "S1C_IW_GRDH_1SDV_20260924T232218_20260924T232254_009596_013189_1338.zip",
+    "platform": "Sentinel-1C",
+    "sensor": "C-SAR",
+    "beamModeType": "IW",
+    "processingLevel": "GRD_HD",
+    "polarization": "VV+VH",
+    "flightDirection": "ASCENDING",
+    "pathNumber": 48,
+    "frameNumber": 1205,
+    "orbit": 9596,
+    "startTime": "2026-09-24T23:22:18Z",
+    "stopTime": "2026-09-24T23:22:54Z",
+    "bytes": 1424437747,
+    "url": "https://datapool.asf.alaska.edu/GRD_HD/SC/S1C_IW_GRDH_1SDV_20260924T232218_20260924T232254_009596_013189_1338.zip"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -76.76178,
+       7.443499
+      ],
+      [
+       -78.994118,
+       7.896724
+      ],
+      [
+       -79.196915,
+       6.866373
+      ],
+      [
+       -76.969933,
+       6.410306
+      ],
+      [
+       -76.76178,
+       7.443499
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "sceneName": "S1C_IW_GRDH_1SDV_20260924T105804_20260924T105821_009588_01314C_E59B",
+    "fileID": "S1C_IW_GRDH_1SDV_20260924T105804_20260924T105821_009588_01314C_E59B-GRD_HD",
+    "fileName": "S1C_IW_GRDH_1SDV_20260924T105804_20260924T105821_009588_01314C_E59B.zip",
+    "platform": "Sentinel-1C",
+    "sensor": "C-SAR",
+    "beamModeType": "IW",
+    "processingLevel": "GRD_HD",
+    "polarization": "VV+VH",
+    "flightDirection": "DESCENDING",
+    "pathNumber": 40,
+    "frameNumber": 569,
+    "orbit": 9588,
+    "startTime": "2026-09-24T10:58:04Z",
+    "stopTime": "2026-09-24T10:58:21Z",
+    "bytes": 592506445
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -76.393456,
+       9.214216
+      ],
+      [
+       -78.637032,
+       9.662791
+      ],
+      [
+       -78.993912,
+       7.896778
+      ],
+      [
+       -76.761757,
+       7.443588
+      ],
+      [
+       -76.393456,
+       9.214216
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "sceneName": "S1C_IW_GRDH_1SDV_20260924T105735_20260924T105804_009588_01314C_3668",
+    "fileID": "S1C_IW_GRDH_1SDV_20260924T105735_20260924T105804_009588_01314C_3668-GRD_HD",
+    "fileName": "S1C_IW_GRDH_1SDV_20260924T105735_20260924T105804_009588_01314C_3668.zip",
+    "platform": "Sentinel-1C",
+    "sensor": "C-SAR",
+    "beamModeType": "IW",
+    "processingLevel": "GRD_HD",
+    "polarization": "VV+VH",
+    "flightDirection": "DESCENDING",
+    "pathNumber": 40,
+    "frameNumber": 563,
+    "orbit": 9588,
+    "startTime": "2026-09-24T10:57:35Z",
+    "stopTime": "2026-09-24T10:58:04Z",
+    "bytes": 1109802134
+   }
+  }
+ ]
+}

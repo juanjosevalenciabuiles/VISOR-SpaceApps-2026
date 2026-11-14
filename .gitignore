@@ -13,5 +13,14 @@ __pycache__/
 .streamlit/secrets.toml
 # Productos SAR pesados: nunca al repositorio. Solo GeoTIFF ligeros en data/.
 data/crudos/
+# Entradas RTC de HyP3 y resultados del análisis: son locales, no van a GitHub.
+data/sar/
+data/analisis/
 *.zip
 *.SAFE
+
+# Paquetes de exportación (QGIS)
+exportaciones/
+
+# Informes de verificación y capturas de pruebas
+informes/

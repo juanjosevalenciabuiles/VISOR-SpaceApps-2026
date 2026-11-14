@@ -120,7 +120,11 @@ principal() {
     echo
     if preparar_dependencias; then
         echo
-        echo "Listo. Pulsa Run."
+        echo "Listo. Pulsa Run. Si la app ya estaba abierta, reiníciala para cargar la versión"
+        echo "nueva (si no, Streamlit puede mezclar archivos viejos y nuevos, p. ej. «cannot"
+        echo "import name ...»): ejecuta 'bash start.sh' en esta Shell, que cierra SOLO la"
+        echo "instancia anterior de V.I.S.O.R. y arranca la nueva (o Stop y Run). No toca data/."
+        echo "Para comprobar esta versión con tus datos reales (solo lectura): bash verificar.sh"
     else
         echo
         echo "La nueva versión no pasó la verificación." >&2

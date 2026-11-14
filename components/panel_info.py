@@ -3,8 +3,10 @@ from html import escape
 
 import streamlit as st
 
+from utils import procedencia
 from utils.config import ADVERTENCIA_GENERAL, Fenomeno
 from utils.geotiff import Capa
+from utils.procedencia import Procedencia
 
 
 def _fila(etiqueta: str, valor: str) -> str:
@@ -12,6 +14,39 @@ def _fila(etiqueta: str, valor: str) -> str:
         f'<div class="visor-fila"><span>{escape(etiqueta)}</span>'
         f"<strong>{escape(valor)}</strong></div>"
     )
+
+
+def bloque_procedencia(estado: Procedencia | None, es_demo: bool = False) -> str:
+    """Estado de procedencia con su explicación y, si la ficha falla, por qué."""
+    if es_demo:
+        estado = Procedencia(procedencia.DEMO, "El GeoTIFF lleva la marca de datos sintéticos (VISOR_DEMO=1).")
+    elif estado is None:
+        estado = Procedencia(procedencia.NO_DECLARADA, "Procedencia no evaluada.")
+    detalle = escape(estado.motivo)
+    if estado.faltantes:
+        detalle += " Falta: " + escape(", ".join(estado.faltantes)) + "."
+    return (
+        '<div class="visor-seccion">Procedencia</div>'
+        f'<div class="visor-procedencia">{insignia(estado)}'
+        f'<p class="visor-texto">{escape(estado.descripcion)}</p>'
+        f'<p class="visor-nota-procedencia">{detalle}</p></div>'
+    )
+
+
+CLASE_INSIGNIA = {
+    procedencia.DEMO: "mc-insignia-demo",
+    procedencia.NO_DECLARADA: "mc-insignia-nodeclarada",
+    procedencia.REAL_SIN_VALIDAR: "mc-insignia-real",
+    procedencia.VALIDADO: "mc-insignia-validado",
+}
+
+
+def insignia(estado: Procedencia | None) -> str:
+    """Insignia de uno de los cuatro estados de procedencia (sin estado = no declarada)."""
+    if estado is None:
+        estado = Procedencia(procedencia.NO_DECLARADA, "Procedencia no evaluada.")
+    return (f'<span class="mc-insignia {CLASE_INSIGNIA[estado.estado]}" title="{escape(estado.descripcion)}">'
+            f"{escape(estado.etiqueta)}</span>")
 
 
 def render(fenomeno: Fenomeno, capa: Capa | None, error: str | None) -> None:
@@ -28,6 +63,7 @@ def render(fenomeno: Fenomeno, capa: Capa | None, error: str | None) -> None:
         )
 
     if capa is not None:
+        partes.append(bloque_procedencia(capa.procedencia, capa.es_demo))
         m = capa.metadatos
         sin_meta = "No disponible (sin metadatos)"
         alto, ancho = capa.forma_original

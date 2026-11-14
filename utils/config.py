@@ -6,12 +6,15 @@ Para agregar o ajustar un caso de uso solo se edita este archivo.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import quote
 
 RAIZ = Path(__file__).resolve().parent.parent
-DATA_DIR = RAIZ / "data"
+# VISOR_DATA_DIR solo para pruebas automáticas (tests/e2e, scripts/verificar_visor.py):
+# permite usar una copia temporal de los datos sin tocar data/. Sin la variable, data/.
+DATA_DIR = Path(os.environ["VISOR_DATA_DIR"]) if os.environ.get("VISOR_DATA_DIR") else RAIZ / "data"
 ASSETS_DIR = RAIZ / "assets"
 
 # Rectángulo APROXIMADO que contiene a Antioquia (oeste, sur, este, norte) en
@@ -20,6 +23,13 @@ ASSETS_DIR = RAIZ / "assets"
 ANTIOQUIA_BBOX = (-77.20, 5.40, -73.80, 8.90)
 MAPA_CENTRO = (7.0, -75.5)  # (lat, lon)
 MAPA_ZOOM = 8
+
+# Área de interés del primer análisis real (Chigorodó, Urabá antioqueño):
+# el AOI con que se generaron las máscaras VV/VH (oeste, sur, este, norte).
+# Es el destino predeterminado de «Ir a…».
+AOI_CHIGORODO = (-76.80, 7.55, -76.55, 7.80)
+CHIGORODO_CENTRO = ((AOI_CHIGORODO[1] + AOI_CHIGORODO[3]) / 2, (AOI_CHIGORODO[0] + AOI_CHIGORODO[2]) / 2)
+CHIGORODO_ZOOM = 11
 
 # --- Clave de CARTO -------------------------------------------------------
 # Los mapas base de CARTO exigen una API key gratuita; sin ella las teselas
@@ -100,6 +110,11 @@ class Fenomeno:
     transparencia: str = "gradual"    # "gradual" (de alfa_min a 1) o "nodata" (todo opaco)
     alfa_min: float = 0.25            # opacidad mínima de un dato válido en modo gradual
 
+    # --- Tema de la interfaz (Mission Control Earth Explorer) ---
+    # Tiñe paneles, bordes y controles. NO cambia los colores de los datos
+    # (`colores`, `clases`): esos describen valores, no estética.
+    tema: str = "#4FDCF4"
+
     def __post_init__(self) -> None:
         if self.tipo_valores not in ("continuo", "categorico"):
             raise ValueError(f"{self.clave}: tipo_valores inválido")
@@ -109,6 +124,8 @@ class Fenomeno:
             raise ValueError(f"{self.clave}: un producto categórico necesita `clases`")
         if self.vmin is not None and self.vmax is not None and self.vmax <= self.vmin:
             raise ValueError(f"{self.clave}: vmax debe ser mayor que vmin")
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", self.tema):
+            raise ValueError(f"{self.clave}: tema debe ser un color #RRGGBB")
 
     @property
     def categorico(self) -> bool:
@@ -120,8 +137,13 @@ class Fenomeno:
 
     @property
     def color(self) -> str:
-        """Color de acento de la interfaz."""
+        """Color más intenso de la rampa de datos (contorno de cobertura)."""
         return self.colores[-1]
+
+    @property
+    def tema_rgb(self) -> tuple[int, int, int]:
+        """Componentes RGB exactos del color de tema, para las variables CSS."""
+        return tuple(int(self.tema[i:i + 2], 16) for i in (1, 3, 5))
 
 
 # PERFILES ACTUALES: pensados para los GeoTIFF sintéticos (índice 0–1 sin
@@ -132,6 +154,7 @@ class Fenomeno:
 FENOMENOS: dict[str, Fenomeno] = {
     "inundacion": Fenomeno(
         clave="inundacion",
+        tema="#4FDCF4",
         nombre="Inundaciones",
         icono="🌊",
         archivo="inundacion.tif",
@@ -160,6 +183,7 @@ FENOMENOS: dict[str, Fenomeno] = {
     ),
     "deslizamiento": Fenomeno(
         clave="deslizamiento",
+        tema="#F4A463",
         nombre="Deslizamientos",
         icono="⛰️",
         archivo="deslizamiento.tif",
@@ -188,6 +212,7 @@ FENOMENOS: dict[str, Fenomeno] = {
     ),
     "deforestacion": Fenomeno(
         clave="deforestacion",
+        tema="#64DFA7",
         nombre="Deforestación",
         icono="🌳",
         archivo="deforestacion.tif",

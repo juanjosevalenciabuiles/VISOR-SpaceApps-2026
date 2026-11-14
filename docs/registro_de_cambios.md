@@ -1,0 +1,104 @@
+# Registro de cambios de V.I.S.O.R.
+
+Para explicar en la hackathon **qué hace** V.I.S.O.R., **cómo se desarrolló** y **qué datos
+usa**. Se actualiza con cada cambio importante. Los identificadores son commits de Git; la
+historia completa está en `git log`.
+
+## Cómo se desarrolló
+
+- **Equipo:** cinco integrantes (UdeA). Tareas, estados y roles se gestionan en Notion.
+- **Código:** GitHub es la fuente de verdad. Cada tarea en su rama y por Pull Request; `main`
+  solo recibe código probado. Los PR #2 a #5 siguen sin fusionarse a `main`.
+- **Asistencia de IA:** buena parte del código, las pruebas y la documentación se escribió con
+  Claude (Anthropic) mediante Claude Code, siguiendo especificaciones y revisiones del equipo.
+  Los commits de esa asistencia aparecen con autor «Claude» y la línea `Co-Authored-By`.
+  El agente de IA de Replit solo hizo un commit de configuración (`f6a27c7`); por decisión del
+  equipo no se usa para cambiar la aplicación.
+- **Ejecución:** Replit (`start.sh`, `actualizar.sh`, `verificar.sh`). Las pruebas corren
+  también en GitHub Actions en cada push.
+- **Procesamiento SAR pesado:** fuera de la app, en ASF HyP3, por el equipo. La app no descarga
+  ni procesa escenas completas en vivo.
+
+## Datos utilizados
+
+| Dato | Origen | Uso | Estado |
+| --- | --- | --- | --- |
+| Catálogo Sentinel-1 | ASF (búsqueda pública, solo metadatos) | Buscar escenas y proponer pares | Respuesta real guardada en `tests/datos/` para pruebas sin red |
+| RTC VV y VH de Chigorodó | Sentinel-1C, 24-sep y 6-oct-2026, órbita ascendente 48, procesados en ASF HyP3 a 30 m por el equipo | Entrada del motor | En Replit (`data/sar/`), fuera de Git |
+| `coincidencia_VV_VH_20260924_20261006.tif` | Generado con el motor y `combinar_vv_vh.py` | Resultado reproducible | REAL SIN VALIDAR |
+| `coincidencia_VV_VH_Chigorodo.tif` | Script exploratorio del equipo | Resultado exploratorio | Procedencia no declarada; difiere en 15.860 px del reproducible (umbral VV) |
+| Hidrografía y vías | Natural Earth 1:10m v5.1.2, dominio público | Contexto cartográfico | Escala general |
+| `inundacion.tif`, `deslizamiento.tif`, `deforestacion.tif` | Sintéticos | Demostración de la interfaz | Marcados DEMO |
+
+No se ha descargado ni procesado NISAR. No se han enviado trabajos a HyP3 desde la app.
+
+## Cronología
+
+### 11-nov-2026 · Base del visor
+
+- MVP v1.0 y v1.1 del equipo: Streamlit + Folium, tres fenómenos con demos (`dffb736`, `1edbf0f`).
+- Arranque reproducible en Replit, protecciones de Streamlit, cargador GeoTIFF y sistema
+  cartográfico multicapa (`502dcae`, `30f7d3e`); actualización segura desde GitHub (`9dfdf82`).
+- PR #1 fusionado a `main`; mapa único del equipo (`88a342e`).
+- **PR #2** Motor de análisis temporal SAR para RTC de HyP3 (`ebbd5f5`).
+- **PR #3** Buscador de escenas Sentinel-1 en ASF con emparejado antes/después (`9599f63`).
+
+### 12-nov-2026 · Mission Control, procedencia y Fase C
+
+- **PR #4 · Fase A:** tema Mission Control (Liquid Glass), mapa único a pantalla completa con
+  superficies flotantes (`a6ba559`, `b1dd49b`).
+- **PR #4 · Fase B:** cuatro estados de procedencia (`517f576`), combinación VV/VH reproducible
+  (`8b861c0`), resultados como capas (`9845e86`), ficha científica (`7385aee`).
+- **PR #5 · QGIS y Fase C:** exportación con GeoTIFF intacto y auditoría (`2d8996d`), flujo
+  catálogo ASF → RTC locales → motor → resultados (`70ac7a2`, `edf444a`).
+- **Pruebas automáticas:** invariantes del motor (`f0c8dad`), Playwright (`b9f6c11`),
+  verificador integral con veredicto (`2aba9ff`), GitHub Actions (`97ca9ee`).
+- **Estabilización para Replit:** Expat en el almacén configurado (`4530067`), perfil continuo
+  para `…_dif_db.tif` (`33ca4fd`), actualizar y verificar sin el botón Stop (`add074a`).
+
+### 12-nov-2026 · Revisión autónoma para versión candidata
+
+| Commit | Cambio | Por qué importa |
+| --- | --- | --- |
+| `8027be5` | Prueba de seguridad de metadatos con HTML | Confirma que fichas y etiquetas se muestran escapadas |
+| `e2e734b` | Imagen de resultados en caché, una sola lectura, tope en dB | Redibujar el mapa pasó de 0,145 s a 0,023 s; memoria acotada con rásteres grandes |
+| `f7883c1` | `shapely` declarada; prueba de importaciones no declaradas | Evita fallos de instalación en un entorno limpio |
+| `ea10fb3` | El motor no sobrescribe; SHA-256 de entradas y salidas; área según unidades del CRS | Repetir un análisis ya no borra el anterior ni invalida fichas VV/VH |
+| `fe17839` | «Mismo día» exige aceptación y queda no confirmada; RTC empatados; sesión entre páginas | Una asociación dudosa nunca pasa por confirmada; corrige un fallo al abrir Mission Control tras usar la página Analisis SAR |
+| `5e36961` | Nombres reservados de Windows; lista manual Q1–Q8 de QGIS Desktop | Paquetes que se abren en cualquier sistema |
+| `f9a9604` | El verificador convierte cualquier excepción en NO APTO | Ningún error puede quedar oculto |
+| `6f130de` | Firefox en CI; el navegador que no arranca falla en vez de omitirse | Las pruebas e2e no pueden pasar «en verde» sin ejecutarse |
+
+Validación científica añadida (`tests/test_validacion_cientifica.py`): parche de −6 dB
+recuperado exactamente, detección con speckle gamma (ENL 4,9) con más de 97 % de acierto y
+menos de 2 % de falsos cambios, reducción de varianza del filtro acorde a la teoría,
+reconstrucción de la máscara desde el dB continuo y conversión de unidades del CRS.
+
+### 13-nov-2026 · Aceptación con datos reales e integración
+
+| Commit | Cambio | Por qué importa |
+| --- | --- | --- |
+| `0323169` | El verificador ya no trata la ficha descriptiva del motor como huella falsa | Con los productos reales de Chigorodó `verificar.sh` daba NO APTO; una ficha que declara SHA-256 o estado incorrecto sigue siendo fallo crítico |
+| `5f302c9` | PR #5 fusionada en la rama de Mission Control | Una sola rama con motor, buscador ASF, Fase C y QGIS |
+| `2455c8f` | El trabajo manual «Consulta real a ASF» ya no recoge las pruebas de navegador | Nunca había llegado a ejecutar la consulta |
+| `be885f8` | Etiqueta real del par recomendado en la prueba de red | La consulta real a ASF pasa (ejecutada a mano en GitHub Actions) |
+
+Comprobado con los cuatro RTC reales de Chigorodó (24-sep y 6-oct-2026, VV/VH), sin escribir en
+`data/` y con SHA-256 idénticos antes y después:
+
+- El motor regenera `…_dif_db.tif` (diferencia máxima 0,0 dB) y las máscaras VV y VH (0 píxeles
+  distintos) frente a los archivos existentes.
+- Combinación VV ≤ −7,5 dB / VH ≤ −3 dB: 0 = 815.237 · 1 = 11 · 2 = 27.992 · 3 = 12.293 · 255 = 91;
+  40.296 px detectados = 3.626,64 ha. Diferencia con el TIFF exploratorio: 15.860 px, documentada.
+- `bash verificar.sh` con esos productos: 41 aprobadas, 0 fallidas.
+- Paquetes QGIS reales (coincidencia y diferencia en dB): equivalentes automáticos de Q1–Q8
+  correctos. **La inspección visual en QGIS Desktop sigue sin hacerse.**
+
+Sigue sin comprobar con datos auténticos: cruce SAR × JRC (REG-01), lector NISAR GCOV y cualquier
+municipio distinto de Chigorodó. Son indicios de cambio de retrodispersión, no inundaciones
+confirmadas; no hay validación independiente.
+
+## Cómo añadir una entrada
+
+Una línea por cambio importante: fecha, commit, qué cambió y por qué importa para explicar el
+proyecto. Si cambia un dato usado, actualizar también la tabla «Datos utilizados».
