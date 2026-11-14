@@ -97,3 +97,36 @@ En la carpeta aislada \`~/visor-nisar-prueba\`, el usuario confirmó un procesam
 **Conclusión limitada:** la extracción antes de descargar *sí funciona* para **una variable de una fecha real NISAR** y evita traer el HDF5 completo para esa consulta. No afirmar todavía que están verificadas la pareja completa, la máscara, las capas auxiliares, la clasificación de agua/inundación ni los ahorros del flujo completo. La pareja de catálogo 22-oct/3-nov tiene 4,744 GB en HDF5 originales **entre las dos fechas** y cobertura común estimada 41,38 %; no comparar esos 4,744 GB contra 15,755 MiB como un cociente preciso de ahorro de dos escenas.
 
 **Siguiente prueba:** obtener \`HHHH\` de la segunda fecha, \`mask\`, \`numberOfLooks\` y, cuando aplique, \`HVHV\`; comparar las dos cuadrículas, metadatos, píxeles válidos, cobertura, compatibilidad orbital y calidad radiométrica antes de cualquier análisis temporal.
+
+
+## Hito real: par NISAR preparado automáticamente — 14 de noviembre de 2026
+
+**Confirmado por la salida del usuario en Replit (sin interpretación ambiental):**
+
+Comando ejecutado desde el worktree separado \`~/visor-nisar-prueba\`:
+
+\`\`\`bash
+~/workspace/.venv/bin/python scripts/nisar_auto.py \
+  --inicio 2026-10-21 --fin 2026-11-14 \
+  --metodo harmony --max-mb 256 --ejecutar
+\`\`\`
+
+Se observaron cuatro eventos \`Descargando capa\` para la primera fecha y cuatro para la segunda, seguidos por:
+
+\`\`\`text
+Insumos NISAR preparados; informe: /home/runner/visor-nisar-prueba/data/nisar/catalogo/preparacion_7d03a543e5754867bba3875d71a7fc6c.json. NO son mapas de inundación.
+\`\`\`
+
+Esto verifica que el flujo automatizado de búsqueda CMR → solicitud Harmony → procesamiento remoto → transferencia de variables → validación y manifiestos completó **dos escenas** sin HDF5 manual. **No se ha verificado todavía el tamaño agregado ni las fracciones válidas de las 8 capas**, pues el contenido del informe no ha sido inspeccionado en esta conversación.
+
+Auditoría añadida a PR #14, sin transferir datos ni exponer token, para ejecutar DESPUÉS de actualizar únicamente el worktree experimental:
+
+\`\`\`bash
+cd ~/visor-nisar-prueba
+git fetch origin feature/nisar-inundaciones-auto
+git switch --detach origin/feature/nisar-inundaciones-auto
+~/workspace/.venv/bin/python scripts/verificar_nisar_harmony_pares.py \
+ --informe data/nisar/catalogo/preparacion_7d03a543e5754867bba3875d71a7fc6c.json
+\`\`\`
+
+La auditoría verifica tamaño de cada archivo y SHA-256, integridad del manifiesto, estructura GeoTIFF, máscaras y looks presentes, geometría compartida entre capas por fecha, igualdad geométrica entre fechas (sin reproyección automática), MB totales y proporción completa de píxeles HHHH con potencia positiva/finita; esto último **NO** equivale a agua, ni a cobertura QA decodificada, ni a inundación validada. Si las grillas temporales difieren, se reporta como condición pendiente de alineación, no como inundación.
