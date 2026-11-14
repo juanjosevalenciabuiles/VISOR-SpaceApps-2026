@@ -1,0 +1,4 @@
+# Solo para pruebas y CI; la app en Replit no los necesita.
+-r requirements.txt
+playwright~=1.63.0
+ruff~=0.16.0

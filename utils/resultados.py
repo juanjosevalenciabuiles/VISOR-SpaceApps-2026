@@ -21,7 +21,9 @@ import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
+import rasterio
 import streamlit as st
+from rasterio.errors import RasterioError
 
 from utils.analisis_sar import CLASES_MASCARA, LIMITACIONES, ErrorSAR
 from utils.combinacion_sar import (
@@ -32,7 +34,8 @@ from utils.combinacion_sar import (
     describir_clases,
 )
 from utils.config import DATA_DIR
-from utils.geotiff import Capa, ErrorCapa, leer_geotiff
+from utils.diferencia_db import RANGO_DB, describir_continuo
+from utils.geotiff import Capa, ErrorCapa, _firma, _metadatos, leer_geotiff  # noqa: F401 (_firma se reexporta)
 
 CARPETA_ANALISIS = DATA_DIR / "analisis"
 # Protección de memoria: un resultado más grande no se carga en el visor.
@@ -47,9 +50,30 @@ class PerfilResultado:
     clases: tuple[tuple[int, str, str | None], ...]
     nota: str
     limitaciones: tuple[str, ...]
+    continuo: bool = False          # True: valores continuos (dB) con rampa, sin clases
+    unidades: str = "clase"
 
 
 PERFILES: dict[str, PerfilResultado] = {
+    "diferencia_db": PerfilResultado(
+        clave="diferencia_db",
+        nombre="Diferencia de retrodispersión (dB)",
+        descripcion=(
+            "Diferencia continua posterior − anterior en dB de una polarización, sin umbral: es el dato del "
+            "que el motor saca la máscara de cambios. Azul = disminución, naranja-rojo = aumento."
+        ),
+        clases=(),
+        nota=(f"Rampa fija de ±{RANGO_DB:g} dB (fuera de ese rango el color se satura, el valor no cambia). "
+              "La opacidad crece con |Δ|; ningún píxel válido se oculta. No se aplica ningún umbral."),
+        limitaciones=(
+            "Una disminución de retrodispersión no confirma agua ni inundación: también la producen humedad, "
+            "cosechas, labores agrícolas o viento sobre el agua.",
+            "El speckle residual produce variaciones de ±1–2 dB sin cambio real en la superficie.",
+            *LIMITACIONES,
+        ),
+        continuo=True,
+        unidades="dB",
+    ),
     TIPO_PRODUCTO: PerfilResultado(
         clave=TIPO_PRODUCTO,
         nombre="Coincidencia VV/VH",
@@ -92,6 +116,10 @@ def identificar_perfil(etiquetas: dict[str, str], ficha: dict | None = None) -> 
         return TIPO_PRODUCTO
     if etiquetas.get("VISOR_ANALISIS") == "1" and etiquetas.get("UNIDADES", "").lower() == "clase":
         return "mascara_cambios"
+    # Diferencia continua del motor (no las retrodispersiones de cada fecha, que también están en dB).
+    if (etiquetas.get("VISOR_ANALISIS") == "1" and etiquetas.get("UNIDADES", "").lower() == "db"
+            and _normal(etiquetas.get("PRODUCTO", "")).startswith("cambio de retrodispersion")):
+        return "diferencia_db"
     return None
 
 
@@ -132,6 +160,16 @@ def listar(carpeta: Path | None = None) -> list[Path]:
     return sorted(p for p in carpeta.iterdir() if p.is_file() and p.suffix.lower() in (".tif", ".tiff"))
 
 
+def declaracion(ruta: Path) -> tuple[dict[str, str] | None, dict | None]:
+    """Etiquetas (en mayúsculas) y ficha JSON lateral, sin leer píxeles. (None, None) si no abre."""
+    try:
+        with rasterio.open(ruta) as src:
+            etiquetas, _, ficha = _metadatos(src, ruta)
+    except (RasterioError, OSError, ValueError):
+        return None, None
+    return etiquetas, ficha
+
+
 def leer_resultado(ruta: str | Path) -> ResultadoSAR:
     """Carga un resultado sin Streamlit (se prueba con pytest)."""
     ruta = Path(ruta)
@@ -139,31 +177,34 @@ def leer_resultado(ruta: str | Path) -> ResultadoSAR:
     if ruta.stat().st_size > MAX_BYTES_RESULTADO:
         res.error = "Archivo demasiado grande para el visor; recórtalo con un AOI."
         return res
+    # El perfil se decide por lo que declara el archivo (etiquetas + ficha), sin leer el ráster;
+    # así el ráster se lee una sola vez, con el remuestreo que corresponde al perfil.
+    etiquetas, ficha = declaracion(ruta)
+    clave = identificar_perfil(etiquetas, ficha) if etiquetas is not None else None
+    if etiquetas is not None and clave is None:
+        res.error = "Perfil de producto no reconocido: no se dibuja."
+        return res
+    perfil = PERFILES.get(clave)
+    continuo = bool(perfil and perfil.continuo)
     try:
-        capa = leer_geotiff(ruta, categorico=True)
+        capa = leer_geotiff(ruta, categorico=not continuo)       # bilineal solo para la imagen continua
     except ErrorCapa as e:
         res.error = str(e)
         return res
-    clave = identificar_perfil(capa.metadatos, capa.ficha)
-    if clave is None:
-        res.error = "Perfil de producto no reconocido: no se dibuja."
+    res.perfil = perfil
+    if continuo:
+        try:
+            res.capa = capa
+            res.estadisticas = describir_continuo(ruta)          # siempre del archivo original
+        except ValueError as e:
+            res.perfil, res.capa, res.error = None, None, str(e)
         return res
-    res.perfil, res.capa = PERFILES[clave], capa
+    res.capa = capa
     try:
         res.estadisticas = describir_clases(ruta, res.perfil.clases)
     except ErrorSAR as e:
         res.error = str(e)
     return res
-
-
-def _firma(ruta: Path) -> tuple:
-    def una(p: Path) -> tuple[int, int]:
-        try:
-            s = p.stat()
-            return s.st_mtime_ns, s.st_size
-        except OSError:
-            return 0, 0
-    return una(ruta) + una(ruta.with_suffix(".json"))
 
 
 @st.cache_data(show_spinner=False, max_entries=24)

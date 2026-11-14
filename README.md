@@ -6,6 +6,10 @@ Visor geoespacial que muestra productos de radar SAR **ya procesados** sobre un 
 
 > V.I.S.O.R. muestra **indicios**, no detecciones confirmadas. Los GeoTIFF que vienen en `data/` son **sintéticos de demostración**: no provienen de ningún satélite. El color describe la señal medida, no un nivel de riesgo.
 
+**Para la hackathon:** arquitectura, flujo Sentinel-1 → RTC → análisis → QGIS, limitaciones y
+pendientes en [`docs/hackathon.md`](docs/hackathon.md); qué se hizo, cómo y con qué datos en
+[`docs/registro_de_cambios.md`](docs/registro_de_cambios.md).
+
 ## Guía rápida
 
 **En Replit, el uso diario son dos pasos:**
@@ -85,17 +89,25 @@ Replit no ofrece una sincronización automática al recibir commits: hay que ped
 | Carga real de teselas (CARTO con la clave del equipo, OpenTopoMap, Sentinel-2) | **Pendiente** en la v1.1 |
 | Despliegue público | **Pendiente** |
 
+## Verificación automática
+
+```bash
+bash verificar.sh
+```
+
+Una sola ejecución comprueba entorno, Git (cambios locales, p. ej. del agente de Replit), pytest, ruff, navegador (si Playwright está instalado), la app con los datos reales y cada GeoTIFF de `data/analisis/` (clases, NoData, superficies, procedencia, SHA-256, paquete QGIS) frente a la referencia verificada de Chigorodó, sin modificar `data/`. Termina con un veredicto (**APTO**, **APTO CON ADVERTENCIAS** o **NO APTO**) y un informe en `informes/`. GitHub Actions ejecuta lo mismo, más las pruebas de navegador, en cada push y pull request. Detalle: `docs/pruebas.md`.
+
 ## Interfaz Mission Control Earth Explorer
 
 Un **único mapa a pantalla completa** con superficies de vidrio flotantes. No hay páginas separadas: todo ocurre sobre el mismo mapa.
 
 | Superficie | Qué hace |
 | --- | --- |
-| Barra superior | Fenómeno activo y su estado de procedencia, botones Explorador, Información, Ir a…, Herramientas SAR y Ayuda |
+| Barra superior | Dos grupos rotulados: **Fenómeno** (con su insignia, p. ej. DEMO) y **Resultado SAR** (cada resultado activo con la suya, p. ej. REAL SIN VALIDAR); botones Explorador, Información, Ir a…, Herramientas SAR y Ayuda |
 | Explorador (izquierda) | Fenómeno, mapa base, capa SAR y opacidad, hidrografía, vías, cobertura, área de referencia y **Resultados SAR** de `data/analisis/` |
 | Información (derecha) | Ficha científica del resultado SAR activo (si hay) y, debajo, la del fenómeno: descripción, producto, procedencia, cómo interpretar, leyendas y créditos |
 | Ir a… | Coordenadas validadas (por defecto, el centro del AOI de Chigorodó, zoom 11), botón Chigorodó y Área inicial (vista de Antioquia) |
-| Herramientas SAR | Panel que se abre, minimiza y cierra, con cuatro pasos: Área, Escenas, Análisis, Resultados. **Aún no ejecuta nada**: se conectará a los motores reales en una fase posterior |
+| Herramientas SAR | Panel que se abre, minimiza y cierra, con cuatro pasos conectados: Área (AOI y fechas), Escenas (catálogo ASF y par recomendado sin validar), Análisis (RTC de `data/sar/` con el motor) y Resultados. Ver «Flujo de Herramientas SAR» |
 | Línea temporal | De solo lectura. Muestra T₁ y T₂ cuando hay un único resultado activo con ficha de procedencia válida; si no, es conceptual |
 
 - **El mapa no se reinicia.** Cambiar de fenómeno, de fondo, abrir o cerrar paneles conserva centro, zoom y capas. "Ir a…" mueve el mapa existente.
@@ -127,10 +139,26 @@ Cada GeoTIFF de `data/analisis/` aparece en el explorador, en **Resultados SAR**
 | --- | --- |
 | Coincidencia VV/VH | 1 solo VV (cian `#00F0FF`) · 2 solo VH (naranja `#FF9F0A`) · 3 VV y VH (violeta `#7D7AFF`) · 0 y 255 transparentes |
 | Máscara del motor (una polarización) | Clases de `utils/analisis_sar.CLASES_MASCARA` |
+| Diferencia del motor en dB (`…_dif_db.tif`) | Continua, sin umbral: rampa divergente fija de ±10 dB (azul disminución, naranja-rojo aumento), opacidad según \|Δ\|, NoData transparente |
 
 La clase 0 de la coincidencia **no significa «sin cambios»**: incluye aumentos significativos y señal baja en ambas fechas; solo indica que no hubo disminución significativa en ninguna polarización. La visualización solo cambia colores: los valores del GeoTIFF no se tocan, y las estadísticas (píxeles, % de válidos, hectáreas) se calculan a resolución completa desde el archivo.
 
 La ficha científica del panel de información dice de dónde sale cada dato (ficha de procedencia o etiquetas del GeoTIFF). Lo que no está declarado aparece como «No declarado en el archivo». Por eso el GeoTIFF exploratorio `coincidencia_VV_VH_Chigorodo.tif`, que no tiene ficha, se muestra como **PROCEDENCIA NO DECLARADA** y sin sensor, fechas ni método.
+
+### Flujo de Herramientas SAR (`components/herramientas_sar.py`, `utils/flujo_sar.py`)
+
+1. **Área:** AOI en grados (por defecto Chigorodó) y período; se dibuja en el mapa.
+2. **Escenas:** consulta de solo lectura a ASF; par recomendado **sin validar** y alternativas; huellas en el mapa.
+3. **Análisis:** busca en `data/sar/` los RTC de HyP3 que derivan de cada escena del par. Asociación **exacta** (mismo satélite y hora de inicio) o **mismo día** (se marca para verificar); nunca entre satélites. Umbral por polarización y filtro de speckle; corre el motor y, con VV y VH, la combinación.
+4. **Resultados:** lo generado aparece en el explorador. **Nunca se sobrescribe** un archivo de `data/analisis/`: si el nombre existe se usa `_r2`, `_r3`… Un registro `flujo_…_registro.json` enlaza escenas GRD, RTC, AOI, parámetros y salidas.
+
+Si faltan RTC, el panel lo dice: convertir GRD → RTC requiere HyP3 (Fase D, plan en `docs/fase_d_earthdata_hyp3.md`, sin implementar).
+
+### QGIS (opcional) y auditoría
+
+- **Exportar para QGIS** (ficha del resultado o `scripts/exportar_qgis.py`): ZIP con el GeoTIFF original byte a byte, estilo `.qml`, ficha, leyenda, AOI declarada y manifiesto con SHA-256.
+- **Auditoría** (`scripts/auditar_geotiff.py`): cuadrícula, clases, SHA-256 frente a la ficha, comparación con otra versión (matriz de transiciones) y reconstrucción desde VV/VH. Solo lectura.
+- Guía completa: `docs/qgis.md`.
 
 ### Combinación VV/VH reproducible (`utils/combinacion_sar.py`)
 
@@ -267,7 +295,7 @@ Una escena completa a 30 m supera el límite de 16 millones de píxeles: hay que
 - **Speckle:** produce falsos cambios píxel a píxel; el filtro lo reduce a costa de detalle.
 - **Agua permanente:** ríos y ciénagas son oscuros en ambas fechas y no aparecen como cambio.
 - Solo se comparan dos fechas y los umbrales no están calibrados para la zona.
-- El motor se probó con rásteres sintéticos; **aún no se ha ejecutado con las escenas reales**.
+- El motor se valida con rásteres sintéticos de verdad conocida. El equipo lo ejecutó con las escenas reales de Chigorodó (24-sep / 6-oct-2026): sus resultados son **REAL SIN VALIDAR**, sin validación de campo.
 
 ## Estructura
 
@@ -276,8 +304,10 @@ app.py                  Punto de entrada: mapa único y superficies flotantes
 start.sh                Arranque único: entorno .venv, Expat y Streamlit
 actualizar.sh           Actualización segura desde GitHub
 pages/1_Analisis_SAR.py  Página para ejecutar y ver el análisis SAR
+pages/2_Buscador_SAR.py  Página del buscador de escenas Sentinel-1 en ASF
 components/
   interfaz.py           Barra superior, paneles flotantes, Herramientas SAR, línea temporal
+  herramientas_sar.py   Pasos 01–04 de Herramientas SAR
   resultados.py         Ficha científica y leyenda de los resultados SAR activos
   barra_lateral.py      Fenómeno, configuración cartográfica, leyendas, créditos
   mapa.py               Mapa Folium por grupos de capas independientes
@@ -290,18 +320,70 @@ utils/
   capas_contexto.py     Hidrografía y vías: lectura, caché, fuentes
   geotiff.py            Lectura de GeoTIFF: CRS, NoData, caché, colores
   analisis_sar.py       Motor de análisis temporal SAR (RTC de HyP3)
+  buscador_sar.py       Búsqueda de escenas Sentinel-1 en ASF y emparejado
   combinacion_sar.py    Combinación VV/VH de máscaras del motor + ficha de procedencia
   procedencia.py        Estados DEMO / NO DECLARADA / REAL SIN VALIDAR / VALIDADO
+  flujo_sar.py          Catálogo ASF → RTC locales → motor → resultados
+  qgis.py · auditoria.py  Exportación para QGIS y auditoría de GeoTIFF
   resultados.py         Resultados de data/analisis/ como capas opcionales
   geo.py                Utilidades GeoPandas
 assets/style.css        Tema clásico (páginas experimentales)
 assets/mission_control.css  Interfaz Mission Control: vidrio adaptativo y disposición
 data/                   GeoTIFF ligeros · data/contexto/ GeoJSON de contexto
-scripts/                generar_datos_demo.py · preparar_contexto.py · analizar_sar.py · combinar_vv_vh.py
+scripts/                generar_datos_demo.py · preparar_contexto.py · analizar_sar.py · combinar_vv_vh.py ·
+                        auditar_geotiff.py · exportar_qgis.py
+docs/                   qgis.md · fase_d_earthdata_hyp3.md · pruebas.md
+tests/e2e/              Pruebas de navegador (Playwright) de Mission Control
+verificar.sh            Verificación integral con informe y veredicto
 tests/                  test_geotiff.py · test_cartografia.py · test_replit.py · test_analisis_sar.py ·
                         test_interfaz.py · test_procedencia.py · test_combinacion_sar.py · test_resultados.py
 .github/                Plantilla de Pull Request y pruebas automáticas
 ```
+
+## Buscador de escenas Sentinel-1
+
+Encuentra en el catálogo de **Alaska Satellite Facility (ASF)** las escenas Sentinel-1 que cubren una región y propone pares antes/después comparables, sin tener que buscar a mano en ASF Vertex.
+
+> Es **solo consulta**: no descarga imágenes, no envía trabajos a HyP3, no consume créditos y no usa credenciales. Un par **recomendado** es el mejor candidato por órbita, polarización, cobertura y fechas; **no es un par validado científicamente**.
+
+### Cómo usarlo
+
+1. Run, y abrir la página **Buscador SAR** añadiendo `/Buscador_SAR` a la dirección de la app (la interfaz principal no muestra la barra lateral).
+2. Indicar la región: un recuadro (oeste, sur, este, norte en grados) o un punto con radio. Los valores iniciales son los de Chigorodó.
+3. Elegir el período y, si se conoce, una fecha de interés (por ejemplo el día de una lluvia fuerte).
+4. Pulsar **Buscar imágenes**.
+5. Revisar la tabla de escenas y la de pares, elegir un par y ver sus metadatos, sus huellas en el mapa y el enlace a ASF Vertex.
+
+Límites por consulta: 5° de lado y 366 días. Descargar o procesar las escenas requiere una cuenta gratuita de NASA Earthdata y se hace en ASF.
+
+### Qué hace (`utils/buscador_sar.py`)
+
+| Paso | Función | Qué hace |
+| --- | --- | --- |
+| Validación | `validar_region`, `region_desde_punto`, `validar_fechas` | Rechaza coordenadas, fechas y tamaños inválidos antes de consultar |
+| Consulta | `construir_consulta`, `consultar_asf` | Una petición GET al SearchAPI público de ASF, con 30 s de espera |
+| Filtrado | `interpretar_respuesta` | Deja solo Sentinel-1 GRD de alta resolución en modo IW; descarta productos de solo metadatos, SLC, otros modos y escenas sin órbita, polarización o huella; agrupa duplicados |
+| Emparejado | `emparejar` | Pares con la misma órbita relativa y dirección, alguna polarización en común, fechas distintas y cobertura conjunta suficiente |
+| Todo junto | `buscar` | Devuelve escenas, pares y la consulta exacta que se hizo |
+
+- **Orden de los pares:** se prefiere mayor cobertura de la región, mismo satélite, más polarizaciones en común y fechas cercanas (y, si se indica, que encierren la fecha de interés).
+- **Versiones repetidas:** ASF publica a veces la misma adquisición con dos identificadores. Se muestra una y se anotan las otras; conviene usar la misma que se procese en HyP3.
+- **Errores:** sin conexión, tiempo agotado, servicio caído o respuesta inesperada se muestran con un mensaje claro y no detienen la app.
+- **Dependencias:** ninguna nueva. Usa `urllib` de Python y Shapely, que ya llega con GeoPandas. No se usa el paquete `asf_search` para no ampliar la instalación en Replit.
+
+### Caso de prueba: Chigorodó
+
+Consulta real hecha el 12-nov-2026 (recuadro −76.85, 7.40, −76.40, 7.95; del 20-sep al 10-oct-2026):
+
+- ASF devolvió 13 productos, que corresponden a 10 adquisiciones (3 están publicadas dos veces).
+- Par recomendado: `S1C_IW_GRDH_1SDV_20260924T232218_…_1338` → `S1C_IW_GRDH_1SDV_20261006T232218_…_116E`. Sentinel-1C, órbita relativa 48 ascendente, VV+VH, 12 días, 100 % de la región. Coincide con el par que el equipo ya había elegido a mano.
+- Otros 5 pares compatibles en las órbitas 48 y 142. La órbita 40 solo cubre hasta el 29 % de la región y queda fuera.
+
+Esa respuesta está guardada en `tests/datos/asf_chigorodo_20260920_20261010.json` (solo metadatos) y la usan las pruebas, que nunca tocan la red.
+
+### Integración con el motor de análisis
+
+Conectados en Herramientas SAR (ver «Flujo de Herramientas SAR»). `utils/flujo_sar.py` asocia el par GRD del catálogo con los RTC de HyP3 presentes en `data/sar/`. La conversión GRD → RTC sigue fuera de la app (Fase D, sin implementar).
 
 ## Trabajo colaborativo (5 integrantes)
 
@@ -333,7 +415,7 @@ Tareas, estados y roles se gestionan **solo en Notion**.
 
 ## Limitaciones actuales
 
-- En el repositorio solo hay datos SAR sintéticos; el motor de análisis aún no se ha ejecutado con escenas reales y no existe ningún resultado científico todavía.
+- En el repositorio solo hay datos SAR sintéticos. Los productos reales de Chigorodó están en Replit (fuera de Git) y son REAL SIN VALIDAR: indicios de cambio, no un resultado científico validado.
 - Los perfiles de visualización no están calibrados con productos reales.
 - Hidrografía y vías son de escala general; sin quebradas, cuencas ni vías secundarias.
 - Sin capa de precipitación.

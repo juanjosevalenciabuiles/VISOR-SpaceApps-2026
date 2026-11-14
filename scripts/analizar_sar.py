@@ -44,6 +44,8 @@ def main(argumentos: list[str] | None = None) -> int:
     p.add_argument("--escala", choices=ESCALAS, help="si no se deduce del nombre (HyP3 'power' por defecto)")
     p.add_argument("--prefijo", help="nombre base de los archivos de salida")
     p.add_argument("--guardar-db", action="store_true", help="exportar también cada fecha en dB")
+    p.add_argument("--sobrescribir", action="store_true",
+                   help="reemplazar resultados existentes con el mismo prefijo (por defecto: nunca)")
     a = p.parse_args(argumentos)
 
     try:
@@ -57,6 +59,7 @@ def main(argumentos: list[str] | None = None) -> int:
             a.antes, a.despues, a.salida, aoi=tuple(a.aoi) if a.aoi else None, parametros=parametros,
             polarizacion=a.polarizacion, fecha_antes=a.fecha_antes, fecha_despues=a.fecha_despues,
             escala=a.escala, prefijo=a.prefijo, guardar_db=a.guardar_db,
+            sobrescribir=a.sobrescribir,
         )
     except ErrorSAR as e:
         print(f"ERROR: {e}", file=sys.stderr)

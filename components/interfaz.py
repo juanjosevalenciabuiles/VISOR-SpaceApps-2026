@@ -21,6 +21,7 @@ from html import escape
 import streamlit as st
 
 from components import barra_lateral, panel_info
+from components import herramientas_sar as herramientas
 from components import resultados as ui_resultados
 from components.barra_lateral import Controles
 from components.panel_info import insignia
@@ -210,22 +211,39 @@ desarrolló con asistencia de IA (Claude, de Anthropic), bajo revisión del equi
     )
 
 
-def barra_superior(fenomeno: Fenomeno, capa: Capa | None) -> None:
+def estado_html(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple = (),
+                capa_visible: bool = True) -> str:
+    """Dos grupos separados y rotulados: la capa del fenómeno y los resultados SAR activos.
+    Así una capa DEMO del fenómeno nunca se confunde con un resultado real, ni lo oculta."""
+    fen = (f'<span class="mc-grupo" title="Capa del fenómeno"><span class="mc-grupo-rot">Fenómeno</span>'
+           f'<span class="mc-chip">{fenomeno.icono} {escape(fenomeno.nombre)}</span>'
+           f"{insignia_procedencia(capa)}"
+           + ('' if capa_visible else '<span class="mc-grupo-nota">capa oculta</span>') + "</span>")
+    if not activos:
+        return f'<div class="mc-estado">{fen}</div>'
+    visibles = list(activos)[:2]
+    res = "".join(f'<span class="mc-chip mc-chip-res">{escape(r.nombre)}</span>{insignia(r.capa.procedencia)}'
+                  for r in visibles)
+    if len(activos) > 2:
+        res += f'<span class="mc-grupo-nota">+{len(activos) - 2}</span>'
+    return (f'<div class="mc-estado">{fen}<span class="mc-separador"></span>'
+            f'<span class="mc-grupo" title="Resultados SAR activos"><span class="mc-grupo-rot">Resultado SAR</span>'
+            f"{res}</span></div>")
+
+
+def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple = (),
+                   capa_visible: bool = True) -> None:
     with st.container(key="barra_superior", horizontal=True, vertical_alignment="center", gap="small"):
         st.markdown(
             '<div class="mc-marca"><span class="mc-marca-nombre">V.I.S.O.R.</span>'
             '<span class="mc-marca-sub">Mission Control · Earth Explorer</span></div>',
             unsafe_allow_html=True, width="content",
         )
-        st.markdown(
-            f'<div class="mc-estado"><span class="mc-chip">{fenomeno.icono} {escape(fenomeno.nombre)}</span>'
-            f"{insignia_procedencia(capa)}</div>",
-            unsafe_allow_html=True, width="content",
-        )
+        st.markdown(estado_html(fenomeno, capa, activos, capa_visible), unsafe_allow_html=True, width="content")
         st.space("stretch")
-        st.button("Explorador", key="btn_explorador", icon=":material/layers:", on_click=alternar_explorador,
+        st.button("Explorador", key="btn_explorador", help="Explorador: fenómeno, mapa base, capas y resultados SAR", icon=":material/layers:", on_click=alternar_explorador,
                   type="primary" if st.session_state["ui_explorador"] else "secondary")
-        st.button("Información", key="btn_info", icon=":material/info:", on_click=alternar_info,
+        st.button("Información", key="btn_info", help="Información científica de las capas activas", icon=":material/info:", on_click=alternar_info,
                   type="primary" if st.session_state["ui_info"] else "secondary")
         with st.popover("Ir a…", icon=":material/my_location:", key="popover_ir"):
             # Campos de texto, no numéricos: la rueda del ratón o del panel táctil no los altera.
@@ -243,9 +261,9 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None) -> None:
                           help="Centro del AOI del análisis VV/VH (−76,80 a −76,55; 7,55 a 7,80), zoom 11.")
                 st.button("Área inicial", key="btn_inicio", icon=":material/home:", on_click=volver_al_inicio,
                           help="Vista general de Antioquia.")
-        st.button("Herramientas SAR", key="btn_sar", icon=":material/satellite_alt:", on_click=abrir_sar,
+        st.button("Herramientas SAR", key="btn_sar", help="Herramientas SAR: área, escenas, análisis y resultados", icon=":material/satellite_alt:", on_click=abrir_sar,
                   type="primary" if st.session_state["ui_sar"] == "abierto" else "secondary")
-        if st.button("Ayuda", key="btn_ayuda", icon=":material/help:"):
+        if st.button("Ayuda", key="btn_ayuda", help="Ayuda y estados de procedencia", icon=":material/help:"):
             mostrar_ayuda()
 
 
@@ -272,6 +290,7 @@ def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, 
         for res in activos:
             st.caption("RESULTADO SAR ACTIVO")
             st.markdown(ui_resultados.ficha_html(res), unsafe_allow_html=True)
+            ui_resultados.boton_qgis(res)
         if activos:
             st.caption("CAPA DEL FENÓMENO")
         panel_info.render(fenomeno, capa, error)
@@ -279,16 +298,6 @@ def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, 
     if activos:
         with panel:
             st.markdown("".join(ui_resultados.leyenda_html(r) for r in activos), unsafe_allow_html=True)
-
-
-def _paso_pendiente(titulo: str, texto: str, fuente: str) -> None:
-    st.markdown(
-        f'<div class="mc-paso"><div class="mc-paso-titulo">{escape(titulo)}</div>'
-        f'<p>{escape(texto)}</p>'
-        f'<div class="mc-paso-fuente">{escape(fuente)}</div>'
-        '<span class="mc-insignia mc-insignia-tenue">AÚN NO CONECTADO</span></div>',
-        unsafe_allow_html=True,
-    )
 
 
 def herramientas_sar() -> None:
@@ -300,40 +309,12 @@ def herramientas_sar() -> None:
             st.button("Cerrar", key="cerrar_sar", icon=":material/close:", type="tertiary",
                       on_click=cerrar_sar)
         st.markdown(
-            '<div class="mc-aviso">Este panel prepara el flujo de búsqueda y análisis. Todavía no ejecuta '
-            "consultas ni procesamientos: ningún resultado de aquí es real.</div>",
+            '<div class="mc-aviso">Búsqueda de solo lectura en ASF y análisis de productos RTC ya presentes en '
+            "<code>data/sar/</code>. No descarga ni procesa en HyP3. Los resultados son indicios de cambio de "
+            "radar, no inundaciones confirmadas.</div>",
             unsafe_allow_html=True,
         )
-        area, escenas, analisis, resultados = st.tabs(list(PASOS_SAR), key="sar_paso")
-        with area:
-            _paso_pendiente(
-                "Área y período",
-                "Definir la región de interés por coordenadas (ejemplo inicial: Chigorodó) y las fechas "
-                "de búsqueda, y verla sobre este mismo mapa.",
-                "Validación de coordenadas y fechas del buscador de V.I.S.O.R.",
-            )
-        with escenas:
-            _paso_pendiente(
-                "Escenas Sentinel-1",
-                "Consultar el catálogo de ASF y elegir el par antes/después que recomienda V.I.S.O.R. "
-                "(sin validar), con su cobertura, fechas, órbita, dirección y polarizaciones.",
-                "Buscador de catálogo ASF (PR #3). Solo lectura: no descarga imágenes.",
-            )
-        with analisis:
-            _paso_pendiente(
-                "Cambio de retrodispersión",
-                "Comparar dos productos RTC del par elegido: polarización, recorte, filtro de speckle y "
-                "umbrales. Es el único método disponible en el motor. Las escenas GRD del catálogo deben "
-                "procesarse antes a RTC; esa conversión no se hace aquí.",
-                "Motor de análisis temporal SAR (PR #2).",
-            )
-        with resultados:
-            _paso_pendiente(
-                "Resultados en el mapa",
-                "Mostrar la máscara y la diferencia en dB como capas de este mapa, con interruptor, "
-                "opacidad, leyenda, procedencia y descarga. Se conservan al cerrar el panel.",
-                "Resultados de data/analisis/ con su ficha de procedencia.",
-            )
+        herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
     with st.container(key="sar_minimizado"):
         st.button("Herramientas SAR · restaurar", key="restaurar_sar", icon=":material/open_in_full:",
                   on_click=abrir_sar)

@@ -1,13 +1,86 @@
 name: Pruebas
 
+# En cada push (cualquier rama) y en cada pull request. Ningún trabajo usa
+# Internet para la lógica de la app: ASF se simula con su respuesta guardada.
+# La consulta real a ASF solo se ejecuta a mano (Run workflow → red).
 on:
-  pull_request:
   push:
-    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      red:
+        description: "Incluir la consulta REAL al catálogo de ASF"
+        type: boolean
+        default: false
+
+concurrency:
+  group: pruebas-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  pytest:
+  calidad:
+    name: Unidad, integración, ruff y verificación
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - name: ruff
+        run: ruff check --select F,E9,B .
+      - name: pytest (unidad e integración, sin navegador ni red)
+        run: python -m pytest -q -m "not navegador and not red" --junitxml=informes/junit-unidad.xml
+      - name: Verificación integral (informe en el resumen del trabajo)
+        if: always()
+        run: python scripts/verificar_visor.py --ci --sin-pytest --sin-navegador
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: informe-calidad
+          path: informes/
+          if-no-files-found: ignore
+
+  navegador:
+    name: Mission Control en ${{ matrix.navegador }} (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        navegador: [chromium, firefox]
+    env:
+      VISOR_E2E_NAVEGADOR: ${{ matrix.navegador }}
+      VISOR_E2E_EXIGIR: "1"     # si el navegador no arranca, el trabajo falla (no se omite)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - run: python -m playwright install --with-deps ${{ matrix.navegador }}
+      - name: pytest -m navegador
+        run: python -m pytest -q -m navegador --junitxml=informes/junit-navegador.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: informe-navegador-${{ matrix.navegador }}
+          path: informes/
+          if-no-files-found: ignore
+
+  red:
+    name: Consulta real a ASF (manual)
+    if: github.event_name == 'workflow_dispatch' && inputs.red
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -15,4 +88,6 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: pytest -q
+      - run: python -m pytest -q -m red
+        env:
+          VISOR_PRUEBAS_RED: "1"

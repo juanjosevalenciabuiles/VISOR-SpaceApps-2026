@@ -234,6 +234,28 @@ def _radiometria(*entradas: MascaraEntrada) -> str | None:
     return None
 
 
+def descripcion_parametros(polarizacion: str, parametros: dict | None) -> str:
+    """Umbral y filtro de UNA polarización, tal como los guardó el motor."""
+    if not parametros:
+        return f"{polarizacion}: parámetros no declarados en la máscara."
+    umbral = parametros.get("umbral_disminucion_db")
+    ventana = parametros.get("ventana_speckle")
+    partes = [f"disminución significativa si la diferencia ≤ −{umbral:g} dB" if umbral is not None
+              else "umbral de disminución no declarado"]
+    partes.append(f"media móvil de {ventana}×{ventana} px en potencia" if ventana and ventana > 1
+                  else "sin filtro de speckle" if ventana == 1 else "filtro de speckle no declarado")
+    return f"{polarizacion}: " + "; ".join(partes) + "."
+
+
+def umbrales_por_polarizacion(ficha: dict | None) -> dict[str, float]:
+    """{"VV": 7.5, "VH": 3.0} a partir del bloque `parametros` de una ficha."""
+    parametros = (ficha or {}).get("parametros")
+    if not isinstance(parametros, dict):
+        return {}
+    return {pol: float(p["umbral_disminucion_db"]) for pol, p in parametros.items()
+            if isinstance(p, dict) and p.get("umbral_disminucion_db") is not None}
+
+
 # ---------------------------------------------------------------------------
 # Combinación
 # ---------------------------------------------------------------------------
@@ -277,7 +299,10 @@ def combinar_vv_vh(
 
     avisos = [*vv.avisos, *vh.avisos]
     if vv.parametros and vh.parametros and vv.parametros != vh.parametros:
-        avisos.append("Las máscaras VV y VH se generaron con parámetros distintos; revisa los umbrales.")
+        distintos = sorted(k for k in set(vv.parametros) | set(vh.parametros)
+                           if vv.parametros.get(k) != vh.parametros.get(k))
+        avisos.append("VV y VH se generaron con parámetros distintos (" + ", ".join(distintos) + "): "
+                      "la ficha registra los de cada polarización por separado.")
 
     clases = clasificar(vv.datos, vh.datos)
     cuad = vv.cuadricula
@@ -320,16 +345,11 @@ def combinar_vv_vh(
         dst.write(clases, 1)
         dst.update_tags(**etiquetas)
 
-    umbral = (vv.parametros or {}).get("umbral_disminucion_db")
-    ventana = (vv.parametros or {}).get("ventana_speckle")
     metodo = [
         "Motor SAR de V.I.S.O.R. (utils/analisis_sar.py), por separado en VV y en VH: productos RTC "
-        "en potencia, lectura en una cuadrícula común"
-        + (f", media móvil de {ventana}×{ventana} px en potencia" if ventana and ventana > 1
-           else ", sin filtro de speckle" if ventana == 1 else ", filtro de speckle no declarado")
-        + ", conversión a dB y diferencia posterior − anterior.",
-        f"Disminución significativa: diferencia ≤ −{umbral:g} dB." if umbral is not None
-        else "Umbral de disminución: no declarado en las máscaras.",
+        "en potencia, lectura en una cuadrícula común, conversión a dB y diferencia posterior − anterior.",
+        *(descripcion_parametros(m.polarizacion or etiqueta, m.parametros)
+          for etiqueta, m in (("VV", vv), ("VH", vh))),
         METODO_COMBINACION,
     ]
     aoi = next((e.informe.get("aoi_lonlat") for e in (vv, vh)

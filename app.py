@@ -7,6 +7,7 @@ interfaz vive en components/ y la lógica de datos en utils/.
 import streamlit as st
 
 from components import estilos, interfaz, mapa
+from components import herramientas_sar as herramientas
 from components import resultados as ui_resultados
 from utils.config import FENOMENOS
 from utils.geotiff import ErrorCapa, cargar_capa
@@ -37,10 +38,11 @@ except ErrorCapa as e:
 
 # 2. El mapa único, detrás de todo.
 with st.container(key="lienzo_mapa"):
-    mapa.render(fenomeno, capa, controles, st.session_state["vista"], resultados)
+    mapa.render(fenomeno, capa, controles, st.session_state["vista"], resultados, herramientas.grupos_mapa())
 
 # 3. Superficies flotantes.
-interfaz.barra_superior(fenomeno, capa)
+activos = [r for r in resultados if r.dibujable and r.id in controles.resultados]
+interfaz.barra_superior(fenomeno, capa, activos, controles.mostrar_capa)
 interfaz.panel_informacion(fenomeno, capa, error, controles, resultados)
 interfaz.herramientas_sar()
 interfaz.linea_temporal(ui_resultados.fechas_activas(resultados, controles.resultados))

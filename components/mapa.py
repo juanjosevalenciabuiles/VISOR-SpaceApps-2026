@@ -16,6 +16,7 @@ fija a pantalla completa desde assets/mission_control.css.
 """
 
 import folium
+import streamlit as st
 from streamlit_folium import st_folium
 
 from components.barra_lateral import Controles
@@ -24,7 +25,8 @@ from utils.capas_contexto import CAPAS_CONTEXTO, cargar_contexto
 from utils.config import MAPA_CENTRO, MAPA_ZOOM, Fenomeno
 from utils.geotiff import Capa, a_web_mercator, colorizar_capa, colorizar_categorico
 from utils.mapas_base import MapaBase, obtener, url_teselas
-from utils.resultados import ResultadoSAR
+from utils.diferencia_db import colorizar_diferencia
+from utils.resultados import ResultadoSAR, _firma
 
 
 # Estilo que viaja dentro del marco del mapa. Debe ser constante: si cambiara,
@@ -100,6 +102,17 @@ def grupo_sar(fenomeno: Fenomeno, capa: Capa, opacidad: float) -> folium.Feature
     return grupo
 
 
+@st.cache_data(show_spinner=False, max_entries=16)
+def imagen_resultado(ruta: str, firma: tuple, perfil: str, _res: ResultadoSAR) -> str:
+    """PNG (data URL) de un resultado. Colorear y codificar ~1000×1000 px cuesta ~60 ms y se
+    repetía en cada recarga; ahora solo cambia si cambia el archivo o su ficha (`firma`)."""
+    from folium.utilities import image_to_url
+    oeste, sur, este, norte = _res.capa.limites
+    rgba = (colorizar_diferencia(_res.capa.datos) if _res.perfil.continuo
+            else colorizar_categorico(_res.capa.datos, _res.perfil.clases))
+    return image_to_url(a_web_mercator(rgba, sur, norte))
+
+
 def grupo_resultado(res: ResultadoSAR, opacidad: float) -> folium.FeatureGroup:
     """Resultado de data/analisis/ coloreado por su perfil. Solo cambia la
     presentación: las clases transparentes (y NoData) no se dibujan, pero los
@@ -107,7 +120,7 @@ def grupo_resultado(res: ResultadoSAR, opacidad: float) -> folium.FeatureGroup:
     oeste, sur, este, norte = res.capa.limites
     grupo = folium.FeatureGroup(name=f"Resultado · {res.nombre}")
     folium.raster_layers.ImageOverlay(
-        image=a_web_mercator(colorizar_categorico(res.capa.datos, res.perfil.clases), sur, norte),
+        image=imagen_resultado(str(res.ruta), _firma(res.ruta), res.perfil.clave, res),
         bounds=[[sur, oeste], [norte, este]],
         opacity=opacidad,
         name=res.nombre,
@@ -212,11 +225,12 @@ def destino_vista(vista: dict | None) -> tuple[list[float] | None, float | None]
 
 
 def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | None = None,
-           resultados: list[ResultadoSAR] | tuple = ()) -> None:
+           resultados: list[ResultadoSAR] | tuple = (), extras: list[folium.FeatureGroup] | tuple = ()) -> None:
+    """`extras`: grupos adicionales encima de todo (p. ej. AOI y huellas de Herramientas SAR)."""
     centro, zoom = destino_vista(vista)
     st_folium(
         mapa_fijo(),
-        feature_group_to_add=construir_capas(fenomeno, capa, c, resultados),
+        feature_group_to_add=[*construir_capas(fenomeno, capa, c, resultados), *extras],
         height=720,                   # inicial; ESTILO_LIENZO lo lleva a pantalla completa
         use_container_width=True,
         returned_objects=[],          # el mapa no provoca recargas de la app al moverlo
