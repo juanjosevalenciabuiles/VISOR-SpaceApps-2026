@@ -7,7 +7,6 @@ Los recortes son señal gamma0 de banda L, NO mapas de inundación validados.
 """
 from __future__ import annotations
 
-import json
 import os
 import shutil
 from dataclasses import dataclass
