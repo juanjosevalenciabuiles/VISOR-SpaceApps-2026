@@ -122,6 +122,10 @@ def mapa_fijo() -> folium.Map:
         control_scale=True,
         min_zoom=2,
         max_bounds=True,
+        min_lat=-5 if colombia.modo() == "CO" else -90,
+        max_lat=15 if colombia.modo() == "CO" else 90,
+        min_lon=-83 if colombia.modo() == "CO" else -180,
+        max_lon=-66 if colombia.modo() == "CO" else 180,
         max_bounds_viscosity=1.0,
     )
     m.get_root().header.add_child(folium.Element(ESTILO_LIENZO), name="visor_lienzo")
