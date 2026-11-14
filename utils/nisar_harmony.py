@@ -179,31 +179,69 @@ def _url_datos(url: str) -> None:
         raise ErrorHarmony("No se permiten direcciones IP directas.")
 
 
-def _descargar_cota(url, destino: Path, max_bytes: int, abrir=None, comprobar=None) -> tuple[int, str]:
-    """Transferencia estrictamente acotada. No transmite el token Earthdata."""
+def _descargar_cota(url, destino: Path, max_bytes: int, abrir=None, comprobar=None,
+                    cliente=None) -> tuple[int, str]:
+    """Descarga COG con sesión EDL y límite estricto de bytes.
+
+    Una respuesta HTML/JSON (p. ej. login) o bytes sin firma TIFF
+    NUNCA se guardan como imagen, aunque el URL acabe en .tif.
+    'abrir' queda reservado a pruebas con respuestas simuladas.
+    """
     _url_datos(url)
-    abrir = abrir or urllib.request.urlopen
-    req = urllib.request.Request(url, headers={"User-Agent": "VISOR-NISAR-COG/1.0"})
+    if abrir is None and cliente is None:
+        raise ErrorHarmony("Para descargar se necesita el cliente Harmony autenticado.")
     parcial = destino.with_suffix(".tif.part")
     sha = hashlib.sha256()
     total = 0
     try:
-        with abrir(req, timeout=60) as resp:
-            _url_datos(resp.geturl())
+        if abrir is not None:
+            req = urllib.request.Request(url, headers={"User-Agent": "VISOR-NISAR-COG/1.0"})
+            respuesta = abrir(req, timeout=60)
+        else:
+            # El cliente oficial conserva el flujo de autenticación Earthdata
+            # y gestiona la redirección OAuth sin reenviar la credencial a S3.
+            respuesta = cliente.session.get(
+                url, stream=True, timeout=60,
+                headers={"Accept-Encoding": "identity", "User-Agent": "VISOR-NISAR-COG/1.0"},
+            )
+        with respuesta as resp:
+            destino_final = getattr(resp, "url", None) or resp.geturl()
+            _url_datos(destino_final)
+            if hasattr(resp, "raise_for_status"):
+                resp.raise_for_status()
+            tipo = str(resp.headers.get("Content-Type", "")).lower()
+            if any(v in tipo for v in ("text/html", "application/json", "text/xml",
+                                      "application/xml", "text/plain")):
+                raise ErrorHarmony("NASA respondió con texto o página de autenticación, NO un TIFF.")
             cabecera = resp.headers.get("Content-Length")
             if cabecera and int(cabecera) > max_bytes:
                 raise ErrorHarmony("El COG supera el límite de bytes antes de transferir.")
+            # requests.Response y urllib HTTPResponse exponen interfaces distintas.
+            fragmentos = (resp.iter_content(chunk_size=BLOQUE)
+                          if hasattr(resp, "iter_content")
+                          else iter(lambda: resp.read(BLOQUE), b""))
             with parcial.open("xb") as out:
-                while fragmento := resp.read(BLOQUE):
+                primero = True
+                for fragmento in fragmentos:
                     if comprobar:
                         comprobar()
+                    if not fragmento:
+                        continue
+                    if primero:
+                        primero = False
+                        firmas = (b"II*\x00", b"MM\x00*", b"II+\x00", b"MM\x00+")
+                        if not any(fragmento.startswith(firma) for firma in firmas):
+                            raise ErrorHarmony(
+                                "El archivo remoto no tiene cabecera TIFF; "
+                                "posible login HTML o error de acceso."
+                            )
                     total += len(fragmento)
                     if total > max_bytes:
                         raise ErrorHarmony("El COG supera el límite de descarga autorizado.")
                     out.write(fragmento)
                     sha.update(fragmento)
         if total < 1024:
-            raise ErrorHarmony("El COG devuelto es demasiado pequeño para ser un raster válido.")
+            raise ErrorHarmony("El GeoTIFF remoto es demasiado pequeño o está vacío.")
         os.replace(parcial, destino)
     except Exception:
         parcial.unlink(missing_ok=True)
@@ -330,7 +368,8 @@ def obtener(spec: Especificacion, carpeta: Path, *, cliente=None, abrir=None,
                 raise ErrorHarmony("Se agotó el presupuesto de transferencia.")
             if notificar:
                 notificar("Descargando capa", capa)
-            tam, sha = _descargar_cota(reconocidos[capa], destino, restante, abrir=abrir, comprobar=comprobar)
+            tam, sha = _descargar_cota(reconocidos[capa], destino, restante, abrir=abrir,
+                                         comprobar=comprobar, cliente=cliente)
             consumido += tam
             geo = _validar_cog(destino, spec.bbox, capa)
             archivos.append({"capa": capa, "archivo": destino.name, "bytes": tam,
