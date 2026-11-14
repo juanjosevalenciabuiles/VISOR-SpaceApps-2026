@@ -86,6 +86,22 @@ def preparar_datos(destino: Path) -> Path:
                      parametros=ParametrosCambio(ventana_speckle=1))
     for p in (r.diferencia, r.diferencia.with_suffix(".json")):
         shutil.copy2(p, analisis / p.name)
+    # Paso 05 · Regional: límites municipales SINTÉTICOS (rectángulos con campos del MGN) y un JRC sintético.
+    import json
+
+    import numpy as np
+    import rasterio
+    from rasterio.transform import from_origin
+    from test_regiones import SINTETICOS, rect
+    (destino / "limites").mkdir(exist_ok=True)
+    (destino / "limites" / "MGN_sintetico.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": [
+        {"type": "Feature", "properties": {"MPIO_CDPMP": c, "MPIO_CNMBR": n}, "geometry": rect(*b)}
+        for c, (n, b) in SINTETICOS.items()]}), encoding="utf-8")
+    (destino / "jrc").mkdir(exist_ok=True)
+    with rasterio.open(destino / "jrc" / "JRC_sintetico.tif", "w", driver="GTiff", height=400, width=400, count=1,
+                       dtype="uint8", crs="EPSG:4326", transform=from_origin(-77.0, 8.5, 0.0025, 0.0025),
+                       nodata=255) as dst:
+        dst.write(np.random.default_rng(5).choice([0, 0, 0, 5, 30, 80], size=(400, 400)).astype("uint8"), 1)
     return destino
 
 

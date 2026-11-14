@@ -35,7 +35,20 @@ from utils.combinacion_sar import (
 )
 from utils.config import DATA_DIR
 from utils.diferencia_db import RANGO_DB, describir_continuo
-from utils.geotiff import Capa, ErrorCapa, _firma, _metadatos, leer_geotiff  # noqa: F401 (_firma se reexporta)
+from utils.geotiff import (  # noqa: F401 (_firma se reexporta)
+    Capa,
+    ErrorCapa,
+    _firma,
+    _metadatos,
+    leer_geotiff,
+)
+from utils.sar_jrc import (
+    CLASES_RASTER_COINCIDENCIA,
+    CLASES_RASTER_POLARIZACIONES,
+    TIPO_COINCIDENCIA,
+    TIPO_POLARIZACIONES,
+)
+from utils.sar_jrc import LIMITACIONES as LIMITACIONES_JRC
 
 CARPETA_ANALISIS = DATA_DIR / "analisis"
 # Protección de memoria: un resultado más grande no se carga en el visor.
@@ -96,6 +109,31 @@ PERFILES: dict[str, PerfilResultado] = {
         clases=CLASES_MASCARA,
         nota="La clase «sin cambio significativo» es transparente.",
         limitaciones=LIMITACIONES,
+    ),
+    TIPO_COINCIDENCIA: PerfilResultado(
+        clave=TIPO_COINCIDENCIA,
+        nombre="Detecciones SAR × agua histórica (JRC)",
+        descripcion=(
+            "Detecciones de la máscara VV/VH de Sentinel-1 separadas según caigan o no sobre agua histórica "
+            "(JRC Global Surface Water Occurrence ≥ 1 %, 1984–2024). Es una asociación geográfica con el "
+            "pasado: no confirma inundaciones ni valida la detección."
+        ),
+        clases=CLASES_RASTER_COINCIDENCIA,
+        nota=("Transparente = área válida sin detección SAR. Sin dato (SAR, JRC o fuera del AOI) no se dibuja "
+              "y no significa «sin cambio»."),
+        limitaciones=LIMITACIONES_JRC,
+    ),
+    TIPO_POLARIZACIONES: PerfilResultado(
+        clave=TIPO_POLARIZACIONES,
+        nombre="Detecciones SAR por polarización × agua histórica (JRC)",
+        descripcion=(
+            "Cada detección de Sentinel-1 (solo VV, solo VH o ambas) según caiga sobre agua histórica JRC "
+            "(≥ 1 %) o no. Asociación con el pasado, no una inundación confirmada."
+        ),
+        clases=CLASES_RASTER_POLARIZACIONES,
+        nota=("Clases 1–3: sin agua histórica; 11–13: sobre agua histórica. Las clases VV/VH son de Sentinel-1 "
+              "(banda C); no se aplican a otros sensores."),
+        limitaciones=LIMITACIONES_JRC,
     ),
 }
 

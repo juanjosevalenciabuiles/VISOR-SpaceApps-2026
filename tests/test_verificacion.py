@@ -186,6 +186,46 @@ def test_cero_pruebas_recogidas_es_fallo_no_omision():
     assert c.estado == v.FALLIDA and inf.veredicto == v.NO_APTO
 
 
+# ---------------------------------------------------------------------------
+# Regional (SAR × JRC)
+# ---------------------------------------------------------------------------
+
+def _datos_regionales(tmp_path, **kw):
+    import shutil
+
+    from tests.test_sar_jrc import chigorodo_sintetico
+    (tmp_path / "analisis").mkdir()
+    (tmp_path / "jrc").mkdir()
+    s, j = chigorodo_sintetico(tmp_path / "analisis", **kw)
+    shutil.move(j, tmp_path / "jrc" / j.name)
+    return s, tmp_path / "jrc" / j.name
+
+
+def test_regional_sin_jrc_se_omite(tmp_path):
+    inf = v.Informe()
+    v.auditar_regional(inf, tmp_path)
+    assert estados(inf) == {"REG-01": v.OMITIDA, "REG-02": v.OMITIDA} and inf.veredicto != v.NO_APTO
+
+
+def test_regional_reproduce_y_no_escribe_en_data(tmp_path):
+    _datos_regionales(tmp_path)
+    antes = v.huellas(tmp_path)
+    inf = v.Informe()
+    v.auditar_regional(inf, tmp_path)
+    e = estados(inf)
+    assert e["REG-01"] == v.APROBADA and e["REG-02"] == v.OMITIDA        # reproduce, pero aún sin registro
+    assert "4,004" in next(c.detalle for c in inf.comprobaciones if c.id == "REG-01")
+    assert v.diferencias_huellas(antes, v.huellas(tmp_path)) == []
+
+
+def test_regional_que_no_reproduce_se_advierte(tmp_path):
+    _datos_regionales(tmp_path, jrc_255_en_detecciones=4)
+    inf = v.Informe()
+    v.auditar_regional(inf, tmp_path)
+    c = next(c for c in inf.comprobaciones if c.id == "REG-01")
+    assert c.estado in (v.ADVERTENCIA, v.FALLIDA) and "QGIS" in c.detalle
+
+
 def test_ficha_descriptiva_del_motor_no_es_fallo(tmp_path):
     """Las máscaras del motor llevan un JSON descriptivo (fuente, fecha, producto, unidades) sin
     bloque `procedencia`: el verificador las trata como NO DECLARADAS, no como ficha que no coincide.

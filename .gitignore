@@ -16,6 +16,10 @@ data/crudos/
 # Entradas RTC de HyP3 y resultados del análisis: son locales, no van a GitHub.
 data/sar/
 data/analisis/
+# Regional: JRC (GB), límites oficiales y AOI: locales, nunca a GitHub.
+data/jrc/
+data/limites/
+data/aoi/
 *.zip
 *.SAFE
 

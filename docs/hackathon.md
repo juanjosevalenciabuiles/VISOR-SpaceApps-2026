@@ -120,6 +120,14 @@ sin pruebas o un navegador que no arranca en CI también fallan. Detalles en `do
 - Hidrografía y vías de mayor detalle (IGAC, IDEAM u OpenStreetMap).
 - Deslizamientos (fase InSAR) y deforestación (coherencia): hoy solo existen como demos.
 
+## 7b. Alcance regional (rama `feature/regional-uraba`, sin fusionar)
+
+AOI configurables (municipios oficiales, uniones, GeoJSON), cobertura de escenas sobre el polígono, mosaico de
+una pasada y cruce automático de la máscara VV/VH con el agua histórica de JRC, por municipio y por umbral.
+Piloto: Chigorodó, Carepa, Apartadó y Turbo. Está probado con datos sintéticos; **hoy solo hay datos SAR de
+Chigorodó** y el cruce regional permanece bloqueado hasta reproducir en Replit las cifras de QGIS del equipo.
+Ver [`docs/regional.md`](regional.md).
+
 ## 8. NISAR (solo arquitectura; nada implementado ni descargado)
 
 NISAR (NASA-ISRO) es un SAR en banda L, que penetra mejor la vegetación que la banda C de

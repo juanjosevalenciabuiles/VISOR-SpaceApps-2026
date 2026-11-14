@@ -93,14 +93,15 @@ def ficha_de(ruta: Path, sha256: str, es_demo: bool) -> dict:
 
 
 def auditar(ruta: str | Path, comparar: str | Path | None = None,
-            vv: str | Path | None = None, vh: str | Path | None = None) -> dict:
-    """Informe completo (diccionario serializable a JSON)."""
+            vv: str | Path | None = None, vh: str | Path | None = None, clases=None) -> dict:
+    """Informe completo (diccionario serializable a JSON). `clases`: definición del perfil
+    (por defecto, la combinación VV/VH)."""
     ruta = Path(ruta)
     datos, meta = _leer(ruta)
     informe = {
         "auditoria_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "archivo": meta,
-        "clases": describir_clases(ruta, CLASES_COINCIDENCIA),
+        "clases": describir_clases(ruta, clases or CLASES_COINCIDENCIA),
         "ficha": ficha_de(ruta, meta["sha256"], meta["etiquetas"].get("VISOR_DEMO") == "1"),
         "advertencia": ADVERTENCIA,
     }
@@ -108,7 +109,7 @@ def auditar(ruta: str | Path, comparar: str | Path | None = None,
     if meta["nodata"] is None:
         avisos.append("El GeoTIFF no declara NoData: QGIS pintará como dato cualquier valor de relleno.")
     if informe["clases"].get("pixeles_otros_valores"):
-        avisos.append("Hay valores fuera de las clases 0–3 y del NoData.")
+        avisos.append("Hay valores fuera de las clases del perfil y del NoData.")
 
     if comparar is not None:
         otro, meta_otro = _leer(Path(comparar))

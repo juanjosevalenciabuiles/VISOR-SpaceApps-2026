@@ -41,7 +41,7 @@ ESTADO_INICIAL = {
 IR_A_INICIAL = {"ir_lat": f"{CHIGORODO_CENTRO[0]:.4f}", "ir_lon": f"{CHIGORODO_CENTRO[1]:.4f}",
                 "ir_zoom": CHIGORODO_ZOOM}
 ESTADOS_SAR = ("cerrado", "abierto", "minimizado")
-PASOS_SAR = ("01 · Área", "02 · Escenas", "03 · Análisis", "04 · Resultados")
+PASOS_SAR = ("01 · Área", "02 · Escenas", "03 · Análisis", "04 · Resultados", "05 · Regional")
 
 
 def inicializar_estado() -> None:

@@ -1,0 +1,50 @@
+{
+  "fuente": "Conteos del informe de valores únicos de QGIS compartidos por el usuario el 13-nov-2026; NO verificación directa de TIFF ni de sus huellas SHA-256",
+  "crs": "EPSG:32618",
+  "ancho": 924,
+  "alto": 926,
+  "lado_pixel_m": 30,
+  "fechas_sar": [
+    "2026-09-24",
+    "2026-10-06"
+  ],
+  "umbral_jrc": ">0",
+  "pixeles_nodata": 91,
+  "sin_cambio": 815237,
+  "clases": {
+    "solo_VV": {
+      "sin_agua": 10,
+      "con_agua": 1,
+      "total": 11,
+      "coincidencia_pct": 9.0909,
+      "coincidencia_ha": 0.09
+    },
+    "solo_VH": {
+      "sin_agua": 26657,
+      "con_agua": 1335,
+      "total": 27992,
+      "coincidencia_pct": 4.7692,
+      "coincidencia_ha": 120.15
+    },
+    "VV_y_VH": {
+      "sin_agua": 9625,
+      "con_agua": 2668,
+      "total": 12293,
+      "coincidencia_pct": 21.7034,
+      "coincidencia_ha": 240.12
+    }
+  },
+  "total_detectado": 40296,
+  "total_jrc_con_agua": 4004,
+  "total_jrc_sin_agua": 36292,
+  "porcentaje_coincidente": 9.9365,
+  "area_total_ha": 3626.64,
+  "area_coincidencia_ha": 360.36,
+  "interpretacion": "Asociacion espacial con ocurrencia historica JRC (>0), no validacion de inundaciones en 2026",
+  "limitaciones": [
+    "No se han medido umbrales JRC de 10,25,50.",
+    "Cambios SAR no equivalen a inundaciones confirmadas.",
+    "Porcentajes VV/VH dependen de umbrales distintos; no equivalen a sensibilidad comparable.",
+    "Solo AOI Chigorodo; no representa el conjunto de Uraba."
+  ]
+}
