@@ -46,8 +46,7 @@ def test_flujo_completo(abrir, servidor_propio):
     panel = p.texto("panel_sar")
     assert "S1C_IW_20260924T232218_DVP_RTC30" in panel and "falta" not in panel
     assert p.capas_resultado() == []
-    p.clic("sar_analizar")
-    p.esperar(3000)
+    assert p.analizar() == "APTO"
     assert len(p.capas_resultado()) == 1
     p.pestana_sar(3)
     panel = p.texto("panel_sar")

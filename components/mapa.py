@@ -18,7 +18,7 @@ fija a pantalla completa desde assets/mission_control.css.
 import folium
 import streamlit as st
 from folium import MacroElement
-from folium.plugins import Draw
+from folium.plugins import Draw, Fullscreen
 from folium.template import Template
 from streamlit_folium import st_folium
 
@@ -54,6 +54,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #06121e; }
 .leaflet-draw-edit-edit { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f5f5f7' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M4 20h4L19 9l-4-4L4 16z'/%3E%3Cpath d='M13 7l4 4'/%3E%3C/svg%3E") !important; }
 .leaflet-draw-edit-remove { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f5f5f7' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13'/%3E%3C/svg%3E") !important; }
 .leaflet-draw-actions { left: auto; right: 36px; white-space: nowrap; }
+.leaflet-control-zoom-fullscreen { background: rgba(8,22,36,.78) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f5f5f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5'/%3E%3C/svg%3E") center/18px 18px no-repeat !important; width: 34px !important; height: 34px !important; }
+.leaflet-fullscreen-on .leaflet-control-zoom-fullscreen { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f5f5f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5'/%3E%3C/svg%3E") !important; }
 .leaflet-draw-actions a { background: rgba(8,22,36,.94); color: #f5f5f7; border-left-color: rgba(255,255,255,.2); }
 .leaflet-bar { border: 1px solid rgba(255,255,255,.16) !important; border-radius: 12px !important; overflow: hidden;
                box-shadow: 0 8px 24px rgba(0,0,0,.35) !important; }
@@ -131,6 +133,9 @@ def mapa_fijo() -> folium.Map:
                        "polygon": {"allowIntersection": False,
                                    "shapeOptions": {"color": "#ffd60a", "weight": 2, "fillOpacity": 0.05}}},
          edit_options={"edit": True, "remove": True}).add_to(m)
+    # Pantalla completa del mapa (API Fullscreen del navegador; el iframe de Streamlit la permite).
+    Fullscreen(position="topleft", title="Pantalla completa", title_cancel="Salir de pantalla completa",
+               force_separate_button=True).add_to(m)
     AvisoTeselas().add_to(m)
     return m
 

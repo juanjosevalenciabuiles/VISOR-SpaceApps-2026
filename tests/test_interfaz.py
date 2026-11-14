@@ -215,7 +215,10 @@ def test_herramientas_sar_no_simulan_resultados():
         assert falso not in texto
     assert "no descarga ni procesa" in texto and "en HyP3" in texto and "sin porcentaje" in texto
     # «Analizar» es el único disparador: el cálculo solo corre si se pulsó en esta misma ejecución.
-    assert texto.count("flujo_sar.analizar_disponibles(") == 1 and 'st.session_state.pop("sar_lanzar"' in texto
+    assert texto.count("trabajos.crear_o_reutilizar(") == 1 and 'st.session_state.pop("sar_lanzar"' in texto
+    assert "flujo_sar.analizar_disponibles(" not in texto, "el cálculo corre en el trabajo, no en la interfaz"
+    from utils import ejecucion_sar
+    assert inspect.getsource(ejecucion_sar).count("flujo_sar.analizar_disponibles(") == 1
 
 
 # ---------------------------------------------------------------------------

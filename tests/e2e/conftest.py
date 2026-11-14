@@ -96,13 +96,18 @@ def _puerto_libre() -> int:
 
 
 class Servidor:
-    def __init__(self, datos: Path):
+    def __init__(self, datos: Path, entorno_extra: dict | None = None):
         self.datos = datos
         self.puerto = _puerto_libre()
         self.url = f"http://localhost:{self.puerto}"
         # Sin red en las pruebas: la búsqueda de lugares usa solo el catálogo local.
+        # Servidor real: el análisis corre en segundo plano (sin VISOR_TRABAJOS_SINCRONOS) y sus trabajos
+        # se registran en la carpeta temporal de esta prueba.
         entorno = {**os.environ, "VISOR_DATA_DIR": str(datos), "VISOR_ASF_SIMULADO": str(CATALOGO),
-                   "VISOR_GEOCODIFICADOR_URL": "desactivado"}
+                   "VISOR_GEOCODIFICADOR_URL": "desactivado", "VISOR_TRABAJOS_SINCRONOS": "0",
+                   "VISOR_TRABAJOS_DIR": str(datos / "trabajos"), "VISOR_DIAGNOSTICO": "desactivado",
+                   **(entorno_extra or {})}
+        entorno = {k: v for k, v in entorno.items() if v is not None}   # None = quitar la variable
         self.registro = open(datos.parent / f"streamlit_{self.puerto}.log", "w")
         self.proceso = subprocess.Popen(
             [sys.executable, "-m", "streamlit", "run", "app.py", "--server.port", str(self.puerto),
@@ -184,6 +189,10 @@ def enrutar(route):
     if not RECURSOS:
         return route.continue_()
     base = Path(RECURSOS)
+    if "leaflet.fullscreen" in url or "Control.FullScreen" in url:
+        archivo = "Control.FullScreen.css" if url.endswith(".css") else (
+            "icon-fullscreen.svg" if url.endswith(".svg") else "Control.FullScreen.js")
+        return route.fulfill(path=str(base / "leaflet.fullscreen" / archivo))
     for nombre, ruta in (("leaflet.draw.js", "leaflet-draw/dist/leaflet.draw.js"),
                          ("leaflet.draw.css", "leaflet-draw/dist/leaflet.draw.css"),
                          ("leaflet.js", "leaflet/dist/leaflet.js"), ("leaflet.css", "leaflet/dist/leaflet.css")):
@@ -201,11 +210,12 @@ def enrutar(route):
 class Pagina:
     """Página de Mission Control cargada, con ayudas para el mapa y los paneles."""
 
-    def __init__(self, page, url: str):
+    def __init__(self, page, url: str, red_real: bool = False):
         self.page = page
         self.errores: list[str] = []
         page.on("pageerror", lambda e: self.errores.append(str(e)))
-        page.route(re.compile(r"https?://(?!localhost|127\.0\.0\.1).*"), enrutar)
+        if not red_real:      # por defecto, teselas y recursos externos simulados (sin red)
+            page.route(re.compile(r"https?://(?!localhost|127\.0\.0\.1).*"), enrutar)
         page.goto(url)
         self.esperar_mapa()
         page.locator(".st-key-barra_superior").wait_for(timeout=60_000)
@@ -250,6 +260,20 @@ class Pagina:
     def clic(self, clave: str):
         self.page.locator(f".st-key-{clave} button:visible").first.click()
         self.esperar()
+
+    def analizar(self, segundos: int = 180) -> str:
+        """Pulsa «Analizar» y espera a que el trabajo (en segundo plano) termine y se publique."""
+        leer = "()=>{const e=document.querySelector('#trabajo-estado');return e?[e.dataset.estado,e.dataset.job]:[null,null]}"
+        anterior = self.page.evaluate(leer)[1]
+        self.clic("sar_analizar")
+        fin = time.monotonic() + segundos
+        while time.monotonic() < fin:
+            estado, job = self.page.evaluate(leer)
+            if job and job != anterior and estado in ("APTO", "ERROR", "CANCELADO", "BLOQUEADO"):
+                self.esperar(1500)
+                return estado
+            self.page.wait_for_timeout(500)
+        raise AssertionError("el trabajo no terminó a tiempo")
 
     def alternar(self, clave: str):
         self.page.locator(f".st-key-{clave} label").first.click()

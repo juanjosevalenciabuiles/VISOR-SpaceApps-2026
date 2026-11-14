@@ -112,8 +112,7 @@ def test_b_c_e_analizar_cambiar_zona_e_historial(abrir, servidor_propio):
     assert "S1C_IW_20260924T232218_DVP_RTC30" in p.texto("panel_sar") and sin_resultado(p)
 
     # B · Analizar: exactamente un resultado, ligado a esta ejecución.
-    p.clic("sar_analizar")
-    p.esperar(3000)
+    assert p.analizar() == "APTO"
     capas = p.capas_resultado()
     assert len(capas) == 1, "un único ráster de resultado"
     barra = p.texto("barra_superior")
@@ -169,7 +168,10 @@ def test_b_c_e_analizar_cambiar_zona_e_historial(abrir, servidor_propio):
     assert "1 ya analizados en esta zona" in panel
     assert not p.page.locator(".st-key-sar_par input").first.input_value().startswith("★ 2026-09-24 → 2026-10-06")
     # …pero se puede recuperar a propósito.
-    p.alternar("sar_mostrar_usados")
+    # Filtro «Nuevas / Usadas / Todas»: el par usado está en «Usadas».
+    assert "Nuevas (5)" in p.texto("sar_filtro_pares") and "Usadas (1)" in p.texto("sar_filtro_pares")
+    p.page.locator(".st-key-sar_filtro_pares label").filter(has_text="Usadas").first.click()
+    p.esperar()
     p.page.locator(".st-key-sar_par [role=combobox]").first.click()
     p.page.locator("[role=option]").filter(has_text="✓ ★ 2026-09-24 → 2026-10-06").first.click()
     p.esperar()

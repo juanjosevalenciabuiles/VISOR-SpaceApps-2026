@@ -141,12 +141,24 @@ MAPA_BASE_PREDETERMINADO = "carto_oscuro"
 PREDETERMINADO_SIN_CLAVE = "osm_oscuro"
 
 
-def disponible(mapa: MapaBase) -> tuple[bool, str | None]:
+# Fondos que fallaron la última comprobación de servicios (utils/diagnostico): clave → motivo.
+_caidos: dict[str, str] = {}
+
+
+def registrar_caidos(caidos: dict[str, str]) -> None:
+    """Sustituye la lista de fondos caídos por la de la última comprobación."""
+    _caidos.clear()
+    _caidos.update(caidos)
+
+
+def disponible(mapa: MapaBase, considerar_diagnostico: bool = True) -> tuple[bool, str | None]:
     """(se puede ofrecer, motivo si no). Un fondo que respondería con marca de agua o 401/403 por falta
-    de clave no se ofrece como disponible."""
+    de clave, o que falló la última comprobación de servicios, no se ofrece como disponible."""
     if mapa.usa_clave_carto and carto_estado() != "ok":
         return False, ("requiere CARTO_API_KEY (variable de entorno o Secret de Replit)" if carto_estado() == "ausente"
                        else "CARTO_API_KEY tiene una forma inválida")
+    if considerar_diagnostico and mapa.clave in _caidos:
+        return False, f"falló la última comprobación: {_caidos[mapa.clave]}"
     return True, None
 
 
@@ -159,7 +171,11 @@ def no_ofrecidos() -> dict[str, str]:
 
 
 def predeterminado() -> str:
-    return MAPA_BASE_PREDETERMINADO if disponible(MAPAS_BASE[MAPA_BASE_PREDETERMINADO])[0] else PREDETERMINADO_SIN_CLAVE
+    """El primer fondo disponible en orden de preferencia; si ninguno pasó la comprobación, el de OSM."""
+    for clave in (MAPA_BASE_PREDETERMINADO, PREDETERMINADO_SIN_CLAVE, *MAPAS_BASE):
+        if disponible(MAPAS_BASE[clave])[0]:
+            return clave
+    return PREDETERMINADO_SIN_CLAVE
 
 
 def obtener(clave: str | None) -> MapaBase:

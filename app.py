@@ -9,6 +9,7 @@ import streamlit as st
 from components import estilos, flujo, interfaz, mapa
 from components import herramientas_sar as herramientas
 from components import resultados as ui_resultados
+from utils import diagnostico
 from utils.config import FENOMENOS
 from utils.geotiff import ErrorCapa, cargar_capa
 from utils.resultados import cargar_resultados
@@ -27,6 +28,8 @@ interfaz.inicializar_estado()
 #    y se retira si la zona, el par o los parámetros ya no son los suyos.
 resultados = cargar_resultados()
 activo = flujo.sincronizar(resultados)
+# Comprobación ligera de servicios externos, una vez cada 15 min por proceso y sin bloquear la vista.
+diagnostico.comprobar_en_segundo_plano()
 controles = interfaz.panel_explorador(resultados, activo)
 fenomeno = FENOMENOS[controles.clave]
 estilos.inyectar_tema(fenomeno)

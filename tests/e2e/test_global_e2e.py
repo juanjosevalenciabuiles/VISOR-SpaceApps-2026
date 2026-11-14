@@ -208,15 +208,13 @@ def test_glo_13_15_nueva_zona_tras_analizar_y_reanalisis(abrir, servidor_global)
     p.clic("sar_buscar")
     p.pestana_sar(2)
     antes = set(x.name for x in analisis.iterdir())
-    p.clic("sar_analizar")
-    p.esperar(3000)
+    assert p.analizar() == "APTO"
     primeros = set(x.name for x in analisis.iterdir()) - antes
     assert len(p.capas_resultado()) == 1 and primeros
     # GLO-15: la misma configuración solo se repite si se pide expresamente.
     assert p.page.locator(".st-key-sar_analizar button").first.is_disabled()
     p.alternar("sar_reanalizar")
-    p.clic("sar_analizar")
-    p.esperar(3000)
+    assert p.analizar() == "APTO"
     segundos = set(x.name for x in analisis.iterdir()) - antes - primeros
     assert segundos and all("_r" in n for n in segundos), "archivos nuevos, sin sobrescribir"
     assert len(p.capas_resultado()) == 1, "un solo resultado tras reanalizar"

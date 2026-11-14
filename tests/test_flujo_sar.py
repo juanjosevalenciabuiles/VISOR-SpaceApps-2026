@@ -198,6 +198,18 @@ def test_app_busca_analiza_y_muestra_el_resultado(tmp_path, monkeypatch):
     assert "REAL SIN VALIDAR" in texto and "VV −7,5 dB · VH −3 dB" in texto and "ANÁLISIS DE ESTA SESIÓN" in texto
     assert len(at.warning) == 0
     archivos = sorted(p.name for p in salida.iterdir())
+    # El análisis queda como un TRABAJO persistente con todas sus fases en APTO y SHA-256 de cada archivo.
+    from utils import trabajos
+    t = trabajos.listar(1)[0]
+    assert t["job_id"] == inf["job_id"] and t["estado"] == "APTO" and t["run_id"] == inf["run_id"]
+    assert {f["estado"] for f in t["fases"]} == {"APTO"} and t["aoi"]["crs"] == "EPSG:4326"
+    assert {a["nombre"] for a in t["archivos"]} >= set(inf["archivos"]) and all(len(a["sha256"]) == 64
+                                                                                for a in t["archivos"])
+    texto = " ".join(m.value for m in at.markdown)
+    assert 'id="trabajo-estado" data-estado="APTO"' in texto and "Preparando datos" in texto
+    # Filtro de pares: el analizado pasa a «Usadas» (el elegido sigue visible en cualquier filtro).
+    filtro = at.radio(key="sar_filtro_pares")
+    assert filtro.value == "Nuevas" and filtro.options == ["Nuevas (5)", "Usadas (1)", "Todas (6)"]
     for _ in range(3):                                  # reruns: ni repite el análisis ni cambia nada
         at.run()
     assert sorted(p.name for p in salida.iterdir()) == archivos

@@ -22,13 +22,15 @@ import streamlit as st
 
 from components import flujo
 from utils import buscador_sar as bus
-from utils import flujo_sar, sesion
-from utils.analisis_sar import ErrorSAR
-from utils.resultados import id_resultado, leer_resultado
+from utils import ejecucion_sar, flujo_sar, sesion, trabajos
+from utils.analisis_sar import VERSION_MOTOR, ErrorSAR  # noqa: F401 — ErrorSAR se reexporta a las pruebas
+from utils.ejecucion_sar import verificar_salida  # noqa: F401 — se conserva el nombre público
+from utils.resultados import id_resultado
 
 CAMPOS_AOI = (("sar_oeste", "Oeste", "-76.80"), ("sar_sur", "Sur", "7.55"), ("sar_este", "Este", "-76.55"),
               ("sar_norte", "Norte", "7.80"))
 SIN_ZONA = "Primero define y confirma la zona en el paso 01."
+FILTROS_PAR = ("Nuevas", "Usadas", "Todas")
 
 
 def _nota(texto: str, clase: str = "visor-leyenda-nota") -> None:
@@ -345,17 +347,24 @@ def paso_escenas() -> None:
     previas = {i: sesion.ejecuciones_del_par(_carpeta_analisis(), region.limites, p.antes.nombre, p.despues.nombre)
                for i, p in enumerate(r.pares)}
     usados = [i for i in previas if previas[i]]
-    mostrar = st.toggle(f"Mostrar pares ya analizados ({len(usados)})", value=False, key="sar_mostrar_usados",
-                        disabled=not usados, help="Pares que ya tienen un resultado guardado para esta zona.")
+    nuevos = len(r.pares) - len(usados)
+    filtro = st.radio("Pares", FILTROS_PAR, horizontal=True, key="sar_filtro_pares",
+                      format_func=lambda f: f"{f} ({ {'Nuevas': nuevos, 'Usadas': len(usados), 'Todas': len(r.pares)}[f] })",
+                      help="Nuevas: sin resultado en esta zona. Usadas: ya analizadas en esta zona (se pueden abrir "
+                           "o reanalizar). Una escena usada con otra zona o en otro par sigue apareciendo como nueva.")
     # El par ya elegido sigue disponible aunque acabe de analizarse: apartarlo cambiaría la selección
     # (y con ella retiraría el resultado recién calculado) sin que nadie lo pidiera.
     actual = st.session_state.get("sel_par")
-    opciones = [i for i in previas if mostrar or not previas[i] or i == actual]
-    _nota(f"{len(r.pares) - len(usados)} por analizar · {len(usados)} ya analizados en esta zona.")
+    opciones = [i for i in previas if i == actual or filtro == "Todas"
+                or (filtro == "Nuevas" and not previas[i]) or (filtro == "Usadas" and previas[i])]
+    _nota(f"{nuevos} por analizar · {len(usados)} ya analizados en esta zona.")
+    if filtro == "Usadas" and not usados and opciones:
+        _nota("Ningún par de esta zona se ha analizado todavía; solo se muestra el que ya tenías elegido.")
     if not opciones:
         st.session_state["sel_par"] = None
-        _nota("Todos los pares comparables ya se analizaron en esta zona. Activa «Mostrar pares ya analizados» "
-              "para abrir su resultado o reanalizarlos.", "mc-aviso")
+        _nota("Todos los pares comparables ya se analizaron en esta zona. Elige «Usadas» o «Todas» para abrir "
+              "su resultado o reanalizarlos." if filtro == "Nuevas" else
+              "Ningún par de esta zona se ha analizado todavía.", "mc-aviso")
         return
     if actual not in opciones:
         actual = st.session_state["sel_par"] = opciones[0]
@@ -406,25 +415,85 @@ def _pedir_analisis() -> None:
     st.session_state["sar_reanalizar"] = False
 
 
-def verificar_salida(informe: flujo_sar.InformeFlujo, identificador: str) -> Path:
-    """La ejecución solo se publica en el mapa si sus salidas existen, se leen, tienen píxeles
-    válidos y su registro corresponde a ESTA ejecución. Si algo falla, ErrorSAR: no se muestra nada."""
-    import json
-    principal = informe.combinado or next(iter(informe.analisis.values()), None)
-    if principal is None or not Path(principal).is_file():
-        raise ErrorSAR("El análisis terminó sin producir un archivo de resultado.")
-    res = leer_resultado(principal)
-    if not res.dibujable:
-        raise ErrorSAR(f"El resultado se generó pero no se puede leer: {res.error or 'formato no reconocido'}.")
-    if not (res.estadisticas or {}).get("pixeles_validos"):
-        raise ErrorSAR("El resultado no tiene ningún píxel válido en esta zona (las imágenes no la cubren).")
-    try:
-        registro = json.loads(Path(informe.registro).read_text(encoding="utf-8"))
-    except (OSError, ValueError, TypeError):
-        raise ErrorSAR("El análisis no dejó un registro de procedencia legible.") from None
-    if registro.get("run_id") != identificador or Path(principal).name not in (registro.get("salidas") or []):
-        raise ErrorSAR("El registro de la ejecución no corresponde a la zona, el par y los parámetros elegidos.")
-    return Path(principal)
+def _estado_html(estado: str) -> str:
+    clase = {trabajos.APTO: "apto", trabajos.ERROR: "error", trabajos.EN_CURSO: "curso", trabajos.BLOQUEADO: "bloqueado",
+             trabajos.CANCELADO: "bloqueado"}.get(estado, "pendiente")
+    return f'<span class="mc-pastilla mc-pastilla-{clase}">{escape(estado)}</span>'
+
+
+def progreso_html(fases: list[dict], estado: str | None = None, job_id: str | None = None, nota: str = "") -> str:
+    """Fases reales del análisis. Sin porcentaje: solo lo que de verdad ocurrió y cuándo."""
+    filas = []
+    for f in fases:
+        hora = (f.get("fin_utc") or f.get("inicio_utc") or "")[11:19]
+        filas.append(f'<li class="mc-fase mc-fase-{escape(f["clave"])}" data-estado="{escape(f["estado"])}">'
+                     f'{_estado_html(f["estado"])} <b>{escape(f["nombre"])}</b>'
+                     f'{" · " + escape(f["detalle"]) if f.get("detalle") else ""}'
+                     f'{f" <span class=visor-leyenda-nota>{hora} UTC</span>" if hora else ""}</li>')
+    cabecera = ""
+    if estado:
+        cabecera = (f'<div id="trabajo-estado" data-estado="{escape(estado)}" data-job="{escape(job_id or "")}">Trabajo <code>{escape(job_id or "")}'
+                    f"</code> · {_estado_html(estado)}{(' · ' + escape(nota)) if nota else ''}</div>")
+    return f'<div class="mc-progreso">{cabecera}<ol class="mc-fases">{"".join(filas)}</ol></div>'
+
+
+def _fases_previstas(region, p, completas) -> list[dict]:
+    """Plan antes de pulsar «Analizar»: lo hecho, lo que bloquea y lo pendiente."""
+    previas = {"zona": (trabajos.APTO, _resumen(region.limites)),
+               "escenas": (trabajos.APTO, f"{p.antes.inicio:%Y-%m-%d} → {p.despues.inicio:%Y-%m-%d}"),
+               "datos": ((trabajos.PENDIENTE, f"RTC locales: {'+'.join(d.polarizacion for d in completas)}")
+                         if completas else (trabajos.BLOQUEADO, "faltan productos RTC del par en data/sar/"))}
+    return [{"clave": c, "nombre": n, "estado": previas.get(c, (trabajos.PENDIENTE, ""))[0],
+             "detalle": previas.get(c, (None, ""))[1]} for c, n in trabajos.FASES]
+
+
+def _publicar(t: dict, identificador: str, p) -> None:
+    """Lleva al mapa el desenlace del trabajo de esta sesión, una sola vez y solo si sigue
+    correspondiendo a lo elegido ahora (zona, par y parámetros)."""
+    if st.session_state.get("trabajo_publicado") == t["job_id"]:
+        return
+    st.session_state["trabajo_publicado"] = t["job_id"]
+    if t["estado"] == trabajos.APTO:
+        if t["run_id"] != identificador:
+            st.session_state["aviso_trabajo"] = (
+                f"El trabajo {t['job_id']} terminó, pero la zona, el par o los parámetros ya cambiaron: no se muestra. "
+                "Está en el Historial.")
+            return
+        principal = _carpeta_analisis() / t["principal"]
+        st.session_state.update(mc_informe_sar={
+            "archivos": [a["nombre"] for a in t["archivos"] if a["nombre"] != t["registro"]],
+            "registro": t["registro"], "avisos": t["avisos"], "par": _clave_par(p), "run_id": t["run_id"],
+            "principal": t["principal"], "job_id": t["job_id"]})
+        flujo.activar(id_resultado(principal), sesion.ANALISIS, t["run_id"])
+    elif t["run_id"] == identificador:
+        st.session_state.update(mc_informe_sar={"error": t["error"] or t["estado"], "par": _clave_par(p),
+                                                "job_id": t["job_id"], "estado": t["estado"]})
+
+
+@st.fragment(run_every=1.0)
+def _vigilar(job_id: str) -> None:
+    """Se refresca cada segundo mientras el trabajo corre; al terminar, recarga la vista completa."""
+    t = trabajos.leer(job_id)
+    if t is None or t["estado"] not in trabajos.ACTIVOS:
+        st.rerun(scope="app")
+        return
+    nota = "en cola: otro análisis ocupa el procesador" if t.get("en_cola") else "la vista se actualiza sola"
+    if t.get("cancelacion_pedida"):
+        nota = "cancelación pedida: se detiene al terminar el paso en curso"
+    st.markdown(progreso_html(t["fases"], t["estado"], job_id, nota), unsafe_allow_html=True)
+    st.button("Cancelar", key="sar_cancelar", icon=":material/cancel:", on_click=trabajos.cancelar, args=(job_id,),
+              disabled=bool(t.get("cancelacion_pedida")),
+              help="Detiene el trabajo entre pasos. Lo ya escrito queda como parcial y no se muestra.")
+
+
+def _descripcion(region, p, pols, parametros) -> dict:
+    o, s, e, n = sesion.zona_canonica(region.limites)
+    zona = st.session_state.get("zona") or {}
+    geometria = zona.get("geometria") or {"type": "Polygon", "coordinates": [[[o, s], [e, s], [e, n], [o, n], [o, s]]]}
+    return {"tipo": "cambio_retrodispersion", "sensor": "Sentinel-1 · banda C", "procesador": "rtc",
+            "aoi": {"geojson": geometria, "crs": "EPSG:4326", "limites": [o, s, e, n], "origen": zona.get("origen")},
+            "escenas": {"antes": p.antes.nombre, "despues": p.despues.nombre}, "polarizaciones": pols,
+            "parametros": parametros, "version_motor": VERSION_MOTOR}
 
 
 def paso_analisis() -> None:
@@ -452,11 +521,13 @@ def paso_analisis() -> None:
                 _nota(f"{d.polarizacion} {fecha}: {len(empatados)} RTC empatan para la misma escena "
                       f"({', '.join(empatados)}). Deja solo el correcto en data/sar/.", "mc-aviso")
     completas = [d for d in disp if d.completa]
+    t = trabajos.leer(st.session_state["trabajo_activo"]) if st.session_state.get("trabajo_activo") else None
     if not completas:
+        st.markdown(progreso_html(_fases_previstas(region, p, completas)), unsafe_allow_html=True)
         _nota("Imágenes encontradas, pero sus datos de análisis todavía no están disponibles aquí: faltan los "
               "productos RTC de este par en data/sar/. El catálogo entrega escenas GRD; convertirlas a RTC "
-              "requiere ASF HyP3 con una cuenta de Earthdata (solo con autorización expresa). No se calcula "
-              "ni se muestra nada en su lugar.", "mc-aviso")
+              "requiere SNAP en un worker aislado o ASF HyP3 con autorización expresa, y ninguno está disponible "
+              "en la app (ver «Estado del sistema»). No se calcula ni se muestra nada en su lugar.", "mc-aviso")
         st.button("Analizar", key="sar_analizar", type="primary", icon=":material/play_arrow:", disabled=True,
                   help="Bloqueado: faltan los productos RTC de este par.")
         return
@@ -481,8 +552,22 @@ def paso_analisis() -> None:
             value=False, key="sar_aceptar_mismo_dia",
             help="El RTC es del mismo satélite y día, pero no de la misma hora de adquisición: podría venir de "
                  "otra escena. Quedará registrado como asociación no confirmada.")
+
+    def tarea():
+        return ejecucion_sar.tarea_cambio_s1(p, disp, region.limites, parametros, aceptar, identificador,
+                                            _carpeta_analisis())
+
+    # Trabajo de esta sesión: si sigue en marcha se vigila; si terminó, se publica su desenlace una vez.
+    activo = t is not None and t["estado"] in trabajos.ACTIVOS
+    if t is not None and not activo:
+        _publicar(t, identificador, p)
+        if t["job_id"] == st.session_state.get("trabajo_publicado") and t["estado"] == trabajos.APTO \
+                and st.session_state.get("resultado_activo") and lanzar is None \
+                and st.session_state.get("_publicado_rerun") != t["job_id"]:
+            st.session_state["_publicado_rerun"] = t["job_id"]
+            st.rerun()      # el mapa y el explorador (dibujados antes) deben mostrar el resultado nuevo
     reanalizar = False
-    if previa:
+    if previa and not activo:
         _nota(f"Esta misma configuración (zona, fechas y parámetros) ya se analizó el "
               f"{str(previa.get('generado_utc', '?'))[:16].replace('T', ' ')} UTC. No se repite sola.")
         st.button("Ver resultado anterior", key="sar_ver_mismo", icon=":material/history:",
@@ -490,37 +575,55 @@ def paso_analisis() -> None:
                   help="Lo abre rotulado como HISTÓRICO. No ejecuta un análisis nuevo.")
         reanalizar = st.checkbox("Reanalizar de todos modos (crea archivos nuevos; no sobrescribe)", value=False,
                                  key="sar_reanalizar")
-    bloqueado = (bool(por_dia) and not aceptar) or (previa is not None and not reanalizar)
+    bloqueado = activo or (bool(por_dia) and not aceptar) or (previa is not None and not reanalizar)
     st.button("Analizar", key="sar_analizar", type="primary", icon=":material/play_arrow:", disabled=bloqueado,
-              on_click=_pedir_analisis)
+              on_click=_pedir_analisis, help="Hay un trabajo en marcha." if activo else None)
     # Solo una pulsación de «Analizar» en esta misma ejecución deja `lanzar` con contenido.
-    permitido = (isinstance(lanzar, dict) and not (bool(por_dia) and not aceptar)
+    permitido = (not activo and isinstance(lanzar, dict) and not (bool(por_dia) and not aceptar)
                  and (previa is None or lanzar.get("reanalizar")))
     if permitido:
         # Mientras se calcula no hay resultado en el mapa: si falla, no queda el anterior como si fuera nuevo.
         flujo.limpiar_resultado()
-        with st.spinner("Procesando: lectura de los RTC, diferencia en dB, máscaras y verificación de las "
-                        "salidas… (sin porcentaje: depende del tamaño de la zona)"):
-            try:
-                inf = flujo_sar.analizar_disponibles(
-                    p, disp, region.limites, {pol: parametros[pol]["umbral_disminucion_db"] for pol in pols},
-                    {pol: parametros[pol]["ventana_speckle"] for pol in pols}, aceptar_mismo_dia=aceptar)
-                principal = verificar_salida(inf, identificador)
-            except (ErrorSAR, OSError) as e:
-                st.session_state.update(mc_informe_sar={"error": str(e), "par": _clave_par(p)})
-            else:
-                st.session_state.update(mc_informe_sar={
-                    "archivos": [x.name for x in inf.archivos], "registro": inf.registro.name,
-                    "avisos": inf.avisos, "par": _clave_par(p), "run_id": identificador,
-                    "principal": principal.name})
-                flujo.activar(id_resultado(principal), sesion.ANALISIS, identificador)
-        st.rerun()   # el explorador y el mapa (dibujados antes) deben reflejar el desenlace
-    inf = _informe_del_par(p)
-    if inf and inf.get("error"):
-        _nota("El análisis no terminó: " + inf["error"] + " No se muestra ningún resultado. Corrige lo indicado "
-              "y vuelve a pulsar «Analizar».", "mc-aviso")
-    elif inf:
-        _nota(f"Listo: {len(inf['archivos'])} archivos nuevos. El resultado está en el mapa (paso 04).")
+        st.session_state.update(mc_informe_sar=None, aviso_trabajo=None)
+        # Si otra pestaña ya lanzó esta misma configuración y sigue en marcha, se sigue ese trabajo.
+        fases = {f["clave"]: f["detalle"] for f in _fases_previstas(region, p, completas)
+                 if f["clave"] in ("zona", "escenas")}
+        existente, _ = trabajos.crear_o_reutilizar(identificador, _descripcion(region, p, pols, parametros),
+                                                   tarea(), fases)
+        st.session_state["trabajo_activo"] = existente["job_id"]
+        st.session_state.pop("trabajo_publicado", None)
+        st.rerun()
+    if activo:
+        if t["run_id"] != identificador:
+            _nota("Este trabajo corresponde a una selección anterior (otra zona, par o parámetros). Al terminar no "
+                  "se mostrará en el mapa; quedará en el Historial.", "mc-aviso")
+        _vigilar(t["job_id"])
+        return
+    if t is not None and t["run_id"] == identificador:
+        st.markdown(progreso_html(t["fases"], t["estado"], t["job_id"],
+                                  f"intento {t['intentos']}" if t["intentos"] > 1 else ""), unsafe_allow_html=True)
+        if t["estado"] in (trabajos.ERROR, trabajos.CANCELADO):
+            _nota(("El análisis no terminó: " if t["estado"] == trabajos.ERROR else "Cancelado: ")
+                  + (t["error"] or "") + " No se muestra ningún resultado.", "mc-aviso")
+            if t.get("parciales"):
+                _nota("Archivos parciales (no se muestran): " + ", ".join(t["parciales"]))
+            st.button("Reintentar", key="sar_reintentar", icon=":material/refresh:",
+                      on_click=_reintentar, args=(t["job_id"], tarea),
+                      help="Ejecuta otra vez el mismo trabajo (misma zona, par y parámetros).")
+        elif t["estado"] == trabajos.APTO:
+            _nota(f"Listo: {len(t['archivos']) - 1} archivos nuevos con su SHA-256 registrado. "
+                  "El resultado está en el mapa (paso 04).")
+    else:
+        st.markdown(progreso_html(_fases_previstas(region, p, completas)), unsafe_allow_html=True)
+    if st.session_state.get("aviso_trabajo"):
+        _nota(st.session_state["aviso_trabajo"], "mc-aviso")
+
+
+def _reintentar(job_id: str, tarea) -> None:
+    flujo.limpiar_resultado()
+    st.session_state.pop("trabajo_publicado", None)
+    st.session_state.update(mc_informe_sar=None)
+    trabajos.reintentar(job_id, tarea())
 
 
 def paso_resultados(abrir_explorador) -> None:
@@ -548,6 +651,35 @@ def paso_resultados(abrir_explorador) -> None:
           "exportación a QGIS del resultado activo están en el panel Información.")
     st.button("Abrir el explorador", key="sar_ir_explorador", icon=":material/layers:", type="tertiary",
               on_click=abrir_explorador)
+    _trabajos_recientes()
+
+
+def _abrir_trabajo(t: dict) -> None:
+    """Abre como HISTÓRICO el resultado de un trabajo terminado (p. ej. tras recargar la página)."""
+    flujo.activar(id_resultado(_carpeta_analisis() / t["principal"]), sesion.HISTORICO, t["run_id"])
+
+
+def _trabajos_recientes() -> None:
+    lista = trabajos.listar(8)
+    with st.expander(f"Trabajos recientes ({len(lista)})", expanded=False, key="sar_trabajos"):
+        if not lista:
+            _nota("Todavía no se ha ejecutado ningún análisis en este servidor.")
+            return
+        _nota("Registro persistente de este servidor: sobrevive a recargas y reinicios. Abrir un trabajo lo "
+              "muestra como HISTÓRICO; no recalcula nada.")
+        for t in lista:
+            aoi = t.get("aoi", {}).get("limites") or []
+            zona = " · ".join(f"{v:.2f}" for v in aoi) if aoi else "—"
+            escenas = t.get("escenas") or {}
+            st.markdown(
+                f'<div class="mc-trabajo" data-job="{escape(t["job_id"])}">{_estado_html(t["estado"])} '
+                f'<code>{escape(t["job_id"])}</code> · {escape(str(t.get("creado_utc", ""))[:16].replace("T", " "))} UTC'
+                f'<br><span class="visor-leyenda-nota">{escape(str(escenas.get("antes", "?"))[17:25])} → '
+                f'{escape(str(escenas.get("despues", "?"))[17:25])} · zona {escape(zona)}'
+                f'{" · " + escape(t["error"]) if t.get("error") else ""}</span></div>', unsafe_allow_html=True)
+            if t["estado"] == trabajos.APTO and t.get("principal") and (_carpeta_analisis() / t["principal"]).is_file():
+                st.button("Abrir resultado", key=f"sar_abrir_trabajo_{t['job_id']}", icon=":material/history:",
+                          type="tertiary", on_click=_abrir_trabajo, args=(t,))
 
 
 def render(centrar, abrir_explorador, pasos) -> None:

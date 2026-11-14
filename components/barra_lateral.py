@@ -180,14 +180,24 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None,
 
         st.caption("MAPA BASE")
         opciones = mapas_base.ofrecidos()
-        if st.session_state.get("mapa_base") not in opciones:
+        anterior = st.session_state.get("mapa_base")
+        if anterior not in opciones:
             st.session_state["mapa_base"] = mapas_base.predeterminado()
+            if anterior in MAPAS_BASE:      # el fondo elegido dejó de estar disponible: se dice, no se oculta
+                st.session_state["aviso_mapa_base"] = (
+                    f"{MAPAS_BASE[anterior].nombre} dejó de estar disponible "
+                    f"({mapas_base.no_ofrecidos().get(anterior, 'sin respuesta')}); se cambió a "
+                    f"{MAPAS_BASE[st.session_state['mapa_base']].nombre}.")
+        if st.session_state.get("aviso_mapa_base"):
+            st.markdown(f'<div class="mc-aviso" id="aviso-mapa-base">{escape(st.session_state["aviso_mapa_base"])}'
+                        "</div>", unsafe_allow_html=True)
         mapa_base = st.selectbox(
             "Mapa base",
             options=opciones,
             format_func=lambda k: MAPAS_BASE[k].nombre,
             help="Cambia solo el fondo. Los resultados, la zona, la ubicación y el zoom se conservan.",
             key="mapa_base",
+            on_change=lambda: st.session_state.pop("aviso_mapa_base", None),
         )
         st.markdown(
             f'<div class="visor-leyenda-nota visor-nota-base">{escape(MAPAS_BASE[mapa_base].uso)}</div>',
@@ -217,6 +227,10 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None,
                     st.markdown(f'<div class="visor-leyenda-nota">{escape(CAPAS_CONTEXTO[clave].nombre)}: nada en esta '
                                 "vista a escala general (puede haberlo en el mapa base «Calles»).</div>",
                                 unsafe_allow_html=True)
+
+        from components import sistema
+        with st.expander("Estado del sistema", expanded=False, key="sistema"):
+            sistema.render()
 
         # Las capas DEMO son sintéticas: apagadas por defecto y solo visibles si se piden a propósito.
         with st.expander("Demostración (datos sintéticos)", expanded=False, key="demo"):

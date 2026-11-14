@@ -154,6 +154,7 @@ def analizar_disponibles(
     carpeta_salida: Path | None = None,
     zona: str | None = None,
     aceptar_mismo_dia: bool = False,
+    al_avanzar=None,
 ) -> InformeFlujo:
     """Corre el motor en cada polarización con RTC completos y combina VV/VH si hay ambas.
 
@@ -161,7 +162,11 @@ def analizar_disponibles(
     aun aceptada, la asociación queda registrada como NO confirmada.
 
     `ventana_speckle`: un valor para todas las polarizaciones o uno por polarización
-    (el producto reproducible de Chigorodó usa VV 3 px y VH 5 px)."""
+    (el producto reproducible de Chigorodó usa VV 3 px y VH 5 px).
+
+    `al_avanzar(paso, hechos)`: se llama antes de cada polarización y antes de combinar, con
+    los archivos ya escritos. Sirve para informar del progreso y para detener el trabajo entre
+    pasos (si lanza una excepción, el cálculo se detiene ahí). No cambia ningún resultado."""
     carpeta = CARPETA_ANALISIS if carpeta_salida is None else Path(carpeta_salida)
     carpeta.mkdir(parents=True, exist_ok=True)
     completas = [d for d in disponibles if d.completa]
@@ -179,6 +184,8 @@ def analizar_disponibles(
         if d.verificar:
             informe.avisos.append(f"{d.polarizacion}: asociación RTC ↔ escena NO confirmada (solo coincide el día); "
                                   "aceptada expresamente por el analista.")
+        if al_avanzar:
+            al_avanzar(f"Diferencia y máscara {d.polarizacion}", informe.archivos)
         ventana = ventana_speckle.get(d.polarizacion, 5) if isinstance(ventana_speckle, dict) else ventana_speckle
         parametros = ParametrosCambio(umbral_disminucion_db=float(umbrales.get(d.polarizacion, 3.0)),
                                       ventana_speckle=int(ventana))
@@ -189,6 +196,8 @@ def analizar_disponibles(
         informe.analisis[d.polarizacion] = r.mascara
         informe.avisos.extend(f"{d.polarizacion}: {a}" for a in r.avisos)
     if "VV" in informe.analisis and "VH" in informe.analisis:
+        if al_avanzar:
+            al_avanzar("Combinación VV + VH", informe.archivos)
         c = combinar_vv_vh(informe.analisis["VV"], informe.analisis["VH"], carpeta,
                            prefijo=prefijo_libre(carpeta, f"coincidencia_VV_VH_{sello}"), zona=zona)
         informe.combinado = c.geotiff

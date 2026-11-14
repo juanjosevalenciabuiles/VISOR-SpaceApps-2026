@@ -273,3 +273,18 @@ i.mc-transparente { background: repeating-conic-gradient(rgba(255, 255, 255, 0.2
 
 /* Origen del resultado en el mapa: análisis de esta sesión o abierto del historial. */
 .mc-insignia-origen { background: rgba(255, 214, 10, .16); color: #ffd60a; border: 1px solid rgba(255, 214, 10, .45); }
+
+/* Estados de trabajos, fases y servicios: texto + color, nunca solo color. */
+.mc-pastilla { display: inline-block; font: 600 .66rem/1.4 var(--mc-mono, monospace); letter-spacing: .04em;
+  padding: 1px 6px; border-radius: 6px; border: 1px solid currentColor; white-space: nowrap; }
+.mc-pastilla-apto { color: #30d158; background: rgba(48, 209, 88, .10); }
+.mc-pastilla-curso { color: #64d2ff; background: rgba(100, 210, 255, .12); }
+.mc-pastilla-error { color: #ff6b6b; background: rgba(255, 107, 107, .12); }
+.mc-pastilla-bloqueado { color: #ffd60a; background: rgba(255, 214, 10, .10); }
+.mc-pastilla-pendiente { color: #a1a1aa; background: rgba(161, 161, 170, .08); }
+.mc-progreso { margin: .4rem 0 .6rem; }
+.mc-progreso #trabajo-estado { font-size: .8rem; margin-bottom: .3rem; }
+.mc-fases { list-style: none; padding: 0; margin: 0; display: grid; gap: 3px; font-size: .78rem; }
+.mc-fases li { display: flex; flex-wrap: wrap; gap: .35rem; align-items: baseline; }
+.mc-tabla-sistema td { vertical-align: top; font-size: .74rem; }
+.mc-tabla-sistema ul { margin: .2rem 0 0; }
