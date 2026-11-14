@@ -120,7 +120,7 @@ def mapa_fijo() -> folium.Map:
         zoom_start=MAPA_ZOOM,
         tiles=None,
         control_scale=True,
-        min_zoom=2,
+        min_zoom=5 if colombia.modo() == "CO" else 2,
         max_bounds=True,
         min_lat=-5 if colombia.modo() == "CO" else -90,
         max_lat=15 if colombia.modo() == "CO" else 90,
