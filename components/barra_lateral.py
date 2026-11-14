@@ -188,6 +188,10 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None,
                     f"{MAPAS_BASE[anterior].nombre} dejó de estar disponible "
                     f"({mapas_base.no_ofrecidos().get(anterior, 'sin respuesta')}); se cambió a "
                     f"{MAPAS_BASE[st.session_state['mapa_base']].nombre}.")
+        if mapas_base.todos_caidos():
+            st.markdown('<div class="mc-aviso" id="aviso-sin-mapas">Ningún mapa base respondió a la última '
+                        "comprobación desde el servidor (ver «Estado del sistema»). Se siguen ofreciendo; si el "
+                        "fondo no carga en tu navegador, el mapa avisará.</div>", unsafe_allow_html=True)
         if st.session_state.get("aviso_mapa_base"):
             st.markdown(f'<div class="mc-aviso" id="aviso-mapa-base">{escape(st.session_state["aviso_mapa_base"])}'
                         "</div>", unsafe_allow_html=True)

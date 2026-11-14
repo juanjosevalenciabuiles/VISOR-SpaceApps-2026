@@ -417,3 +417,15 @@ def test_crear_o_reutilizar_es_idempotente_entre_hilos():
     assert len({t["job_id"] for t, _ in creados}) == 1 and sum(c for _, c in creados) == 1
     soltar.set()
     assert trabajos.esperar(creados[0][0]["job_id"], 10)["estado"] == "APTO"
+
+
+def test_si_ningun_fondo_responde_no_se_queda_sin_mapa():
+    from utils.mapas_base import MAPAS_BASE
+    try:
+        mapas_base.registrar_caidos({k: "sin conexión" for k in MAPAS_BASE})
+        assert mapas_base.todos_caidos()
+        assert "osm_oscuro" in mapas_base.ofrecidos() and mapas_base.predeterminado() in mapas_base.ofrecidos()
+        assert mapas_base.obtener("calles").clave == "calles"
+    finally:
+        mapas_base.registrar_caidos({})
+    assert not mapas_base.todos_caidos()

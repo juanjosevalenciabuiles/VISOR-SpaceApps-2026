@@ -78,31 +78,35 @@ def _es_imagen(tipo: str, cuerpo: bytes) -> bool:
 
 
 def comprobar(abrir=None) -> list[Estado]:
-    """Comprueba todos los servicios ahora. `abrir` permite sustituir la red en pruebas."""
+    """Comprueba todos los servicios ahora, en paralelo (el total tarda lo que el más lento, máx.
+    ~TIEMPO_S). `abrir` permite sustituir la red en pruebas."""
+    from concurrent.futures import ThreadPoolExecutor
+
     from utils import lugares, mapas_base
     abrir = abrir or urllib.request.urlopen
-    resultados: list[Estado] = []
-    for clave in mapas_base.MAPAS_BASE:
-        mapa = mapas_base.MAPAS_BASE[clave]
+    tareas: list = []          # (clave, nombre, url, valida) o Estado ya resuelto
+    for clave, mapa in mapas_base.MAPAS_BASE.items():
         ok, motivo = mapas_base.disponible(mapa, considerar_diagnostico=False)
         if not ok:
-            resultados.append(Estado(f"base:{clave}", f"Mapa base · {mapa.nombre}", OMITIDO, motivo))
-            continue
-        resultados.append(_probar(f"base:{clave}", f"Mapa base · {mapa.nombre}", _url_tesela(mapa), abrir,
-                                  _es_imagen))
+            tareas.append(Estado(f"base:{clave}", f"Mapa base · {mapa.nombre}", OMITIDO, motivo))
+        else:
+            tareas.append((f"base:{clave}", f"Mapa base · {mapa.nombre}", _url_tesela(mapa), _es_imagen))
     url = lugares.proveedor()
     if url:
-        resultados.append(_probar("lugares", "Búsqueda de lugares (Nominatim)", url + "/status?format=json", abrir,
-                                  lambda t, c: b"status" in c or b"OK" in c))
+        tareas.append(("lugares", "Búsqueda de lugares (Nominatim)", url + "/status?format=json",
+                       lambda t, c: b"status" in c or b"OK" in c))
     else:
-        resultados.append(Estado("lugares", "Búsqueda de lugares en línea", OMITIDO,
-                                 "desactivada: solo catálogo local"))
-    resultados.append(_probar(
-        "asf", "Catálogo ASF (Sentinel-1)",
-        "https://api.daac.asf.alaska.edu/services/search/param?platform=SENTINEL-1&output=count&maxResults=1",
-        abrir, lambda t, c: c.strip().isdigit()))
-    resultados.append(_probar("earthdata", "NASA Earthdata Login", "https://urs.earthdata.nasa.gov/", abrir,
-                              lambda t, c: True))
+        tareas.append(Estado("lugares", "Búsqueda de lugares en línea", OMITIDO, "desactivada: solo catálogo local"))
+    tareas.append(("asf", "Catálogo ASF (Sentinel-1)",
+                   "https://api.daac.asf.alaska.edu/services/search/param?platform=SENTINEL-1&output=count&maxResults=1",
+                   lambda t, c: c.strip().isdigit()))
+    tareas.append(("earthdata", "NASA Earthdata Login", "https://urs.earthdata.nasa.gov/", lambda t, c: True))
+
+    def resolver(tarea):
+        return tarea if isinstance(tarea, Estado) else _probar(*tarea[:3], abrir, tarea[3])
+
+    with ThreadPoolExecutor(max_workers=8) as grupo:
+        resultados = list(grupo.map(resolver, tareas))       # conserva el orden
     with _cerrojo:
         _ultimo.update(cuando=datetime.now(timezone.utc), resultados=resultados, en_curso=False)
     mapas_base.registrar_caidos({e.clave.split(":", 1)[1]: e.detalle for e in resultados

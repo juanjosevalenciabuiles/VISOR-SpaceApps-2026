@@ -50,6 +50,11 @@ def teselas_reales(p) -> int:
         .filter(i=>i.complete && i.naturalWidth===256 && !i.src.startsWith('data:')).length""")
 
 
+def abrir_explorador(p):
+    if not p.page.locator(".st-key-lugar_texto input").first.is_visible():
+        p.clic("btn_explorador")
+
+
 def ir(p, consulta: str):
     buscar(p, consulta)
     p.esperar(1500)
@@ -64,7 +69,7 @@ def test_capturas_con_servicios_reales(pagina):
     assert teselas_reales(p) > 0, "teselas reales de OpenStreetMap"
     assert p.capas_resultado() == [] and "SIN RESULTADO" in p.texto("barra_superior")
 
-    p.clic("btn_explorador")
+    abrir_explorador(p)
     ir(p, "Chigorodó, Antioquia")
     assert "Nominatim" in p.texto("panel_explorador") and "UBICADO" in p.texto("panel_explorador")
     capa_contexto(p, "hidrografia")
@@ -100,7 +105,7 @@ def test_capturas_con_servicios_reales(pagina):
                                     ("Nairobi, Kenya", "Relieve", "06_nairobi_relieve"),
                                     ("Tokyo, Japan", "Oscuro", "07_tokio_oscuro_rios_carreteras"),
                                     ("Sydney, Australia", "Satélite", "08_sidney_satelite")):
-        p.clic("btn_explorador") if not p.visible("panel_explorador") else None
+        abrir_explorador(p)
         ir(p, consulta)
         elegir_fondo(p, fondo)
         if "tokio" in nombre:

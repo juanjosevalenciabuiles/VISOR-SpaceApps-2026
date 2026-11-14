@@ -162,18 +162,26 @@ def disponible(mapa: MapaBase, considerar_diagnostico: bool = True) -> tuple[boo
     return True, None
 
 
+def todos_caidos() -> bool:
+    """Ningún fondo pasó la última comprobación (p. ej. sin conexión del servidor). Entonces no se
+    oculta ninguno: se siguen ofreciendo los que no requieren clave y la interfaz lo avisa."""
+    return not any(disponible(m)[0] for m in MAPAS_BASE.values())
+
+
 def ofrecidos() -> list[str]:
-    return [k for k, m in MAPAS_BASE.items() if disponible(m)[0]]
+    diagnostico = not todos_caidos()
+    return [k for k, m in MAPAS_BASE.items() if disponible(m, diagnostico)[0]]
 
 
 def no_ofrecidos() -> dict[str, str]:
-    return {k: disponible(m)[1] for k, m in MAPAS_BASE.items() if not disponible(m)[0]}
+    diagnostico = not todos_caidos()
+    return {k: disponible(m, diagnostico)[1] for k, m in MAPAS_BASE.items() if not disponible(m, diagnostico)[0]}
 
 
 def predeterminado() -> str:
     """El primer fondo disponible en orden de preferencia; si ninguno pasó la comprobación, el de OSM."""
     for clave in (MAPA_BASE_PREDETERMINADO, PREDETERMINADO_SIN_CLAVE, *MAPAS_BASE):
-        if disponible(MAPAS_BASE[clave])[0]:
+        if clave in ofrecidos():
             return clave
     return PREDETERMINADO_SIN_CLAVE
 
@@ -181,7 +189,7 @@ def predeterminado() -> str:
 def obtener(clave: str | None) -> MapaBase:
     """Fondo pedido, o el predeterminado si la clave no existe o ese fondo no está disponible."""
     mapa = MAPAS_BASE.get(clave or "")
-    return mapa if mapa is not None and disponible(mapa)[0] else MAPAS_BASE[predeterminado()]
+    return mapa if mapa is not None and (clave in ofrecidos()) else MAPAS_BASE[predeterminado()]
 
 
 def url_teselas(mapa: MapaBase) -> str:

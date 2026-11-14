@@ -31,9 +31,10 @@ def render() -> None:
         st.markdown('<div class="visor-leyenda-nota">Comprobación automática desactivada en este entorno '
                     "(VISOR_DIAGNOSTICO=desactivado).</div>", unsafe_allow_html=True)
     if resultados:
-        filas = "".join(f"<tr><td>{escape(e.nombre)}</td><td>{_insignia(e.estado)}</td><td>{escape(e.detalle)}</td></tr>"
-                        for e in resultados)
-        st.markdown(f'<table class="mc-tabla mc-tabla-sistema" id="tabla-servicios"><tbody>{filas}</tbody></table>'
+        filas = "".join(f'<li data-servicio="{escape(e.clave)}" data-estado="{escape(e.estado)}">'
+                        f"{_insignia(e.estado)} {escape(e.nombre)}<div class='visor-leyenda-nota'>{escape(e.detalle)}"
+                        "</div></li>" for e in resultados)
+        st.markdown(f'<ul class="mc-lista-sistema" id="tabla-servicios">{filas}</ul>'
                     f'<div class="visor-leyenda-nota">Comprobado {cuando:%Y-%m-%d %H:%M} UTC. Un mapa base con ERROR '
                     "deja de ofrecerse hasta la próxima comprobación correcta.</div>", unsafe_allow_html=True)
     else:
@@ -47,7 +48,7 @@ def render() -> None:
     filas = []
     for d in procesadores.diagnosticos():
         detalle = "".join(f"<li>{'✓' if ok else '✗'} {escape(q)}: {escape(v)}</li>" for q, ok, v in d.comprobaciones)
-        filas.append(f"<tr><td>{escape(d.nombre)}<br><span class='visor-leyenda-nota'>{escape(d.sensor)}</span></td>"
-                     f"<td>{_insignia(d.estado)}</td><td>{escape(d.motivo)}<ul class='visor-lista'>{detalle}</ul></td></tr>")
-    st.markdown(f'<table class="mc-tabla mc-tabla-sistema" id="tabla-procesadores"><tbody>{"".join(filas)}</tbody>'
-                "</table>", unsafe_allow_html=True)
+        filas.append(f'<li data-procesador="{escape(d.clave)}" data-estado="{escape(d.estado)}">{_insignia(d.estado)} '
+                     f"<b>{escape(d.nombre)}</b> <span class='visor-leyenda-nota'>· {escape(d.sensor)}</span>"
+                     f"<div class='visor-leyenda-nota'>{escape(d.motivo)}</div><ul class='visor-lista'>{detalle}</ul></li>")
+    st.markdown(f'<ul class="mc-lista-sistema" id="tabla-procesadores">{"".join(filas)}</ul>', unsafe_allow_html=True)

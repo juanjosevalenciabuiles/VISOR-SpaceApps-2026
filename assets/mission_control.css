@@ -286,5 +286,6 @@ i.mc-transparente { background: repeating-conic-gradient(rgba(255, 255, 255, 0.2
 .mc-progreso #trabajo-estado { font-size: .8rem; margin-bottom: .3rem; }
 .mc-fases { list-style: none; padding: 0; margin: 0; display: grid; gap: 3px; font-size: .78rem; }
 .mc-fases li { display: flex; flex-wrap: wrap; gap: .35rem; align-items: baseline; }
-.mc-tabla-sistema td { vertical-align: top; font-size: .74rem; }
-.mc-tabla-sistema ul { margin: .2rem 0 0; }
+.mc-lista-sistema { list-style: none; padding: 0; margin: .2rem 0 .5rem; display: grid; gap: 6px; font-size: .76rem; }
+.mc-lista-sistema li { overflow-wrap: anywhere; }
+.mc-lista-sistema ul { margin: .15rem 0 0; }
