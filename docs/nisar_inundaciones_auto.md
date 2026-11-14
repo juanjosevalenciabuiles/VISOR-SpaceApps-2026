@@ -1,107 +1,75 @@
-# V.I.S.O.R. — SOLO INUNDACIONES, NISAR primero: adquisición automática ASF
+# V.I.S.O.R. · NISAR primero, SOLO inundaciones · descargas pequeñas con NASA Harmony
 
-**Estado:** desarrollo en la rama `feature/nisar-inundaciones-auto`. **No en main.** Esta fase prepara insumos; NO produce una máscara de inundación validada. Se conservaron los datos originales.
+**Estado (2026-11-14):** implementación EXPERIMENTAL en la [PR #14](https://github.com/juanjosevalenciabuiles/VISOR-SpaceApps-2026/pull/14), rama `feature/nisar-inundaciones-auto`. **No está en `main`, ni se ha comprobado una descarga Harmony autenticada de un GCOV real en Replit**. No se han modificado los originales de `data/sar/`.
 
-## Decisión del equipo
+## ¿Hace falta actualizar la web antes de implementar?
 
-La interfaz pública tendrá solo **Inundaciones**. NISAR L2 GCOV (banda L) es
-el proveedor principal. Sentinel-1C RTC (banda C) continúa como respaldo,
-principalmente para fechas históricas y comparaciones metodológicas; nunca
-se suman o restan intensidades entre bandas L y C.
+**No.** La rama se desarrolla y prueba de manera independiente; solo después de QA, autorización y fusión se actualiza Replit. Nunca fusionar PR #14 automáticamente.
 
-El objetivo ambiental es identificar **posibles nuevas áreas de agua superficial**:
-requiere observar fechas compatibles, calidad, referencia de agua permanente
-(ej. JRC), y/o evidencia hidrológica oficial (IDEAM). Un cambio de gamma0 o
-una escena única NO verifica una inundación.
+## Decisiones obligatorias del equipo
 
-## Lo reutilizado
+- V.I.S.O.R. estudia **solo inundaciones**. Deslizamientos y deforestación desaparecen de la UI pública, sin borrar código histórico ni fuentes originales.
+- El sensor prioritario es **NISAR L-band / L2 GCOV**. Sentinel-1 C-band es alternativa; no comparar directamente retrodispersión entre bandas.
+- La adquisición por defecto es **NASA Harmony**, no la descarga íntegra del HDF5.
+- La resolución original del GCOV (normalmente **10/20 m**) se preserva: nada de bajar a 30 m, redimensionar o interpolar para economizar.
+- Los insumos son **gamma0 en potencia + máscara + numberOfLooks**, y en polarización correspondiente (HH/HV o VV/VH). **NO representan inundaciones confirmadas**.
 
-Se trasladaron sin reescribir desde la PR #6 (aún abierta):
-`utils/nisar_catalogo.py`, `utils/nisar_descarga.py`, `utils/nisar_gcov.py`
-y `scripts/nisar.py`, además de sus tests de catálogo/descarga/lectura.
+## Cómo funciona
 
-- Colección: `NISAR_L2_GCOV_V1` (**VALIDATED**, NASA ASF), disponible
-  para adquisiciones a partir de **21-oct-2026**, según documentación oficial.
-- Catálogo público CMR de NASA, consultado directamente por HTTPS.
-- Descargas HDF5 desde `nisar.asf.earthdatacloud.nasa.gov` con
-  `EARTHDATA_TOKEN` únicamente desde variables de entorno/Secrets;
-  jamás imprimirlo, enviarlo a una URL ajena o guardarlo en la configuración.
-- Se valida tamaño esperado, espacio libre, dominio HTTPS autorizado,
-  y escritura `.h5.part` con publicación tras completar los bytes.
-- Recorte: lectura de ventana de HDF5 auténtico, polarización
-  diagonal `HHHH` o `VVVV` que realmente exista; `gamma0` en potencia,
-  máscara y NoData. GeoTIFF resultado en `data/nisar/`; original permanece en
-  `data/nisar/crudos/`.
-- El motor Sentinel-1 y `data/sar/` no se modifican.
+1. Persona busca/dibuja y confirma una AOI en Colombia.
+2. En «Herramientas SAR» NISAR está preseleccionado. Persona elige fechas.
+3. `utils/nisar_catalogo.py` consulta NASA CMR ASF (NISAR GCOV VALIDATED), calcula candidatos, pares de misma órbita/polarización y cobertura. No descarga nada.
+4. `utils/nisar_auto.py` recomienda un par comparable; si no hay par, una escena única etiquetada como no apta para cambio temporal. Muestra porcentaje de cobertura y HDF5 originales hipotéticos en GB.
+5. Por defecto la UI ofrece `Recorte optimizado · NASA Harmony`. Usuario fija **128–512 MB** (384 MB predeterminado) para la suma de imágenes recortadas.
+6. Tras autorización explícita y `EARTHDATA_TOKEN` en Secrets, `utils/nisar_harmony.py` consulta capacidades públicas en `https://harmony.earthdata.nasa.gov/capabilities?shortName=NISAR_L2_GCOV_V1`; no admite colecciones ajenas.
+7. La solicitud Harmony utiliza `Collection('C3622241360-ASF')` según prueba pública del 14-nov-2026, bbox AOI, `granule_name` único, `max_results=1`, `variables` (nunca `all`), salida `image/tiff`, **sin** `crs` ni `width/height` (sin reproyección ni reescalado).
+8. Harmony produce **Cloud-Optimized GeoTIFFs** por variable. Se descargan desde HTTPS firmado sin reenviar `EARTHDATA_TOKEN`, con máximo por archivo y por trabajo; se verifica estructura, CRS proyectado, resolución, coincidencia de cuadrícula, intersección AOI y SHA-256.
+9. COGs y manifiestos atómicos se guardan bajo `data/nisar/harmony/<hash>/`. Una transferencia parcial es descartada. Un reuso exige tamaño y SHA originales.
+10. La cola de V.I.S.O.R. muestra estados y permite cancelación. La vista del mapa no incorpora automáticamente una falsa capa de inundación.
 
-## Función nueva
+### Rutas y seguridad
 
-`utils/nisar_auto.py`: seleccionar automáticamente el par compatible del
-catálogo según cobertura, polarización y presupuesto de almacenamiento;
-priorizar par de dos fechas, y si no cabe, una sola escena con una advertencia
-explícita de que **no permite detectar cambios temporales**. No inventa
-cobertura. El límite inicial es 5 GB y el mínimo de cobertura para explorar
-pares es 40 % (la zona no cubierta queda SIN DATOS).
+- `utils/nisar_harmony.py`: cliente oficial `harmony-py~=1.8.0`, descubrimiento público de capacidades, request por variable/bbox, seguimiento y streaming acotado.
+- `utils/nisar_auto.py::preparar_harmony`: coordinación del par, sin fallback silencioso a HDF5.
+- `components/nisar_auto_ui.py`: opción Harmony predeterminada, límite de MB, seguimiento de trabajo; HDF5 completo requiere cambiar explícitamente de modo y confirmar GB.
+- `scripts/nisar_auto.py`: CLI; por defecto Harmony.
+- `tests/test_nisar_harmony.py`: mocks sin secretos: variables, capa frecuencia A, bloqueo de URLs externas, archivo incompleto, CRS, caché SHA, límites y fallo seguro.
+- `scripts/nisar_harmony_preflight.py`: **consulta pública real** de capacidades, sin solicitar trabajos ni descargar.
 
-`components/nisar_auto_ui.py`: control principal en Herramientas SAR,
-con la **misma AOI** confirmada que usa Sentinel. Dos pasos explícitos:
-(1) buscar y mostrar tamaño/cobertura sin descargar; (2) autorizar descarga y
-preparación. La cola existente `utils/trabajos.py` controla los estados y
-las fases, y continúa en el servidor incluso si Streamlit actualiza el mapa.
-Los datos HDF5 descargados pueden ocupar varios GB; si Replit no tiene espacio,
-se bloquea antes de comenzar.
+El token solo se configura como `EARTHDATA_TOKEN` en **Replit Secrets**; nunca se envía al chat, a GitHub ni se guarda en JSON. Los errores de URLs firmadas deben ser sanitizados antes de persistirse. Harmony puede no ofrecer el subconjunto o la variable para una toma concreta: **en ese caso no se inventa la capa ni se descarga HDF5 completo automáticamente**.
 
-`scripts/nisar_auto.py`: interfaz CLI sin seleccionar HDF5 manualmente.
+## Comandos de consulta y prueba (rama experimental)
 
 ```bash
-# En la rama experimental, NO en main hasta aprobación:
+git status --short
 bash actualizar.sh --guardar feature/nisar-inundaciones-auto
-bash start.sh --verificar
+bash verificar.sh
+.venv/bin/python scripts/nisar_harmony_preflight.py
+# SOLO catálogo y propuesta, sin transferencia:
 .venv/bin/python scripts/nisar_auto.py --inicio 2026-10-21 --fin 2026-11-14
-# SOLO si Replit tiene espacio y EARTHDATA_TOKEN configurado en Secrets:
-.venv/bin/python scripts/nisar_auto.py --inicio 2026-10-21 --fin 2026-11-14 --ejecutar
+# SOLO con Earthdata Secrets y límites de disco aprobados:
+.venv/bin/python scripts/nisar_auto.py --inicio 2026-10-21 --fin 2026-11-14 --max-mb 384 --ejecutar
+# Alternativa explícita, puede descargar varios GB:
+.venv/bin/python scripts/nisar_auto.py --metodo hdf5 --max-gb 5 --ejecutar
 ```
 
-**Nunca escribir EARTHDATA_TOKEN en el chat, la Shell compartida, comandos,
-GitHub ni logs**. Debe configurarse en el gestor de Secrets del despliegue.
-El límite de cola de trabajos es por defecto 900 s (configurable); un par
-de varios GB puede no caber en ese presupuesto de ejecución. No se ejecutó
-una transferencia real de HDF5 en GitHub Actions por consumo y credenciales.
+**Precaución:** la cola del servidor tiene un tiempo máximo (por defecto 900 s) y Harmony puede tardar; no lanzar descargas grandes durante una presentación sin prueba previa. Los archivos `data/` siguen fuera de GitHub.
 
-## Caso piloto Chigorodó: datos conocidos (de PR #6, 13-nov-2026)
+## QA: qué está probado y qué no
 
-- 11 granules NISAR GCOV VALIDATED en catálogo, sin lectura HDF5 real.
-- El par del track 148 / frame 5, **22 oct → 3 nov 2026**, presenta solo
-  ~41 % de cobertura común de la AOI. En modo mixto pesa
-  aproximadamente **2 × 1,64 GB**; NO cubre el 59 % restante.
-- Escena única track 112 / frame 85 del 31 oct, ~94 % del área, ~1,23 GB,
-  sin fecha compatible para calcular un cambio.
-- Estos porcentajes provienen de huellas de catálogo, no de píxeles válidos
-  comprobados. El programa debe revisarlos sobre un GCOV real.
+**Verificado en línea sin credenciales:** el endpoint Harmony público devolvió colección `C3622241360-ASF`, `NISAR_L2_GCOV_V1`, y las variables `/science/LSAR/GCOV/grids/frequencyA/HHHH`, `HVHV`, `mask` y `numberOfLooks`, junto con otras variables de frecuencia A/B. GitHub Actions [preflight](https://github.com/juanjosevalenciabuiles/VISOR-SpaceApps-2026/actions/runs/43639733760) registró estas respuestas públicas.
 
-## Puertas de QA para declarar automatización lista
+**Pruebas simuladas:** se generan GeoTIFFs pequeños y respuestas de Harmony simuladas para comprobar etiquetas, límites, errores y ausencia de archivos parciales. `harmony-py` se valida por su API pública.
 
-1. Un test de catálogo simulado y al menos una consulta real ASF/CMR en CI.
-2. Selección determinista de par, límites de disco, token ausente, parcial
-   inválido, HDF5 de otra misión, área fuera de Colombia, catálogo vacío.
-3. Descarga HDF5 auténtica a almacenamiento aislado con credencial Earthdata
-   y prueba de autorización/HTTP/tamaño; registrar SHA-256.
-4. Inspección de frecuencia/polarización, grilla, CRS, tamaño de píxel,
-   máscara y validez de gamma0 en HDF5 real.
-5. Mapeo geográfico, cobertura real, distinción tierra/agua y validación con JRC
-   e IDEAM; **aún no implementados para el flujo NISAR**.
-6. QA en Replit, Chromium y Firefox, datos originales intactos, sin fusión
-   de código científico o descarga a main sin autorización del equipo.
+**SIN verificar:** envío real de trabajo Harmony con Earthdata, generación de COG para granule NISAR real, estructura exacta del nombre de los GeoTIFF producidos, descarga firmada en Replit, recorte multi-fecha homogéneo y validación física de la máscara e intensidad contra HDF5 auténtico. No anunciar «sistema completo funcionando» hasta superar esas puertas.
+
+**Caso piloto:** catálogo anterior registra candidatos del 22 oct y 3 nov para el track 148 frame 5 con ~41 % de cobertura conjunta de la AOI Chigorodó. No declarar que cubre el 100 %; ausencia de cobertura equivale a **SIN DATOS**, no a «no inundado».
+
+**Bloqueo científico restante:** con los insumos obtenidos todavía falta verificar un flujo de detección de **posible nueva agua**, apoyado en agua permanente JRC, QA de máscaras/numberOfLooks, puntos de verificación hidrológica IDEAM y umbrales específicos validados de banda L. Un GCOV nunca se presenta como mapa de inundación automático.
 
 ## Fuentes oficiales
 
-- NASA NISAR disponibilidad: https://nisar-docs.asf.alaska.edu/availability-overview/
-- Encontrar y descargar: https://nisar-docs.asf.alaska.edu/asf-search/
-- Producto GCOV: https://nisar-docs.asf.alaska.edu/gcov/
-- Subconjuntos NISAR con Harmony: https://nisar-docs.asf.alaska.edu/harmony/
-
-**Alternativa técnica futura de menor almacenamiento:** Earthdata Harmony
-puede entregar recortes de subconjuntos del GCOV como COG sin bajar todo el
-HDF5; se deberá autenticar y validar por separado antes de reemplazar
-la descarga HDF5. La descarga íntegra de HDF5 es un primer flujo controlado,
-no la mejor estrategia definitiva para Replit.
+- [Guía ASF NISAR Harmony](https://nisar-docs.asf.alaska.edu/harmony/)
+- [Guía ASF NISAR GCOV](https://nisar-docs.asf.alaska.edu/gcov/)
+- [API harmony-py](https://harmony-py.readthedocs.io/en/main/api.html)
+- [NASA Harmony](https://harmony.earthdata.nasa.gov/docs)
