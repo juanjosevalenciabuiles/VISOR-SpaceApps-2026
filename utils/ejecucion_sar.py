@@ -71,6 +71,12 @@ def tarea_cambio_s1(par, disponibles, limites, parametros: dict, aceptar_mismo_d
     carpeta = flujo_sar.CARPETA_ANALISIS if carpeta is None else Path(carpeta)
 
     def funcion(ctx: trabajos.Contexto) -> None:
+        # Segunda barrera: una llamada directa a un trabajo no salta el Modo Colombia.
+        from utils import colombia
+        try:
+            colombia.validar_aoi(limites)
+        except colombia.FueraDeColombia as exc:
+            raise ErrorSAR(str(exc)) from None
         ctx.fase("datos", trabajos.EN_CURSO, "Abriendo los RTC del par")
         completas = [d for d in disponibles if d.completa]
         if not completas:
