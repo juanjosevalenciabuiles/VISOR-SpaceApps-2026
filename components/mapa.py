@@ -25,6 +25,7 @@ from streamlit_folium import st_folium
 from components.barra_lateral import Controles
 from utils import geo
 from utils.capas_contexto import CAPAS_CONTEXTO, recortar
+from utils import alcance_geografico
 from utils.config import MAPA_CENTRO, MAPA_ZOOM, Fenomeno
 from utils.geotiff import Capa, a_web_mercator, colorizar_capa, colorizar_categorico
 from utils.mapas_base import MapaBase, obtener, url_teselas
@@ -35,6 +36,13 @@ from utils.resultados import ResultadoSAR, _firma
 # Estilo que viaja dentro del marco del mapa. Debe ser constante: si cambiara,
 # el mapa se recrearía y se perdería la vista.
 ESTILO_LIENZO = """<style id="visor-lienzo">
+.visor-rotulo-fuera { position: absolute; left: 10px; bottom: 58px; z-index: 800; pointer-events: none;
+  font: 600 11px/1.3 system-ui, sans-serif; color: #c9d4e0; background: rgba(2,6,12,.72);
+  border: 1px solid rgba(46,230,200,.35); border-radius: 8px; padding: 4px 8px; }
+.visor-rotulo-muestra { display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px;
+  background: #02060c; border: 1px solid #2ee6c8; border-radius: 2px; }
+@media (max-width: 600px) { .visor-rotulo-fuera { bottom: 64px; font-size: 10px; } }
+
 html, body { margin: 0; height: 100%; overflow: hidden; background: #06121e; }
 #map_div, #map_div2 { width: 100vw !important; height: 100vh !important; height: 100dvh !important; }
 .leaflet-container { background: #06121e; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
@@ -113,17 +121,57 @@ class AvisoTeselas(MacroElement):
 {% endmacro %}""")
 
 
+def vista_inicio() -> tuple[tuple[float, float], int]:
+    """Centro y zoom de partida: Colombia entera (con San Andrés) en Modo Colombia; Antioquia en GLOBAL."""
+    if alcance_geografico.restringido():
+        return alcance_geografico.VISTA_INICIAL["centro"], alcance_geografico.VISTA_INICIAL["zoom"]
+    return MAPA_CENTRO, MAPA_ZOOM
+
+
+def _modo_colombia(m: folium.Map) -> None:
+    """Velo oscuro sobre el resto del mundo y contorno de Colombia, en un panel propio por encima de
+    ríos, vías y resultados, que NO captura clics, arrastres ni dibujos (pointer-events: none)."""
+    capas = alcance_geografico.capas_dibujo()
+    if capas is None:
+        return
+    contorno, velo = capas
+    folium.map.CustomPane("visor_velo", z_index=450, pointer_events=False).add_to(m)
+    folium.GeoJson(velo, name="Fuera de Colombia", pane="visor_velo", interactive=False, control=False,
+                   style_function=lambda _: {"color": "#000000", "weight": 0, "fillColor": "#02060c",
+                                             "fillOpacity": 0.62, "interactive": False}).add_to(m)
+    # La atribución del límite (DANE, CC BY 4.0) va en la propia capa: Leaflet la muestra en su control.
+    folium.GeoJson(contorno, name="Colombia", pane="visor_velo", interactive=False, control=False,
+                   attribution=alcance_geografico.ATRIBUCION,
+                   style_function=lambda _: {"color": "#2ee6c8", "weight": 2.2, "opacity": 0.95, "fill": False,
+                                             "interactive": False}).add_to(m)
+    # Rótulo cartográfico fijo (abajo a la izquierda, sobre la escala): explica el velo sin taparlo todo.
+    m.get_root().html.add_child(folium.Element(
+        '<div class="visor-rotulo-fuera" id="rotulo-fuera"><span class="visor-rotulo-muestra"></span>'
+        f"Fuera de Colombia: {alcance_geografico.FUERA.lower()}</div>"))
+
+
 def mapa_fijo() -> folium.Map:
-    """Lienzo centrado en Antioquia, sin navegación fuera del mundo."""
+    """Lienzo fijo. En Modo Colombia: centrado en el país, paneo limitado a su extensión con margen,
+    velo exterior y contorno nacional. En GLOBAL: Antioquia y el mundo entero."""
+    centro, zoom = vista_inicio()
+    if alcance_geografico.restringido():
+        o, s, e, n = alcance_geografico.EXTENSION_NAVEGACION
+        limites = {"min_lon": o, "min_lat": s, "max_lon": e, "max_lat": n, "min_zoom": alcance_geografico.ZOOM_MINIMO}
+    else:
+        limites = {"min_zoom": 2}
     m = folium.Map(
-        location=MAPA_CENTRO,
-        zoom_start=MAPA_ZOOM,
+        location=centro,
+        zoom_start=zoom,
         tiles=None,
         control_scale=True,
-        min_zoom=2,
         max_bounds=True,
         max_bounds_viscosity=1.0,
+        **limites,
     )
+    # folium solo pasa min_zoom a las teselas por defecto (aquí no hay): se fija en el propio mapa.
+    m.options["min_zoom"] = limites["min_zoom"]
+    if alcance_geografico.restringido():
+        _modo_colombia(m)
     m.get_root().header.add_child(folium.Element(ESTILO_LIENZO), name="visor_lienzo")
     # Dibujo de la zona de análisis: solo rectángulo y polígono. Lo dibujado es un borrador;
     # no se convierte en zona hasta confirmarlo en Herramientas SAR («Usar esta zona»).
@@ -219,9 +267,9 @@ def vista_actual(vista: dict | None = None) -> tuple[tuple[float, float, float, 
     if isinstance(ultimo, dict):
         limites = limites_de_vista(ultimo.get("bounds"))
         if limites is not None and limites[0] < limites[2]:
-            return limites, float(ultimo.get("zoom") or MAPA_ZOOM)
-    centro = (vista or {}).get("centro") or list(MAPA_CENTRO)
-    zoom = float((vista or {}).get("zoom") or MAPA_ZOOM)
+            return limites, float(ultimo.get("zoom") or vista_inicio()[1])
+    centro = (vista or {}).get("centro") or list(vista_inicio()[0])
+    zoom = float((vista or {}).get("zoom") or vista_inicio()[1])
     lado = 360 / 2 ** zoom * 3
     return (centro[1] - lado, centro[0] - lado / 2, centro[1] + lado, centro[0] + lado / 2), zoom
 

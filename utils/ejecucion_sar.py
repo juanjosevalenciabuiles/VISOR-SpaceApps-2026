@@ -19,7 +19,7 @@ import json
 import shutil
 from pathlib import Path
 
-from utils import flujo_sar, procesadores, trabajos
+from utils import alcance_geografico, flujo_sar, procesadores, trabajos
 from utils.analisis_sar import ErrorSAR
 from utils.resultados import leer_resultado
 
@@ -71,6 +71,12 @@ def tarea_cambio_s1(par, disponibles, limites, parametros: dict, aceptar_mismo_d
     carpeta = flujo_sar.CARPETA_ANALISIS if carpeta is None else Path(carpeta)
 
     def funcion(ctx: trabajos.Contexto) -> None:
+        ctx.fase("datos", trabajos.EN_CURSO, "Comprobando el alcance geográfico")
+        try:      # del lado del servidor, aunque la interfaz ya lo haya comprobado
+            alcance_geografico.validar_limites(limites)
+        except alcance_geografico.FueraDeAlcance as e:
+            ctx.fase("datos", trabajos.BLOQUEADO, "Zona fuera del territorio habilitado")
+            raise ErrorSAR(str(e)) from None
         ctx.fase("datos", trabajos.EN_CURSO, "Abriendo los RTC del par")
         completas = [d for d in disponibles if d.completa]
         if not completas:

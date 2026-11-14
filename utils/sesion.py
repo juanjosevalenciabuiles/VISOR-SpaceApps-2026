@@ -75,6 +75,12 @@ def validar_zona(limites) -> tuple[float, float, float, float]:
             f"La zona mide {ancho:.0f} × {alto:.0f} km: a 30 m serían unos {px / 1e6:.0f} millones de píxeles y el "
             f"motor admite {MAX_PIXELES / 1e6:.0f} millones. Reduce la zona (por ejemplo a menos de "
             f"{math.sqrt(MAX_PIXELES) * RESOLUCION_ESTIMADA_M / 1000:.0f} km por lado) antes de analizar.")
+    # Modo Colombia: el rectángulo que procesará el motor debe estar entero dentro del país.
+    from utils import alcance_geografico
+    try:
+        alcance_geografico.validar_limites(zona)
+    except alcance_geografico.FueraDeAlcance as e:
+        raise ErrorZona(str(e)) from None
     return zona
 
 

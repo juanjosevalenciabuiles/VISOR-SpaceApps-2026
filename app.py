@@ -9,7 +9,7 @@ import streamlit as st
 from components import estilos, flujo, interfaz, mapa
 from components import herramientas_sar as herramientas
 from components import resultados as ui_resultados
-from utils import diagnostico
+from utils import alcance_geografico, diagnostico
 from utils.config import FENOMENOS
 from utils.geotiff import ErrorCapa, cargar_capa
 from utils.resultados import cargar_resultados
@@ -26,7 +26,8 @@ interfaz.inicializar_estado()
 # 1. Inventario de data/analisis/ (solo para el historial) y resultado autorizado para esta ejecución.
 #    Que un archivo exista NO lo pone en el mapa: solo se dibuja el resultado activo de la sesión,
 #    y se retira si la zona, el par o los parámetros ya no son los suyos.
-resultados = cargar_resultados()
+resultados, fuera_de_alcance = alcance_geografico.filtrar_resultados(cargar_resultados())
+st.session_state["resultados_fuera_de_alcance"] = fuera_de_alcance
 activo = flujo.sincronizar(resultados)
 # Comprobación ligera de servicios externos, una vez cada 15 min por proceso y sin bloquear la vista.
 diagnostico.comprobar_en_segundo_plano()

@@ -598,6 +598,26 @@ class ResultadoAnalisis:
         return self.procedencia["avisos"]
 
 
+def comprobar_alcance(cuad: Cuadricula) -> None:
+    """Modo Colombia (utils/alcance_geografico): el rectángulo que se va a procesar —la cuadrícula en su
+    CRS, transformada a longitud/latitud con densificación— debe estar entero en Colombia. Se comprueba
+    antes de leer ningún píxel; no recorta ni altera la ciencia."""
+    from rasterio.warp import transform_geom
+    from shapely.geometry import box as caja
+    from shapely.geometry import mapping, shape
+
+    from utils import alcance_geografico
+    if not alcance_geografico.restringido():
+        return
+    rect = caja(*cuad.limites)
+    densa = rect.segmentize(max(rect.bounds[2] - rect.bounds[0], rect.bounds[3] - rect.bounds[1]) / 20)
+    zona = shape(transform_geom(cuad.crs, "EPSG:4326", mapping(densa)))
+    try:
+        alcance_geografico.validar_geometria(zona, "La zona que se procesaría")
+    except alcance_geografico.FueraDeAlcance as e:
+        raise ErrorSAR(str(e)) from None
+
+
 def analizar_par(
     ruta_antes: str | Path,
     ruta_despues: str | Path,
@@ -629,6 +649,7 @@ def analizar_par(
     despues = describir_escena(ruta_despues, polarizacion, fecha_despues, escala)
     avisos = validar_par(antes, despues)
     cuad = cuadricula_comun(antes, despues, aoi, max_pixeles)
+    comprobar_alcance(cuad)
 
     datos_antes, metodo_antes = leer_en_cuadricula(antes, cuad)
     datos_despues, metodo_despues = leer_en_cuadricula(despues, cuad)

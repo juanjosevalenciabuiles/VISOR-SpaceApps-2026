@@ -26,6 +26,8 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 
+from utils import alcance_geografico
+
 AGENTE = "VISOR-SpaceApps-2026 (https://github.com/juanjosevalenciabuiles/VISOR-SpaceApps-2026)"
 TIEMPO_LIMITE_S = 8
 ESPERA_MINIMA_S = 1.1
@@ -80,6 +82,8 @@ CATALOGO: tuple[Lugar, ...] = tuple(Lugar(n, r, _CO, la, lo, z) for n, r, la, lo
     ("San José del Guaviare", "Guaviare", 2.57, -72.64, 11), ("Mitú", "Vaupés", 1.25, -70.23, 11),
     ("Puerto Carreño", "Vichada", 6.19, -67.49, 11), ("Inírida", "Guainía", 3.87, -67.92, 11),
     ("San Andrés", "San Andrés y Providencia", 12.58, -81.70, 12),
+    ("Providencia", "San Andrés y Providencia", 13.35, -81.37, 13),
+    ("Santa Catalina", "San Andrés y Providencia", 13.39, -81.375, 14),
 )) + tuple(Lugar(n, r, p, la, lo, z, LOCAL, tuple(a.split("|"))) for n, r, p, la, lo, z, a in (
     # Ciudades principales del mundo: (nombre, región, país, lat, lon, zoom, alias separados por «|»)
     ("Ciudad de Panamá", "Panamá", "Panamá", 8.98, -79.52, 11, "Panama City|Panama"),
@@ -171,17 +175,28 @@ def normalizar(texto: str) -> str:
     return " ".join(sin_tildes.lower().replace(",", " ").split())
 
 
-def buscar_local(texto: str) -> list[Lugar]:
-    """Coincidencias del catálogo. «Rionegro» devuelve los dos; «Rionegro, Antioquia», uno."""
+def en_alcance(lugar: Lugar) -> bool:
+    """El lugar se puede ofrecer en el modo actual (en Modo Colombia: punto dentro de la geometría)."""
+    return alcance_geografico.contiene_punto(lugar.latitud, lugar.longitud, alcance_geografico.TOLERANCIA_LUGAR_KM)
+
+
+def buscar_local(texto: str, todos: bool = False) -> list[Lugar]:
+    """Coincidencias del catálogo. «Rionegro» devuelve los dos; «Rionegro, Antioquia», uno.
+
+    En Modo Colombia solo lugares dentro del país, salvo `todos=True` (para explicar un rechazo)."""
     consulta = normalizar(texto)
     if len(consulta) < 2:
         return []
     palabras = consulta.split()
     puntuados = []
     for lugar in CATALOGO:
+        if not todos and not en_alcance(lugar):
+            continue
         nombre = normalizar(lugar.nombre)
         completo = normalizar(" ".join((lugar.etiqueta, *lugar.alias)))
-        if not all(p in completo for p in palabras):
+        # Cada palabra buscada debe ser el COMIENZO de una palabra del lugar («lima» no coincide con «Tolima»).
+        palabras_lugar = completo.split()
+        if not all(any(w.startswith(p) for w in palabras_lugar) for p in palabras):
             continue
         # Primero el nombre exacto, luego el que empieza igual, luego el resto.
         nombres = [nombre, *(normalizar(a) for a in lugar.alias)]
@@ -245,10 +260,13 @@ def buscar_en_linea(texto: str, abrir=None) -> list[Lugar]:
     if base is None:
         raise ErrorLugares("No hay un geocodificador en línea configurado.")
     consulta = normalizar(texto)
-    if consulta in _cache:
-        return _cache[consulta]
+    clave_cache = f"{alcance_geografico.modo()}|{consulta}"
+    if clave_cache in _cache:
+        return _cache[clave_cache]
     parametros = {"q": texto.strip(), "format": "jsonv2", "limit": str(MAX_RESULTADOS), "addressdetails": "1",
                   "accept-language": "es"}
+    if alcance_geografico.restringido():
+        parametros["countrycodes"] = "co"      # Modo Colombia: el geocodificador solo busca en el país
     clave = os.environ.get("VISOR_GEOCODIFICADOR_CLAVE", "").strip()
     if clave:
         parametros["key"] = clave
@@ -271,17 +289,41 @@ def buscar_en_linea(texto: str, abrir=None) -> list[Lugar]:
         raise ErrorLugares("No se pudo conectar con el geocodificador en línea (sin red o tardó demasiado).") from None
     except ValueError:
         raise ErrorLugares("El geocodificador en línea devolvió una respuesta que no se entiende.") from None
-    _cache[consulta] = interpretar(datos)
-    return _cache[consulta]
+    _cache[clave_cache] = interpretar(datos)
+    return _cache[clave_cache]
+
+
+FUERA_DE_COLOMBIA = ("«{consulta}» no está en Colombia. En esta versión V.I.S.O.R. solo permite explorar y analizar "
+                     "el territorio colombiano (continental e insular): busca un municipio o lugar del país.")
+
+
+def _en_alcance(texto: str, encontrados: list[Lugar], fuente: str, aviso: str | None):
+    """Comprobación final contra la geometría (no contra el texto del país) y aviso amistoso si todo
+    lo encontrado estaba fuera de Colombia."""
+    if not alcance_geografico.restringido():
+        return encontrados, fuente, aviso
+    try:
+        dentro = [l for l in encontrados if en_alcance(l)]
+    except alcance_geografico.FueraDeAlcance as e:          # sin límite nacional no se ofrece ningún lugar
+        return [], fuente, str(e)
+    fuera = len(encontrados) - len(dentro)
+    if not dentro and (fuera or buscar_local(texto, todos=True)):
+        return [], fuente, FUERA_DE_COLOMBIA.format(consulta=texto.strip())
+    return dentro, fuente, aviso
 
 
 def buscar(texto: str, abrir=None) -> tuple[list[Lugar], str, str | None]:
     """(lugares, fuente que respondió, aviso). Nunca inventa un lugar: sin coincidencias, lista vacía."""
     if len(normalizar(texto)) < 2:
         return [], LOCAL, "Escribe al menos dos letras del nombre del lugar."
+    if alcance_geografico.restringido() and not alcance_geografico.limite_disponible():
+        try:
+            alcance_geografico.geometria()
+        except alcance_geografico.FueraDeAlcance as e:
+            return [], LOCAL, str(e)
     if proveedor() is not None:
         try:
-            return buscar_en_linea(texto, abrir), EN_LINEA, None
+            return _en_alcance(texto, buscar_en_linea(texto, abrir), EN_LINEA, None)
         except ErrorLugares as e:
-            return buscar_local(texto), LOCAL, f"{e} Se usó el catálogo local."
-    return buscar_local(texto), LOCAL, None
+            return _en_alcance(texto, buscar_local(texto), LOCAL, f"{e} Se usó el catálogo local.")
+    return _en_alcance(texto, buscar_local(texto), LOCAL, None)

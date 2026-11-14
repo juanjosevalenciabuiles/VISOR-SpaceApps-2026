@@ -13,7 +13,7 @@ import streamlit as st
 
 from components import flujo, leyenda
 from components.panel_info import insignia
-from utils import lugares, sesion
+from utils import alcance_geografico, lugares, sesion
 from utils import mapas_base
 from utils.capas_contexto import CAPAS_CONTEXTO, disponibles, recortar
 from utils.config import FENOMENOS, Fenomeno, carto_estado
@@ -76,8 +76,13 @@ def _ir_a_lugar(lugar, ir_a) -> None:
 def buscador_lugar(ir_a, abrir_zona=None) -> None:
     """«¿Qué lugar quieres analizar?»: busca por nombre y lleva el mapa allí."""
     st.caption("¿QUÉ LUGAR QUIERES ANALIZAR?")
-    st.text_input("Lugar", key="lugar_texto", placeholder="Ciudad, municipio o lugar · ej.: Chigorodó, Nairobi, Tokio",
-                  label_visibility="collapsed")
+    if alcance_geografico.restringido():       # aviso de alcance (PR #10) sobre la política única
+        st.caption("🇨🇴 MODO COLOMBIA · búsqueda y análisis limitados al país. "
+                   "Contorno: DANE MGN 2025; datos derivados por ytolosa/mapas-colombia, CC BY 4.0.")
+    st.text_input("Lugar", key="lugar_texto", label_visibility="collapsed",
+                  placeholder=("Buscar municipio o lugar en Colombia · ej.: Chigorodó, Rionegro, San Andrés"
+                               if alcance_geografico.restringido() else
+                               "Ciudad, municipio o lugar · ej.: Chigorodó, Nairobi, Tokio"))
     st.button("Buscar", key="lugar_buscar", icon=":material/search:", type="primary", on_click=_buscar_lugar,
               args=(ir_a,))
     hallazgo = st.session_state.get("lugares_encontrados")
@@ -87,8 +92,9 @@ def buscador_lugar(ir_a, abrir_zona=None) -> None:
             st.markdown(f'<div class="mc-aviso">{escape(hallazgo["aviso"])}</div>', unsafe_allow_html=True)
         if not encontrados and not hallazgo.get("aviso"):
             alcance = ("" if hallazgo["fuente"] == lugares.EN_LINEA else
-                       " Sin geocodificador en línea solo se buscan las ciudades del catálogo local (capitales de "
-                       "Colombia, Urabá y ciudades principales del mundo).")
+                       " Sin geocodificador en línea solo se buscan los lugares del catálogo local (capitales de "
+                       "departamento, Urabá y San Andrés y Providencia" +
+                       (")." if alcance_geografico.restringido() else " y ciudades principales del mundo)."))
             st.markdown(f'<div class="mc-aviso">No se encontró «{escape(hallazgo["consulta"])}».{alcance} '
                         "Puedes mover el mapa a mano y dibujar la zona.</div>", unsafe_allow_html=True)
         elif len(encontrados) > 1:
@@ -147,6 +153,11 @@ def _controles_resultados(resultados: list, centrar=None, activo=None) -> dict[s
                     "análisis nuevo.</div>", unsafe_allow_html=True)
         if not dibujables:
             st.markdown('<div class="visor-leyenda-nota">Todavía no hay resultados guardados.</div>',
+                        unsafe_allow_html=True)
+        if st.session_state.get("resultados_fuera_de_alcance"):
+            st.markdown(f'<div class="visor-leyenda-nota" id="historial-fuera">'
+                        f'{st.session_state["resultados_fuera_de_alcance"]} resultado(s) guardado(s) de zonas fuera de '
+                        "Colombia no se muestran en esta versión (los archivos no se tocan).</div>",
                         unsafe_allow_html=True)
         for res in dibujables:
             st.markdown(f'<div class="mc-resultado">{insignia(res.capa.procedencia)}'
