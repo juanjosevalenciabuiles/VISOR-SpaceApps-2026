@@ -23,7 +23,7 @@ from folium.template import Template
 from streamlit_folium import st_folium
 
 from components.barra_lateral import Controles
-from utils import geo
+from utils import geo, colombia
 from utils.capas_contexto import CAPAS_CONTEXTO, recortar
 from utils.config import MAPA_CENTRO, MAPA_ZOOM, Fenomeno
 from utils.geotiff import Capa, a_web_mercator, colorizar_capa, colorizar_categorico
@@ -237,11 +237,30 @@ def _grupo_rectangulo(gdf, nombre: str, estilo: dict) -> folium.FeatureGroup:
     return grupo
 
 
+def grupo_restriccion_colombia() -> folium.FeatureGroup:
+    """Oscurece el exterior con polígonos REALES; no concede permisos de proceso."""
+    grupo = folium.FeatureGroup(name="Colombia · territorio habilitado", control=False)
+    folium.GeoJson(
+        colombia.mascara_exterior(), name="Exterior deshabilitado",
+        style_function=lambda _: {"color": "#142c38", "weight": 0,
+                                  "fillColor": "#081420", "fillOpacity": 0.80},
+    ).add_to(grupo)
+    folium.GeoJson(
+        colombia.contorno_visual(), name="Límite de Colombia",
+        style_function=lambda _: {"color": "#48e1c8", "weight": 2.5,
+                                  "fill": False, "opacity": 1},
+        tooltip="Colombia · zona de estudio habilitada",
+    ).add_to(grupo)
+    return grupo
+
+
 def construir_capas(
     fenomeno: Fenomeno, capa: Capa | None, c: Controles, resultados: list[ResultadoSAR] | tuple = ()
 ) -> list[folium.FeatureGroup]:
     """Grupos de capas activos, de abajo hacia arriba."""
     grupos = [grupo_mapa_base(obtener(c.mapa_base))]
+    if colombia.modo() == "CO":
+        grupos.append(grupo_restriccion_colombia())
 
     if capa is not None and c.mostrar_capa:
         grupos.append(grupo_sar(fenomeno, capa, c.opacidad))
