@@ -16,6 +16,7 @@ fija a pantalla completa desde assets/mission_control.css.
 """
 
 import folium
+import numpy as np
 import streamlit as st
 from folium import MacroElement
 from folium.plugins import Draw, Fullscreen
@@ -215,6 +216,18 @@ def grupo_sar(fenomeno: Fenomeno, capa: Capa, opacidad: float) -> folium.Feature
     return grupo
 
 
+def realzar_alpha_delta(rgba: np.ndarray) -> np.ndarray:
+    """Hace perceptible el ΔdB en Leaflet sin tocar valores ni pintar NoData.
+
+    La rampa de color y sus límites ±10 dB no cambian; solo se refuerza la
+    opacidad de píxeles YA válidos para que no desaparezcan sobre las teselas.
+    """
+    imagen = rgba.copy()
+    validos = imagen[..., 3] > 0
+    imagen[..., 3][validos] = np.maximum(imagen[..., 3][validos], 192)
+    return imagen
+
+
 @st.cache_data(show_spinner=False, max_entries=16)
 def imagen_resultado(ruta: str, firma: tuple, perfil: str, _res: ResultadoSAR) -> str:
     """PNG (data URL) de un resultado. Colorear y codificar ~1000×1000 px cuesta ~60 ms y se
@@ -223,6 +236,18 @@ def imagen_resultado(ruta: str, firma: tuple, perfil: str, _res: ResultadoSAR) -
     oeste, sur, este, norte = _res.capa.limites
     rgba = (colorizar_diferencia(_res.capa.datos) if _res.perfil.continuo
             else colorizar_categorico(_res.capa.datos, _res.perfil.clases))
+    if _res.perfil.continuo:
+        rgba = realzar_alpha_delta(rgba)
+    # Mostrar los píxeles reales terrestres aunque su huella bounding-box
+    # cruza la costa. Recorte SOLO visual; las matrices y estadísticas siguen
+    # siendo las originales, sin reinterpretar mar ni zonas extranjeras.
+    if (alcance_geografico.restringido()
+            and _res.capa.procedencia is not None
+            and _res.capa.procedencia.es_real
+            and not alcance_geografico.admitida(_res.capa.limites)):
+        dentro = alcance_geografico.mascara_pixeles_colombia(_res.capa)
+        if dentro is not None:
+            rgba[~dentro, 3] = 0
     return image_to_url(a_web_mercator(rgba, sur, norte))
 
 

@@ -16,7 +16,7 @@ import numpy as np
 import streamlit as st
 from streamlit_folium import st_folium
 
-from utils import alcance_geografico, trabajos
+from utils import alcance_geografico, sesion, trabajos
 from utils.config import DATA_DIR
 from utils.geotiff import ErrorCapa, a_web_mercator, colorizar, leer_geotiff
 from utils.resultados import cargar_resultados, leer_resultado
@@ -138,6 +138,32 @@ def _mostrar_tomas(job_id: str, tomas: list[dict]) -> None:
                "y superar las máscaras y looks originales. Esas comprobaciones se hacen en el cálculo.")
 
 
+def abrir_resultado_en_mapa_principal(res, origen: str) -> None:
+    """Activa un resultado REAL en el mapa principal, nunca solo en una vista aislada.
+
+    Se retira la AOI de otra sesión para no atribuirle erróneamente estos píxeles.
+    No escribe ni descarga nada: conserva el GeoTIFF y su ficha original.
+    """
+    if not res.dibujable or not res.capa or not res.capa.procedencia.es_real:
+        raise ValueError("Solo se pueden exhibir GeoTIFF con procedencia satelital real.")
+    permitidos, _ = alcance_geografico.filtrar_resultados([res])
+    if not permitidos:
+        raise ValueError("El producto no tiene píxeles válidos dentro de Colombia.")
+    from components import flujo, interfaz
+
+    flujo.quitar_zona()
+    st.session_state["lugar"] = None
+    st.session_state["capa_sar"] = False  # nunca confundir una capa DEMO con el producto real
+    flujo.activar(res.id, origen)
+    st.session_state.update(
+        visor_modo_muestra_real=False,
+        ui_explorador=True,
+        ui_info=True,
+        ui_sar="cerrado",
+    )
+    interfaz.centrar_en(res.capa.limites)
+
+
 def _mostrar_delta(trabajo: dict, parent_id: str) -> None:
     st.markdown("#### GeoTIFF de diferencia real (ΔdB)")
     if trabajo["estado"] in trabajos.ACTIVOS:
@@ -157,6 +183,21 @@ def _mostrar_delta(trabajo: dict, parent_id: str) -> None:
                 return
             st.success("GeoTIFF verdadero generado: " + ruta.name)
             st.caption("Cambio de retrodispersión entre dos fechas, no inundación confirmada.")
+            autorizados, _ = alcance_geografico.filtrar_resultados([res])
+            if autorizados:
+                st.button(
+                    "Ver este GeoTIFF en el mapa principal de V.I.S.O.R.",
+                    key="visor_abrir_delta_mapa_" + parent_id,
+                    type="primary",
+                    use_container_width=True,
+                    on_click=abrir_resultado_en_mapa_principal,
+                    args=(res, sesion.ANALISIS),
+                )
+            else:
+                st.warning("Este GeoTIFF no tiene píxeles válidos comprobables dentro de Colombia; "
+                           "no se puede presentar como resultado del territorio.")
+            st.caption("Solo para contraste: el mapa inferior muestra el mismo archivo real. "
+                       "En el mapa principal aparecen el control de opacidad y la leyenda ΔdB.")
             from components.mapa import grupo_resultado
             # Reutilizar exactamente los colores y la leyenda del mapa principal.
             m = folium.Map(location=[(res.capa.limites[1]+res.capa.limites[3])/2,
@@ -194,6 +235,14 @@ def _resultados_ya_existentes():
                " · fechas: " + " / ".join(map(str, fuente.get("fechas") or [])))
     st.caption("Estado: " + res.capa.procedencia.etiqueta +
                ". Producto guardado previamente, sin procesamiento nuevo.")
+    st.button(
+        "Abrir este resultado real en el mapa principal",
+        key="visor_abrir_previo_mapa_" + res.id,
+        type="primary",
+        use_container_width=True,
+        on_click=abrir_resultado_en_mapa_principal,
+        args=(res, sesion.HISTORICO),
+    )
     from components.mapa import grupo_resultado
     o, s, e, n = res.capa.limites
     m = folium.Map(location=[(s+n)/2, (o+e)/2], tiles="OpenStreetMap", zoom_start=10)

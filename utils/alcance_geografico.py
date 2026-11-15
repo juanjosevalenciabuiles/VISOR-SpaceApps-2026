@@ -23,6 +23,10 @@ import gzip
 import json
 import os
 from functools import lru_cache
+
+import numpy as np
+from rasterio.features import geometry_mask
+from rasterio.transform import from_bounds
 from pathlib import Path
 
 from shapely import prepare
@@ -173,6 +177,27 @@ def ficha_fuente() -> dict:
         return {}
 
 
+def mascara_pixeles_colombia(capa):
+    """Máscara VISUAL para un producto real que cruza la costa/frontera.
+
+    True = centro de píxel dentro del territorio colombiano. No edita GeoTIFFs,
+    no rellena NoData y no modifica las restricciones para AOI nuevas.
+    Devuelve None si la cobertura completa ya está admitida o el modo es global.
+    """
+    if not restringido() or admitida(capa.limites):
+        return None
+    datos = capa.datos
+    if datos.ndim != 2:
+        raise FueraDeAlcance("El ráster no tiene una banda bidimensional.")
+    oeste, sur, este, norte = (float(x) for x in capa.limites)
+    return geometry_mask(
+        [mapping(geometria())],
+        out_shape=datos.shape,
+        transform=from_bounds(oeste, sur, este, norte, datos.shape[1], datos.shape[0]),
+        invert=True,
+    )
+
+
 def filtrar_resultados(resultados: list) -> tuple[list, int]:
     """(resultados que se pueden mostrar, cuántos se ocultan por estar fuera de Colombia).
 
@@ -184,7 +209,21 @@ def filtrar_resultados(resultados: list) -> tuple[list, int]:
     for r in resultados:
         capa = getattr(r, "capa", None)
         if capa is not None and not admitida(capa.limites):
-            ocultos += 1
-            continue
+            # Una huella real puede incluir mar sin que sus píxeles terrestres
+            # deban desaparecer del visor. No permitir DEMO, fichas inválidas
+            # ni un ráster sin píxeles aptos sobre Colombia.
+            if not getattr(getattr(capa, "procedencia", None), "es_real", False):
+                ocultos += 1
+                continue
+            try:
+                dentro = mascara_pixeles_colombia(capa)
+                aptos = (~np.ma.getmaskarray(capa.datos)
+                         & np.isfinite(np.ma.getdata(capa.datos)))
+                if dentro is None or not bool(np.any(dentro & aptos)):
+                    ocultos += 1
+                    continue
+            except (FueraDeAlcance, OSError, ValueError, TypeError, AttributeError):
+                ocultos += 1
+                continue
         visibles.append(r)
     return visibles, ocultos
