@@ -1,5 +1,5 @@
 """La línea de tiempo nunca inventa imágenes ni dates intermedias (fixtures sintéticos)."""
-from datetime import date
+from datetime import date, datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -113,3 +113,14 @@ def test_seleccion_explicita_ausente_no_sustituye_producto():
 def test_catalogo_temporal_no_muestra_productos_con_periodo_invalido(inicio, fin):
     producto = _res("n", "NISAR", ["2026-10-22", "2026-11-03"])
     assert crono.productos_disponibles([producto], ZONA, inicio, fin) == []
+
+
+@pytest.mark.parametrize("valor", [
+    datetime(2026, 10, 22, 12, 30),
+    datetime(2026, 10, 22, 12, 30, tzinfo=timezone.utc),
+])
+def test_datetime_no_se_acepta_como_fecha_de_usuario(valor):
+    """Un instante con hora no debe compararse como si fuera un día civil."""
+    producto = _res("n", "NISAR", ["2026-10-22", "2026-11-03"])
+    assert crono.productos_disponibles([producto], ZONA, valor, date(2026, 11, 4)) == []
+    assert crono.capas_visibles([producto], ZONA, valor, date(2026, 11, 4), "NISAR") == {}
