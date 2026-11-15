@@ -101,7 +101,12 @@ def _mostrar_trabajo(job_id: str):
     st.markdown(f"**Estado de preparación:** {t['estado']}")
     for f in t.get("fases") or []:
         if f["estado"] != trabajos.PENDIENTE:
-            st.caption(f"{f['nombre']}: {f['estado']} · {f.get('detalle') or ''}")
+            # La cola genérica dice «Resultado publicado», pero aquí solo se publica
+            # el manifiesto de INSUMOS, no una capa ambiental dibujable.
+            if f["clave"] == "listo" and t["estado"] == trabajos.APTO:
+                st.caption("Preparación terminada: APTO · Insumos NISAR guardados, sin clasificación de agua")
+            else:
+                st.caption(f"{f['nombre']}: {f['estado']} · {f.get('detalle') or ''}")
     if t["estado"] in trabajos.ACTIVOS:
         st.info("Preparando las capas NISAR solicitadas; puedes continuar explorando el mapa.")
         if st.button("Solicitar cancelación", key="nisar_cancelar"):
