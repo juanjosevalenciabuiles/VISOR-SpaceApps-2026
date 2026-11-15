@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 
 from shapely import STRtree
-from shapely.geometry import box, mapping, shape
+from shapely.geometry import Point, box, mapping, shape
 
 from utils import alcance_geografico, capas_contexto
 
@@ -93,6 +93,26 @@ def municipios(geometria) -> list[Municipio]:
             salida.append(Municipio(_titulo(p["mpio_nombre"]), _titulo(p["dpto_nombre"]), p["divipola_mun"],
                                     round(fraccion, 4)))
     return sorted(salida, key=lambda m: -m.fraccion)
+
+
+
+def municipio_en_punto(longitud: float, latitud: float) -> Municipio | None:
+    """Municipio que CONTIENE un punto WGS84, sin asignarle fracción de un área.
+
+    Se utiliza solo para identificar el lugar que buscó la persona. La zona de análisis
+    puede atravesar otros municipios; sus porcentajes se siguen calculando por separado.
+    """
+    punto = Point(longitud, latitud)
+    if punto.is_empty or not punto.is_valid:
+        return None
+    arbol, geoms, props = _municipios()
+    hallados = []
+    for i in arbol.query(punto, predicate="intersects"):
+        if geoms[i].covers(punto):
+            p = props[i]
+            hallados.append(Municipio(_titulo(p["mpio_nombre"]), _titulo(p["dpto_nombre"]),
+                                      p["divipola_mun"], 0.0))
+    return sorted(hallados, key=lambda m: m.divipola)[0] if hallados else None
 
 
 def area_km2(geometria) -> float:
