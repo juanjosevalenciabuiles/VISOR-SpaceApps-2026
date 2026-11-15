@@ -74,7 +74,7 @@ def escenas_preparadas(manifiesto: dict) -> list[dict]:
     if madurez != "VALIDATED":
         raise QAInsuficiente("SIN_QA: fuente no validada por este pipeline")
     meta = []
-    for escena, nombre in zip(escenas, nombres):
+    for escena, nombre in zip(escenas, nombres, strict=True):
         carpeta = _ruta_segura(HARMONY, escena.get("carpeta_relativa"))
         declarados = escena.get("archivos") or []
         requeridos = [f"{termino}.tif", *ARCHIVOS_QA]
