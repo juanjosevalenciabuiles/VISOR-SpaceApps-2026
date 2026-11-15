@@ -43,3 +43,7 @@ Se añadieron regresiones sintéticas para cobertura completa y códigos descono
 Se añadieron cinco casos sintéticos sin red en `tests/v10_sentinel/test_wtr_aoi.py`. No se han ejecutado localmente: verificar CI del commit nuevo. CI de `2039517`: workflow `Pruebas` run 43708383566 terminó `failure`; no se ha comprobado el desglose de jobs. La base V9 `feature/v9-integracion-pc-nisar` permanece en `8ff1dcd` al comparar, sin reconciliación requerida en esta ejecución.
 
 **Límite:** la máscara debe generarse por rasterización georreferenciada de la geometría AOI en la misma cuadrícula; esta función no rasteriza geometrías, no verifica cobertura real de teselas ni crea GeoTIFF. No hay observaciones ni inundaciones confirmadas.
+
+## CMR — metadatos únicamente
+
+`cmr.consultar_cmr(bbox, inicio_utc, fin_utc)` se invoca solo tras «Buscar y analizar cambios» y devuelve `METADATOS_SIN_QA` o `SIN_DATOS`. Los enlaces de CMR son **candidatos**, no WTR/CONF autenticados ni píxeles QA. No alimentar directamente `planificar()` con estos registros: primero verificar assets, cobertura, linaje y presupuesto de ventanas. No hay mapa real generado. Pruebas sintéticas: `tests/v10_sentinel/test_cmr.py` (ejecución pendiente CI).
