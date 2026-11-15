@@ -6,7 +6,7 @@ from types import SimpleNamespace as NS
 import pytest
 
 from components import v9_experiencia as ui
-from utils import nisar_auto, nisar_harmony as harmony, v9_nisar_puente as puente
+from utils import nisar_auto, nisar_harmony as harmony
 
 
 AOI = (-76.83, 7.50, -76.45, 7.90)
