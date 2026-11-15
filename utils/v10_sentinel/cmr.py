@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit, parse_qsl, urlunsplit
 from urllib.request import Request, urlopen
 
 CMR_URL = "https://cmr.earthdata.nasa.gov/search/granules.json"
@@ -29,14 +29,14 @@ def parametros_cmr(aoi_bbox: tuple[float, float, float, float], inicio: str, fin
     return CMR_URL + "?" + urlencode(args)
 
 
-def extraer_granulos(payload: dict) -> list[dict]:
+def extraer_granulos(payload: dict, *, pagina_final: bool = True) -> list[dict]:
     """Extrae linaje y enlaces candidatos, sin inventar WTR/CONF ni QA."""
     entries = payload.get("feed", {}).get("entry", [])
     if not isinstance(entries, list):
         raise ValueError("Respuesta CMR inválida")
     # CMR page_size=100: una página llena no demuestra que el catálogo esté completo.
     # Nunca seleccionar pre/post sobre un conjunto potencialmente truncado.
-    if len(entries) >= 100:
+    if pagina_final and len(entries) >= 100:
         raise ValueError("CMR_PAGINACION_PENDIENTE: página completa de 100 granulos")
     salida = []
     for item in entries:
@@ -65,15 +65,37 @@ def consultar_cmr(aoi_bbox: tuple[float, float, float, float], inicio: str, fin:
     """Solo tras acción explícita del usuario. Fallo de red => SIN_DATOS, nunca mapa."""
     url = parametros_cmr(aoi_bbox, inicio, fin)
     try:
-        request = Request(url, headers={"Accept": "application/json", "User-Agent": "VISOR-metadata/1"})
-        with urlopen(request, timeout=timeout) as response:
-            if response.status != 200:
-                raise OSError("CMR HTTP no exitoso")
-            # Limitar respuesta: no leer payloads sin cota.
-            raw = response.read(2_000_001)
-            if len(raw) > 2_000_000:
-                raise ValueError("Respuesta CMR excede presupuesto de metadatos")
-        items = extraer_granulos(json.loads(raw))
+        # Paginación CMR acotada: no se permite publicar un catálogo truncado.
+        partes = urlsplit(url)
+        base = dict(parse_qsl(partes.query))
+        acumulados = []
+        ids = set()
+        for pagina in range(1, 11):
+            args = {**base, "page_num": str(pagina)}
+            pagina_url = urlunsplit((partes.scheme, partes.netloc, partes.path,
+                                     urlencode(args), ""))
+            request = Request(pagina_url, headers={
+                "Accept": "application/json", "User-Agent": "VISOR-metadata/1"})
+            with urlopen(request, timeout=timeout) as response:
+                if response.status != 200:
+                    raise OSError("CMR HTTP no exitoso")
+                raw = response.read(2_000_001)
+                if len(raw) > 2_000_000:
+                    raise ValueError("Respuesta CMR excede presupuesto")
+            payload = json.loads(raw)
+            entries = payload.get("feed", {}).get("entry")
+            if not isinstance(entries, list) or len(entries) > 100:
+                raise ValueError("CMR página inválida")
+            for item in extraer_granulos(payload, pagina_final=False):
+                if item["granule_id"] in ids:
+                    raise ValueError("CMR paginación repetida")
+                ids.add(item["granule_id"])
+                acumulados.append(item)
+            if len(entries) < 100:
+                break
+        else:
+            raise ValueError("CMR límite de 1000 registros alcanzado")
+        items = acumulados
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
         return {"estado": "SIN_DATOS", "granulos": [], "motivo": "CMR_NO_VERIFICABLE"}
     return {"estado": "METADATOS_SIN_QA" if items else "SIN_DATOS",
