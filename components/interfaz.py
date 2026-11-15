@@ -272,6 +272,13 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple 
                       type="primary")
         st.button("Herramientas SAR", key="btn_sar", help="Herramientas SAR: área, escenas, análisis y resultados", icon=":material/satellite_alt:", on_click=abrir_sar,
                   type="primary" if st.session_state["ui_sar"] == "abierto" else "secondary")
+        if st.button(
+            "Laboratorio IA", key="btn_laboratorio_ia", icon=":material/science:",
+            help="Resultados históricos de aprendizaje automático del Atrato. "
+                 "Página experimental independiente, no alerta actual.",
+            type="secondary",
+        ):
+            st.switch_page("pages/3_Laboratorio_IA.py")
         if st.button("Ayuda", key="btn_ayuda", help="Ayuda y estados de procedencia", icon=":material/help:"):
             mostrar_ayuda()
 
