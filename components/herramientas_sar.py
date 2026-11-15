@@ -512,18 +512,18 @@ def paso_analisis() -> None:
     completas = [d for d in disp if d.completa]
     t = trabajos.leer(st.session_state["trabajo_activo"]) if st.session_state.get("trabajo_activo") else None
     if not completas:
-    filas = [f"<tr><td>{d.polarizacion}</td><td>{_celda_rtc(d.antes, d.tipo_antes, d.empatados_antes)}</td>"
-             f"<td>{_celda_rtc(d.despues, d.tipo_despues, d.empatados_despues)}</td></tr>" for d in disp]
-    st.markdown('<div class="visor-seccion">Productos RTC en data/sar/</div>'
-                '<table class="mc-tabla mc-tabla-rtc"><thead><tr><th>Pol.</th><th>Antes</th><th>Después</th>'
-                f'</tr></thead><tbody>{"".join(filas)}</tbody></table>', unsafe_allow_html=True)
-    for a in avisos[:4]:
-        _nota(a)
-    for d in disp:
-        for fecha, empatados in (("antes", d.empatados_antes), ("después", d.empatados_despues)):
-            if empatados:
-                _nota(f"{d.polarizacion} {fecha}: {len(empatados)} RTC empatan para la misma escena "
-                      f"({', '.join(empatados)}). Deja solo el correcto en data/sar/.", "mc-aviso")
+r><td>{d.polarizacion}</td><td>{_celda_rtc(d.antes, d.tipo_antes, d.empatados_antes)}</td>"
+                 f"<td>{_celda_rtc(d.despues, d.tipo_despues, d.empatados_despues)}</td></tr>" for d in disp]
+        st.markdown('<div class="visor-seccion">Productos RTC en data/sar/</div>'
+                    '<table class="mc-tabla mc-tabla-rtc"><thead><tr><th>Pol.</th><th>Antes</th><th>Después</th>'
+                    f'</tr></thead><tbody>{"".join(filas)}</tbody></table>', unsafe_allow_html=True)
+        for a in avisos[:4]:
+            _nota(a)
+        for d in disp:
+            for fecha, empatados in (("antes", d.empatados_antes), ("después", d.empatados_despues)):
+                if empatados:
+                    _nota(f"{d.polarizacion} {fecha}: {len(empatados)} RTC empatan para la misma escena "
+                          f"({', '.join(empatados)}). Deja solo el correcto en data/sar/.", "mc-aviso")
         st.markdown(progreso_html(_fases_previstas(region, p, completas)), unsafe_allow_html=True)
         _nota("Imágenes encontradas, pero sus datos de análisis todavía no están disponibles aquí: faltan los "
               "productos RTC de este par en data/sar/. El catálogo entrega escenas GRD; convertirlas a RTC "
