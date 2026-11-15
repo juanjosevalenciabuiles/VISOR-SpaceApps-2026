@@ -255,12 +255,12 @@ def test_app_tema_cambia_con_el_fenomeno(app):
 
 def test_app_contraer_el_explorador_conserva_sus_valores(app):
     app.radio(key="fenomeno").set_value("deforestacion").run()
-    app.selectbox(key="mapa_base").set_value("topografico").run()
+    app.selectbox(key="dock_mapa_base").set_value("topografico").run()
     app.button(key="cerrar_explorador").click().run()
     assert not app.exception and app.session_state["ui_explorador"] is False
     assert ".st-key-panel_explorador" in textos(app)              # oculto con CSS, no eliminado
     assert app.radio(key="fenomeno").value == "deforestacion"
-    assert app.selectbox(key="mapa_base").value == "topografico"
+    assert app.selectbox(key="dock_mapa_base").value == "topografico"
     assert "--theme-rgb:100, 223, 167" in textos(app)
     app.button(key="btn_explorador").click().run()
     assert app.session_state["ui_explorador"] is True and app.radio(key="fenomeno").value == "deforestacion"

@@ -64,7 +64,7 @@ def test_lo_tecnico_va_plegado_y_el_boton_a_la_vista():
     assert 'key="sar_avanzado"' in analisis and "expanded=False" in analisis
     capas = inspect.getsource(panel_capas.render)
     assert capas.index('st.expander("Cartografía y fondo", expanded=False)') < capas.index("No disponibles aquí")
-    assert 'key="mapa_base"' in capas
+    assert 'key="dock_mapa_base"' in capas
     explorador = inspect.getsource(barra_lateral.render)
     assert "CAPAS DEL MAPA" in explorador
     assert all(len(p) <= 13 for p in interfaz.PASOS_SAR), "los nombres de los pasos caben en la pestaña"
