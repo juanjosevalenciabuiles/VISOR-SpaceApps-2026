@@ -6,6 +6,7 @@ nunca activa una capa por el mero hecho de que un archivo exista.
 from __future__ import annotations
 
 from datetime import date, datetime
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -77,6 +78,13 @@ def dentro_de_zona(resultado: Any, zona: tuple[float, float, float, float] | Non
         o, s, e, n = (float(v) for v in zona)
         a, b, c, d = (float(v) for v in limites)
     except (TypeError, ValueError):
+        return False
+    # NaN/inf y límites invertidos nunca deben pasar el filtro de cobertura.
+    if not all(math.isfinite(v) for v in (o, s, e, n, a, b, c, d)):
+        return False
+    if not (-180 <= o < e <= 180 and -90 <= s < n <= 90):
+        return False
+    if not (-180 <= a < c <= 180 and -90 <= b < d <= 90):
         return False
     area = (e - o) * (n - s)
     cubierta = max(0, min(e, c) - max(o, a)) * max(0, min(n, d) - max(s, b))

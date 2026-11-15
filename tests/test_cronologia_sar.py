@@ -69,3 +69,16 @@ def test_cobertura_parcial_insuficiente():
     r = _res("solo_esquina", "Sentinel-1", ["2026-10-22", "2026-11-02"],
              area=(-76.75, 7.5, -76.7, 7.6))
     assert not crono.dentro_de_zona(r, ZONA)
+
+
+@pytest.mark.parametrize("zona,limites", [
+    ((float("nan"), 7.5, -76.7, 7.6), ZONA),
+    (ZONA, (-76.8, 7.5, float("inf"), 7.6)),
+    ((-76.7, 7.5, -76.8, 7.6), ZONA),
+    (ZONA, (-76.7, 7.5, -76.8, 7.6)),
+    ((-181, 7.5, -180, 7.6), ZONA),
+])
+def test_aoi_invalida_no_habilita_overlays(zona, limites):
+    r = _res("n", "NISAR", ["2026-10-22", "2026-11-03"], area=limites)
+    assert not crono.dentro_de_zona(r, zona)
+    assert crono.capas_visibles([r], zona, date(2026, 10, 22), date(2026, 11, 3), "NISAR") == {}
