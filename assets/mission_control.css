@@ -531,39 +531,3 @@ a.mc-ficha-credito:hover { text-decoration: underline; }
     max-height: 30vh !important; }
 }
 
-/* Acceso directo al laboratorio: fuera del header con overflow:hidden.
-   Junto al selector de capas, sin taparlo ni tapar el mapa NISAR. */
-.st-key-acceso_laboratorio_ia {
-  position: fixed !important;
-  top: calc(var(--mc-arriba) + 2px) !important;
-  right: calc(var(--mc-lateral) + 292px) !important;
-  width: 176px !important;
-  z-index: 35 !important;
-  padding: 0 !important;
-  background: none !important;
-}
-.st-key-acceso_laboratorio_ia button {
-  width: 100% !important; min-height: 39px !important;
-  border-radius: 12px !important;
-  background: rgba(5, 27, 44, .96) !important;
-  border: 1px solid #47dfe9 !important;
-  box-shadow: 0 8px 26px rgba(0, 0, 0, .4) !important;
-  color: #eaffff !important; font-weight: 700 !important;
-  white-space: nowrap;
-}
-.st-key-acceso_laboratorio_ia button p {
-  display: block !important; font-size: .85rem !important;
-}
-@media (max-width: 980px) {
-  .st-key-acceso_laboratorio_ia {
-    top: 72px !important; right: 10px !important;
-    width: 170px !important;
-  }
-}
-@media (max-width: 540px) {
-  .st-key-acceso_laboratorio_ia {
-    top: 74px !important; right: 8px !important;
-    width: 158px !important;
-  }
-  .st-key-acceso_laboratorio_ia button p {font-size: .77rem !important;}
-}

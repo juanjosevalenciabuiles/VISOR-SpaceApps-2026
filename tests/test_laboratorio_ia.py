@@ -46,16 +46,9 @@ def test_acceso_visible_en_barra_superior_a_pagina_independiente():
     assert 'st.switch_page("pages/3_Laboratorio_IA.py")' in codigo
 
 
-def test_acceso_ia_permanece_fuera_de_barra_superior():
-    import inspect
+def test_acceso_ia_sin_tapar_controles_del_mapa():
     from components import interfaz
+    import inspect
     main = (ROOT / "app.py").read_text(encoding="utf-8")
-    css = (ROOT / "assets" / "mission_control.css").read_text(encoding="utf-8")
-    assert "interfaz.acceso_laboratorio_ia()" in main
-    codigo = inspect.getsource(interfaz.acceso_laboratorio_ia)
-    assert 'key="acceso_laboratorio_ia"' in codigo
-    assert 'key="btn_ia_flotante"' in codigo
-    assert 'st.switch_page("pages/3_Laboratorio_IA.py")' in codigo
-    assert ".st-key-acceso_laboratorio_ia" in css
-    assert "overflow: hidden" in css
+    assert "interfaz.acceso_laboratorio_ia()" not in main
     assert 'label="🧪 Abrir Laboratorio IA"' in inspect.getsource(interfaz.panel_explorador)

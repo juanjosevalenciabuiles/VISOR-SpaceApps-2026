@@ -67,7 +67,6 @@ with st.container(key="lienzo_mapa"):
 activos = [activo] if activo is not None else []
 interfaz.barra_superior(fenomeno, capa, activos, controles.mostrar_capa)
 # Acceso propio, fuera de la barra que recorta botones en pantallas pequeñas.
-interfaz.acceso_laboratorio_ia()
 interfaz.buscador()
 interfaz.panel_informacion(fenomeno, capa, error, controles, resultados)
 interfaz.herramientas_sar()
