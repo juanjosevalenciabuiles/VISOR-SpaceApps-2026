@@ -512,7 +512,7 @@ def paso_analisis() -> None:
     completas = [d for d in disp if d.completa]
     t = trabajos.leer(st.session_state["trabajo_activo"]) if st.session_state.get("trabajo_activo") else None
     if not completas:
-r><td>{d.polarizacion}</td><td>{_celda_rtc(d.antes, d.tipo_antes, d.empatados_antes)}</td>"
+        filas = [f"<tr><td>{d.polarizacion}</td><td>{_celda_rtc(d.antes, d.tipo_antes, d.empatados_antes)}</td>"
                  f"<td>{_celda_rtc(d.despues, d.tipo_despues, d.empatados_despues)}</td></tr>" for d in disp]
         st.markdown('<div class="visor-seccion">Productos RTC en data/sar/</div>'
                     '<table class="mc-tabla mc-tabla-rtc"><thead><tr><th>Pol.</th><th>Antes</th><th>Después</th>'
@@ -581,7 +581,7 @@ r><td>{d.polarizacion}</td><td>{_celda_rtc(d.antes, d.tipo_antes, d.empatados_an
     bloqueado = activo or (bool(por_dia) and not aceptar) or (previa is not None and not reanalizar)
     st.button("Analizar", key="sar_analizar", type="primary", icon=":material/play_arrow:", disabled=bloqueado,
               on_click=_pedir_analisis, help="Hay un trabajo en marcha." if activo else None)
-    # Mantener el CTA visible antes del inventario técnico, que puede ocupar varios renglones.
+    # Mostrar el CTA antes del inventario RTC extenso para que quede visible en PC.
     filas = [f"<tr><td>{d.polarizacion}</td><td>{_celda_rtc(d.antes, d.tipo_antes, d.empatados_antes)}</td>"
              f"<td>{_celda_rtc(d.despues, d.tipo_despues, d.empatados_despues)}</td></tr>" for d in disp]
     st.markdown('<div class="visor-seccion">Productos RTC en data/sar/</div>'
