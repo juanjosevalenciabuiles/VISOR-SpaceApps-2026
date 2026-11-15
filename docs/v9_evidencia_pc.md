@@ -39,3 +39,13 @@ Esto es validación defensiva de metadatos, **no** QA satelital. Las pruebas
 sintéticas. Sigue siendo obligación del integrador verificar hash, cobertura
 AOI, máscaras y fecha observacional contra los archivos reales antes de
 habilitar el visor.
+
+## Compuerta compartida de publicación (incremento IA2)
+
+`estados.describir_estado("apto", ficha=...)` ahora delega a
+`perfiles.perfil_publicable` y exige además `raster_validado is True`.
+Un indicador `apto` del backend sin QA positivo, fechas ISO coherentes,
+perfil permitido y ficha válida se presenta como `qa_insuficiente`, sin mapa.
+El integrador debe verificar hash/archivo/QA en V8; esta comprobación es
+solo de metadatos y no certifica observaciones. Test de regresión:
+`tests/v9_desktop/test_estados.py::test_apto_no_elude_compuerta_temporal_ni_qa`.
