@@ -25,6 +25,10 @@ from pathlib import Path
 
 CAP_URL = "https://harmony.earthdata.nasa.gov/capabilities?shortName=NISAR_L2_GCOV_V1"
 COLECCION = "NISAR_L2_GCOV_V1"
+COLECCIONES_AUTORIZADAS = {
+    "VALIDATED": "NISAR_L2_GCOV_V1",
+    "PROVISIONAL": "NISAR_L2_GCOV_PROVISIONAL_V1",
+}
 FRECUENCIA = "A"
 MAX_ARCHIVOS = 4
 MAX_TOTAL_BYTES = 512 * 1024**2
@@ -66,17 +70,23 @@ def _json_publico(url: str, abrir=None) -> dict:
     return datos
 
 
-def capacidades(abrir=None) -> dict:
-    """Consulta pública; no crea trabajos ni utiliza el token Earthdata."""
-    data = _json_publico(CAP_URL, abrir)
-    if data.get("shortName") != COLECCION or not re.fullmatch(r"C\d+-ASF", data.get("conceptId") or ""):
-        raise ErrorHarmony("Harmony no identifica la colección validada de NISAR en ASF.")
+def capacidades(abrir=None, madurez: str = "VALIDATED") -> dict:
+    """Capacidades Harmony de LA colección elegida; no modifica datos."""
+    madurez = madurez.upper()
+    if madurez not in COLECCIONES_AUTORIZADAS:
+        raise ErrorHarmony("Madurez NISAR no permitida por Harmony.")
+    nombre = COLECCIONES_AUTORIZADAS[madurez]
+    url = CAP_URL if madurez == "VALIDATED" else (
+        "https://harmony.earthdata.nasa.gov/capabilities?shortName=" + nombre)
+    data = _json_publico(url, abrir)
+    if data.get("shortName") != nombre or not re.fullmatch(r"C\d+-ASF", data.get("conceptId") or ""):
+        raise ErrorHarmony("Harmony no identifica la colección NISAR " + madurez + " en ASF.")
     nombres = {
         v["name"] if isinstance(v, dict) else v
         for v in (data.get("variables") or [])
         if isinstance(v, (dict, str)) and (not isinstance(v, dict) or isinstance(v.get("name"), str))
     }
-    return {"coleccion": data["conceptId"], "variables": nombres}
+    return {"coleccion": data["conceptId"], "variables": nombres, "madurez": madurez}
 
 
 def capas_necesarias(polarizaciones) -> tuple[str, ...]:
@@ -98,6 +108,11 @@ def capas_necesarias(polarizaciones) -> tuple[str, ...]:
 def especificar(candidato, bbox, caps: dict) -> Especificacion:
     """Solo capas A enumeradas por Harmony. Nunca pedir 'all'."""
     granule = candidato.granule
+    madurez = str(getattr(candidato, "madurez", "VALIDATED")).upper()
+    if madurez not in COLECCIONES_AUTORIZADAS:
+        raise ErrorHarmony("Madurez NISAR desconocida.")
+    if (caps.get("madurez", "VALIDATED") != madurez):
+        raise ErrorHarmony("Capacidades Harmony de otra madurez: no mezclar colecciones.")
     if not re.fullmatch(r"NISAR_[A-Z0-9_]{55,150}", granule):
         raise ErrorHarmony("Nombre de granule NISAR inválido.")
     o, s, e, n = tuple(float(v) for v in bbox)

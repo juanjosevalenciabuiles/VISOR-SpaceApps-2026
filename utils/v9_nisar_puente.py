@@ -69,10 +69,12 @@ def escenas_preparadas(manifiesto: dict) -> list[dict]:
     if (termino == "HHHH" and "HH" not in a.pol_a) or (termino == "VVVV" and "VV" not in a.pol_a):
         raise QAInsuficiente("SIN_PAR: polarización incompatible con granules")
     madurez = manifiesto.get("madurez") or "VALIDATED"
-    # El productor V8 legacy solo busca en la colección VALIDATED; no procesamos
-    # un manifiesto que declare otra madurez que el puente no sabe comprobar.
-    if madurez != "VALIDATED":
-        raise QAInsuficiente("SIN_QA: fuente no validada por este pipeline")
+    if madurez not in ("VALIDATED", "PROVISIONAL"):
+        raise QAInsuficiente("SIN_QA: madurez NISAR no reconocida")
+    # PROVISIONAL debe constar explícitamente en el manifiesto, nunca se infiere
+    # por el nombre del COG. El productor conserva el shortName en Harmony.
+    if madurez == "PROVISIONAL" and manifiesto.get("madurez") != "PROVISIONAL":
+        raise QAInsuficiente("SIN_QA: falta trazabilidad de la colección provisional")
     meta = []
     for escena, nombre in zip(escenas, nombres, strict=True):
         carpeta = _ruta_segura(HARMONY, escena.get("carpeta_relativa"))

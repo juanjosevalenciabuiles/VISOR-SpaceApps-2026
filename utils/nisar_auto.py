@@ -265,7 +265,13 @@ def preparar_harmony(plan: Plan, carpeta: Path | None = None, notificar=None, co
         raise ErrorAutoNISAR(str(exc)) from None
     if not os.environ.get("EARTHDATA_TOKEN", "").strip() and cliente is None:
         raise ErrorAutoNISAR("Para usar Harmony configura EARTHDATA_TOKEN en los Secrets de Replit.")
-    caps = caps if caps is not None else harmony.capacidades()
+    madureces = {str(getattr(c, "madurez", "VALIDATED")).upper() for c in plan.candidatos}
+    if len(madureces) != 1 or not madureces.issubset({"VALIDATED", "PROVISIONAL"}):
+        raise ErrorAutoNISAR("No se pueden mezclar productos de madurez distinta en un par NISAR.")
+    madurez = next(iter(madureces))
+    caps = caps if caps is not None else harmony.capacidades(madurez=madurez)
+    if caps.get("madurez", "VALIDATED") != madurez:
+        raise ErrorAutoNISAR("Harmony no ha validado capacidades para la colección " + madurez + ".")
     carpeta = Path(carpeta) if carpeta is not None else DATA_DIR / "nisar" / "harmony"
     # Crear solo el mínimo de archivos científicos: HH/HV (o VV/VH), máscara y looks.
     presupuestado = max_mb * 1024**2
@@ -305,7 +311,7 @@ def preparar_harmony(plan: Plan, carpeta: Path | None = None, notificar=None, co
     return {
         "estado": "NISAR_COG_PREPARADO_SIN_CLASIFICAR", "sensor": "NISAR", "banda": "L",
         "resultado": "GAMMA0_POTENCIA_NO_INUNDACION",
-        "metodo": "NASA_HARMONY",
+        "metodo": "NASA_HARMONY", "madurez": madurez,
         "bytes_totales": usados, "escenas": escenas,
         "plan": plan.resumen(), "creado_utc": datetime.now(timezone.utc).isoformat(),
         "advertencia": "NISAR banda L, sin interpolación. No confirma agua ni inundación."
