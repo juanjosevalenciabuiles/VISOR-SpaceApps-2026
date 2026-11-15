@@ -23,6 +23,7 @@ import streamlit as st
 from components import barra_lateral, eco, flujo, panel_info
 from components import contexto_zona
 from components import herramientas_sar as herramientas
+from components import v9_experiencia
 from components import resultados as ui_resultados
 from components.barra_lateral import Controles
 from components.panel_info import insignia
@@ -367,6 +368,8 @@ def herramientas_sar() -> None:
             "Busca y prepara imágenes; compara dos fechas para analizar posibles cambios.</div>",
             unsafe_allow_html=True,
         )
+        v9_experiencia.render()
+        st.markdown('**Herramientas científicas y recorrido paso a paso**')
         herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
         st.html(SUBIR_AL_CAMBIAR_DE_PASO, unsafe_allow_javascript=True)
     with st.container(key="sar_minimizado"):

@@ -89,7 +89,10 @@ def procesar_par(antes: dict, despues: dict, destino: str | Path, *,
                         valido &= ~np.ma.getmaskarray(arr)
                         valido &= np.isfinite(arr.data)
                     valido &= (pre.data > 0) & (post.data > 0)
-                    valido &= (qpre.data == 1) & (qpost.data == 1)
+                    # Máscara NISAR GCOV: 0=inválido, 255=fuera de radar,
+                    # 1..254=identificador de subfranja válida (ISCE3).
+                    valido &= (qpre.data >= 1) & (qpre.data < 255)
+                    valido &= (qpost.data >= 1) & (qpost.data < 255)
                     valido &= (lpre.data >= minimo_looks) & (lpost.data >= minimo_looks)
                     with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
                         calc = 10 * (np.log10(post.data.astype(np.float64))

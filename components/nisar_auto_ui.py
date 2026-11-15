@@ -69,6 +69,7 @@ def _ejecutar_en_cola(resultado, plan, metodo, max_mb):
             salida = nisar_auto.preparar(plan, ruta, notificar=notificar)
             geotiffs = [nisar_gcov.CARPETA_NISAR / x["geotiff"] for x in salida["escenas"]]
             detalle = "HDF5 íntegros y recortes GCOV"
+        salida["madurez"] = resultado.madurez  # Procedencia explícita del catálogo validado
         ctx.fase("datos", trabajos.APTO, "Descarga auténtica finalizada")
         ctx.fase("preparacion", trabajos.APTO, detalle)
         ctx.comprobar("verificación")

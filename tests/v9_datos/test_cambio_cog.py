@@ -66,3 +66,20 @@ def test_sin_looks_y_banda_c_bloquean(tmp_path):
     b["banda"] = "C"
     with pytest.raises(QAInsuficiente, match="SIN_PAR"):
         procesar_par(a, b, tmp_path / "delta.tif")
+
+
+def test_mascara_subfranja_2_si_es_valida(tmp_path):
+    """En NISAR GCOV 1..254 son subfranjas válidas, 255 no es dato."""
+    pre = escena(tmp_path, "pre", qa=2)
+    post = escena(tmp_path, "post", gamma=10, qa=2)
+    ruta = tmp_path / "cambio_subfranja_2.tif"
+    procesar_par(pre, post, ruta)
+    with rasterio.open(ruta) as ds:
+        assert np.allclose(ds.read(1), 10)
+
+
+def test_mascara_fuera_de_radar_255_no_publica(tmp_path):
+    pre = escena(tmp_path, "pre", qa=255)
+    post = escena(tmp_path, "post", qa=1)
+    with pytest.raises(QAInsuficiente, match="SIN_QA"):
+        procesar_par(pre, post, tmp_path / "fuera.tif")
