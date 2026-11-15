@@ -12,7 +12,9 @@ MAX_BYTES = 384 * 1024 * 1024
 
 
 def _fecha(value: str) -> date:
-    if isinstance(value, str) and len(value) == 10:\n        return date.fromisoformat(value)\n    return fecha_observacion(value).date()
+    if isinstance(value, str) and len(value) == 10:
+        return date.fromisoformat(value)
+    return fecha_observacion(value).date()
 
 
 def _bbox(value: object) -> tuple[float, float, float, float]:
