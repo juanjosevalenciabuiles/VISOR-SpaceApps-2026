@@ -54,6 +54,18 @@ def render(resultados: list | tuple) -> None:
             st.date_input("Hasta", key="v9_fin_periodo", format="YYYY-MM-DD",
                           min_value=date(2014, 4, 3), max_value=hoy, on_change=_periodo_cambiado)
         inicio, fin = st.session_state["v9_inicio_periodo"], st.session_state["v9_fin_periodo"]
+        # Un resultado abierto desde Historial conserva sus T₁/T₂ verdaderos
+        # aunque aún no exista un AOI nuevo confirmado.
+        abierto = st.session_state.get("resultado_activo") or {}
+        actual = next((r for r in resultados if r.id == abierto.get("id")), None)
+        par_actual = cronologia_sar.producto_de_resultado(actual) if actual is not None else None
+        if par_actual is not None:
+            st.markdown(
+                '<div class="mc-linea-pista"><span class="mc-linea-punto">T₁ · '
+                + escape(par_actual.antes.isoformat()) + '</span><span class="mc-linea-barra"></span>'
+                '<span class="mc-linea-punto">T₂ · ' + escape(par_actual.despues.isoformat())
+                + '</span></div>', unsafe_allow_html=True,
+            )
         if inicio > fin or fin >= hoy:
             st.caption("El periodo debe terminar antes de hoy para comparar con datos posteriores.")
             return
