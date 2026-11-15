@@ -82,3 +82,13 @@ def test_aoi_invalida_no_habilita_overlays(zona, limites):
     r = _res("n", "NISAR", ["2026-10-22", "2026-11-03"], area=limites)
     assert not crono.dentro_de_zona(r, zona)
     assert crono.capas_visibles([r], zona, date(2026, 10, 22), date(2026, 11, 3), "NISAR") == {}
+
+
+@pytest.mark.parametrize("inicio,fin", [
+    (date(2026, 11, 4), date(2026, 10, 22)),
+    (None, date(2026, 11, 4)),
+    (date(2026, 10, 22), None),
+])
+def test_intervalo_invalido_no_reutiliza_overlays(inicio, fin):
+    r = _res("nisar", "NISAR", ["2026-10-22", "2026-11-03"])
+    assert crono.capas_visibles([r], ZONA, inicio, fin, "NISAR") == {}
