@@ -20,6 +20,8 @@ import json
 import os
 import threading
 import time
+import re
+from functools import lru_cache
 import unicodedata
 import urllib.error
 import urllib.parse
@@ -291,6 +293,51 @@ def buscar_en_linea(texto: str, abrir=None) -> list[Lugar]:
         raise ErrorLugares("El geocodificador en línea devolvió una respuesta que no se entiende.") from None
     _cache[clave_cache] = interpretar(datos)
     return _cache[clave_cache]
+
+
+DANE = "DANE, MGN 2025"
+
+
+@lru_cache(maxsize=2)
+def _sugerencias(modo: str) -> dict[str, Lugar]:
+    salida: dict[str, Lugar] = {}
+    vistos = set()
+    for lugar in CATALOGO:
+        if en_alcance(lugar):
+            salida[lugar.etiqueta] = lugar
+            vistos.add(normalizar(f"{lugar.nombre} {lugar.region}"))
+    try:    # los 1122 municipios del DANE: punto interior de cada polígono, solo para ubicar el mapa
+        from utils import contexto_local
+        _, geoms, props = contexto_local._municipios()
+        for g, pr in zip(geoms, props, strict=True):
+            nombre, depto = contexto_local._titulo(pr["mpio_nombre"]), contexto_local._titulo(pr["dpto_nombre"])
+            if normalizar(f"{nombre} {depto}") in vistos:
+                continue
+            punto = g.representative_point()
+            lugar = Lugar(nombre, depto, _CO, round(punto.y, 4), round(punto.x, 4), 11, DANE)
+            salida.setdefault(lugar.etiqueta, lugar)
+    except Exception:  # noqa: BLE001 — sin el archivo de municipios quedan las del catálogo
+        pass
+    return dict(sorted(salida.items(), key=lambda kv: normalizar(kv[0])))
+
+
+def sugerencias() -> dict[str, Lugar]:
+    """Lugares que se ofrecen mientras se escribe (etiqueta → lugar). Todo es local: el catálogo y los
+    municipios del DANE. No se consulta ningún servicio por cada letra (Nominatim lo prohíbe)."""
+    return _sugerencias(alcance_geografico.modo())
+
+
+def coordenadas(texto: str) -> tuple[float, float] | None:
+    """«7.67, -76.68» o «7,67 -76,68» → (latitud, longitud); None si no son dos números válidos."""
+    t = str(texto).strip()
+    partes = re.split(r"\s*[;,]\s+|\s+", t) if not re.fullmatch(r"-?\d+(\.\d+)?,-?\d+(\.\d+)?", t) else t.split(",")
+    if len(partes) != 2:
+        return None
+    try:
+        lat, lon = (float(x.replace(",", ".")) for x in partes)
+    except ValueError:
+        return None
+    return (lat, lon) if -85 <= lat <= 85 and -180 <= lon <= 180 else None
 
 
 FUERA_DE_COLOMBIA = ("«{consulta}» no está en Colombia. En esta versión V.I.S.O.R. solo permite explorar y analizar "

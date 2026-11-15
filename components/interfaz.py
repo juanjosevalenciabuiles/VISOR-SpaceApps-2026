@@ -20,15 +20,15 @@ from html import escape
 
 import streamlit as st
 
-from components import barra_lateral, flujo, panel_info
-from components import contexto_ambiental as contexto_ui
+from components import barra_lateral, eco, flujo, panel_info
+from components import contexto_zona
 from components import herramientas_sar as herramientas
 from components import resultados as ui_resultados
 from components.barra_lateral import Controles
 from components.panel_info import insignia
 from utils import alcance_geografico
-from utils.config import CHIGORODO_CENTRO, CHIGORODO_ZOOM, MAPA_CENTRO, MAPA_ZOOM, Fenomeno
-from utils import procedencia
+from utils.config import MAPA_CENTRO, MAPA_ZOOM, Fenomeno
+from utils import procedencia, trabajos
 from utils.geotiff import Capa
 
 ESTADO_INICIAL = {
@@ -37,13 +37,9 @@ ESTADO_INICIAL = {
     "ui_sar": "cerrado",                # "cerrado" | "abierto" | "minimizado"
     "ui_explorador_previo": True,       # cómo estaba el explorador antes de abrir SAR
     "vista": None,                      # {"centro": [lat, lon], "zoom": z, "n": k}
-    "ir_error": None,                   # mensaje si las coordenadas de «Ir a…» no son válidas
 }
-# Valores iniciales de «Ir a…»: centro del AOI de Chigorodó.
-IR_A_INICIAL = {"ir_lat": f"{CHIGORODO_CENTRO[0]:.4f}", "ir_lon": f"{CHIGORODO_CENTRO[1]:.4f}",
-                "ir_zoom": CHIGORODO_ZOOM}
 ESTADOS_SAR = ("cerrado", "abierto", "minimizado")
-PASOS_SAR = ("01 · Área", "02 · Escenas", "03 · Análisis", "04 · Resultados")
+PASOS_SAR = ("1 · Zona", "2 · Imágenes", "3 · Análisis", "4 · Resultado")
 
 
 def inicializar_estado() -> None:
@@ -76,6 +72,12 @@ def abrir_sar() -> None:
     st.session_state["ui_explorador"] = False
 
 
+def cambiar_zona() -> None:
+    """Quita la zona confirmada y abre el paso «Área» para elegir otra."""
+    flujo.quitar_zona()
+    abrir_sar()
+
+
 def minimizar_sar() -> None:
     st.session_state["ui_sar"] = "minimizado"
 
@@ -105,35 +107,12 @@ def leer_coordenada(texto, minimo: float, maximo: float, nombre: str) -> float:
     return valor
 
 
-def _ir_a_coordenadas() -> None:
-    try:
-        lat = leer_coordenada(st.session_state["ir_lat"], -85.0, 85.0, "latitud")
-        lon = leer_coordenada(st.session_state["ir_lon"], -180.0, 180.0, "longitud")
-    except ValueError as e:
-        st.session_state["ir_error"] = str(e)
-        return
-    try:          # Modo Colombia: no se navega a coordenadas fuera del país
-        alcance_geografico.validar_punto(lat, lon, "El punto")
-    except alcance_geografico.FueraDeAlcance as e:
-        st.session_state["ir_error"] = str(e)
-        return
-    st.session_state["ir_error"] = None
-    ir_a(lat, lon, st.session_state["ir_zoom"])
-
-
 def centrar_en(limites: tuple[float, float, float, float]) -> None:
     """Centra el mapa en una extensión (oeste, sur, este, norte) con un zoom que la abarca."""
     oeste, sur, este, norte = limites
     lado = max(este - oeste, norte - sur, 1e-6)
     zoom = max(3, min(14, int(math.log2(360.0 / lado)) + 1))
     ir_a((sur + norte) / 2, (oeste + este) / 2, zoom)
-
-
-def ir_a_chigorodo() -> None:
-    """Lleva el mapa al AOI de Chigorodó. No reescribe los campos: asignar el
-    valor de un widget desde código hace que Streamlit muestre un aviso."""
-    st.session_state["ir_error"] = None
-    ir_a(CHIGORODO_CENTRO[0], CHIGORODO_CENTRO[1], CHIGORODO_ZOOM)
 
 
 def volver_al_inicio() -> None:
@@ -191,11 +170,10 @@ def mostrar_ayuda() -> None:
 
 - El mapa ocupa toda la pantalla. Arrástralo y usa la rueda o los botones **+ / −** para el zoom.
 - Al abrir, el mapa está vacío: **no hay ningún resultado hasta que analices** o abras uno del historial.
-- **Explorador** (izquierda): busca un lugar por su nombre, controla el resultado en el mapa, el historial
-  y el mapa base.
+- **Buscador** (arriba a la izquierda): escribe un municipio y elige una sugerencia; también acepta
+  coordenadas (`7.67, -76.68`). El botón de la casa vuelve a la vista general.
+- **Explorador** (izquierda): controla el resultado en el mapa, el historial y el mapa base.
 - **Información** (derecha): qué muestra el resultado, de dónde viene, leyenda y créditos.
-- **Ir a…**: lleva el mapa a unas coordenadas (por defecto, el AOI de Chigorodó), a Chigorodó o
-  de vuelta a la vista general de Antioquia.
 - **Herramientas SAR**: define la zona (dibújala con las herramientas ▭ y ⬠ del mapa), busca imágenes,
   elige dos fechas y pulsa **Analizar**. Solo entonces aparece el resultado, uno a la vez.
 - **Historial** (explorador): resultados guardados de análisis anteriores. Se abren con «Ver» y quedan
@@ -219,8 +197,8 @@ corresponda exactamente al archivo (huella SHA-256).
 
 Un cambio de retrodispersión de radar **no confirma** una inundación ni ningún otro fenómeno.
 
-**Datos de radar.** Las capas reales provienen de Sentinel-1 (ESA/Copernicus, banda C).
-No deben confundirse con la misión NASA-ISRO NISAR (banda L).
+**Datos de radar.** NISAR (NASA-ISRO, banda L) es el sensor principal para estudiar inundaciones;
+Sentinel-1 (ESA/Copernicus, banda C) queda como respaldo. Un GCOV no confirma una inundación.
 
 **Uso de inteligencia artificial.** Parte del código y de la documentación de V.I.S.O.R. se
 desarrolló con asistencia de IA (Claude, de Anthropic), bajo revisión del equipo.
@@ -268,26 +246,16 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple 
                   type="primary" if st.session_state["ui_explorador"] else "secondary")
         st.button("Información", key="btn_info", help="Información científica de las capas activas", icon=":material/info:", on_click=alternar_info,
                   type="primary" if st.session_state["ui_info"] else "secondary")
-        with st.popover("Ir a…", icon=":material/my_location:", key="popover_ir"):
-            # Campos de texto, no numéricos: la rueda del ratón o del panel táctil no los altera.
-            # El valor inicial va como argumento (no en session_state) para que el navegador lo
-            # muestre aunque el menú no se haya abierto antes.
-            st.text_input("Latitud (−85 a 85)", IR_A_INICIAL["ir_lat"], key="ir_lat")
-            st.text_input("Longitud (−180 a 180)", IR_A_INICIAL["ir_lon"], key="ir_lon")
-            st.slider("Zoom", 3, 18, IR_A_INICIAL["ir_zoom"], key="ir_zoom")
-            if st.session_state.get("ir_error"):
-                st.markdown(f'<div class="mc-aviso">{escape(st.session_state["ir_error"])}</div>',
-                            unsafe_allow_html=True)
-            with st.container(horizontal=True):
-                st.button("Ir", key="btn_ir", type="primary", on_click=_ir_a_coordenadas)
-                st.button("Chigorodó", key="btn_chigorodo", icon=":material/location_on:", on_click=ir_a_chigorodo,
-                          help="Centro del AOI del análisis VV/VH (−76,80 a −76,55; 7,55 a 7,80), zoom 11.")
-                st.button("Área inicial", key="btn_inicio", icon=":material/home:", on_click=volver_al_inicio,
-                          help="Vista general de Antioquia.")
         st.button("Herramientas SAR", key="btn_sar", help="Herramientas SAR: área, escenas, análisis y resultados", icon=":material/satellite_alt:", on_click=abrir_sar,
                   type="primary" if st.session_state["ui_sar"] == "abierto" else "secondary")
         if st.button("Ayuda", key="btn_ayuda", help="Ayuda y estados de procedencia", icon=":material/help:"):
             mostrar_ayuda()
+
+
+def buscador() -> None:
+    """Buscador flotante, siempre visible sobre el mapa (aunque el Explorador esté cerrado)."""
+    with st.container(key="buscador_flotante"):
+        barra_lateral.buscador_lugar(ir_a, volver_al_inicio)
 
 
 def panel_explorador(resultados: list | None = None, activo=None) -> Controles:
@@ -302,16 +270,16 @@ def panel_explorador(resultados: list | None = None, activo=None) -> Controles:
 
 
 GUIA_INICIO = (
-    '<div class="visor-panel" id="guia-inicio"><div class="visor-panel-titulo">Cómo empezar</div>'
-    '<p class="visor-texto">Todavía no hay ningún resultado en el mapa. V.I.S.O.R. solo muestra lo que tú '
+    '<div class="mc-guia" id="guia-inicio"><div class="mc-ctx-titulo">Cómo empezar</div>'
+    '<ol class="mc-pasos-guia">'
+    '<li><span class="mc-paso-num">1</span><div><b>Busca un lugar</b><small>Escribe un municipio en el '
+    "buscador (arriba a la izquierda) o dibuja un rectángulo en el mapa.</small></div></li>"
+    '<li><span class="mc-paso-num">2</span><div><b>Confirma la zona</b><small>Aquí verás su foto, alertas del '
+    "IDEAM y datos del territorio.</small></div></li>"
+    '<li><span class="mc-paso-num">3</span><div><b>Analiza con radar</b><small>Busca NISAR primero; Sentinel-1 es respaldo. Compara dos fechas: '
+    "solo entonces se calcula y se dibuja el resultado.</small></div></li></ol>"
+    '<p class="visor-leyenda-nota">Todavía no hay ningún resultado en el mapa. V.I.S.O.R. solo muestra lo que tú '
     "analices en esta sesión o abras a propósito desde el historial.</p>"
-    '<ol class="visor-lista">'
-    "<li><b>Localiza</b> el lugar por su nombre en el Explorador.</li>"
-    "<li><b>Define la zona</b>: dibuja un rectángulo o un polígono sobre el mapa y confírmalo.</li>"
-    "<li><b>Busca imágenes</b> de radar (Sentinel-1) en el catálogo de ASF.</li>"
-    "<li><b>Elige dos fechas</b> comparables.</li>"
-    "<li><b>Analiza</b>: solo entonces se calcula y se dibuja el resultado.</li>"
-    "<li><b>Revisa</b> el resultado, su procedencia y expórtalo a QGIS.</li></ol>"
     '<div class="visor-aviso visor-aviso-general">Un cambio en la señal de radar no confirma una inundación ni '
     "ningún otro fenómeno.</div></div>")
 
@@ -337,15 +305,51 @@ def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, 
                 st.caption("RESULTADO DE ESTE ANÁLISIS")
             st.markdown(ui_resultados.ficha_html(res), unsafe_allow_html=True)
             ui_resultados.boton_qgis(res)
-        if not activos and not demo:
+        # Contexto de la zona confirmada (sin pulsar nada); sin zona, una invitación a elegirla.
+        hay_zona = contexto_zona.render(activos, {"analizar": abrir_sar, "centrar": centrar_en,
+                                                   "cambiar": cambiar_zona})
+        if not activos and not demo and not hay_zona:
             st.markdown(GUIA_INICIO, unsafe_allow_html=True)
         if demo:
             st.caption("CAPA DE DEMOSTRACIÓN")
             panel_info.render(fenomeno, capa, error)
     barra_lateral.render_leyenda(fenomeno, capa if demo else None, controles, panel)
-    if activos:
-        with panel:
-            st.markdown("".join(ui_resultados.leyenda_html(r) for r in activos), unsafe_allow_html=True)
+
+
+def guia_eco(activos: list) -> None:
+    """ECO en la esquina inferior derecha, con un mensaje sacado del estado real de la app."""
+    zona = contexto_zona.zona_actual()
+    lugar, ocupado = None, False
+    if zona is not None:
+        lugar = contexto_zona.local_de(zona).lugar
+        inicio, fin, _ = contexto_zona.periodo_actual()
+        ocupado = contexto_zona.consultando(contexto_zona.consultas(zona, inicio, fin))
+    trabajo = None
+    if st.session_state.get("trabajo_activo"):
+        try:
+            trabajo = trabajos.leer(st.session_state["trabajo_activo"])
+        except Exception:  # noqa: BLE001 — ECO nunca rompe la app
+            trabajo = None
+    trabajo_nisar = None
+    if st.session_state.get("nisar_auto_job"):
+        try:
+            trabajo_nisar = trabajos.leer(st.session_state["nisar_auto_job"])
+        except Exception:  # noqa: BLE001 — ECO nunca bloquea la app
+            trabajo_nisar = None
+    eco.render(eco.decidir(lugar, zona is not None, ocupado, trabajo, bool(activos), flujo.es_historico(),
+                          trabajo_nisar=trabajo_nisar))
+
+
+SUBIR_AL_CAMBIAR_DE_PASO = """<script>
+(() => {          // Al cambiar de paso, el panel vuelve arriba (antes quedaba a mitad de camino).
+  const panel = document.querySelector('.st-key-panel_sar');
+  if (!panel || panel.dataset.subir) return;
+  panel.dataset.subir = '1';
+  panel.addEventListener('click', (e) => {
+    if (e.target.closest('[role="tab"]')) setTimeout(() => { panel.scrollTop = 0; }, 60);
+  });
+})();
+</script>"""
 
 
 def herramientas_sar() -> None:
@@ -357,14 +361,14 @@ def herramientas_sar() -> None:
             st.button("Cerrar", key="cerrar_sar", icon=":material/close:", type="tertiary",
                       on_click=cerrar_sar)
         st.markdown(
-            '<div class="mc-aviso">Zona → imágenes → fechas → Analizar. Nada se calcula ni se dibuja hasta que '
-            "pulses «Analizar». Usa productos RTC ya presentes en <code>data/sar/</code>: no descarga ni procesa "
-            "en HyP3. Los resultados son indicios de cambio de radar, no inundaciones confirmadas.</div>",
+            '<div class="mc-aviso" title="NISAR permite preparar recortes GCOV con NASA Harmony. '
+            'Sentinel-1 requiere RTC locales. Una imagen o cambio SAR aislado no confirma inundaciones.">'
+            "NISAR (banda L) principal · Sentinel-1 (banda C) respaldo. "
+            "Busca y prepara imágenes; compara dos fechas para analizar posibles cambios.</div>",
             unsafe_allow_html=True,
         )
         herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
-        # Módulo secundario: nunca requiere ni modifica el resultado SAR.
-        contexto_ui.render()
+        st.html(SUBIR_AL_CAMBIAR_DE_PASO, unsafe_allow_javascript=True)
     with st.container(key="sar_minimizado"):
         st.button("Herramientas SAR · restaurar", key="restaurar_sar", icon=":material/open_in_full:",
                   on_click=abrir_sar)
@@ -379,11 +383,7 @@ def linea_temporal(fechas: list[str] | None = None) -> None:
         nota = "Comparación de dos fechas. No hay observaciones intermedias en este producto."
         clase = " mc-linea-fechada"
     else:
-        titulo = "LÍNEA TEMPORAL · CONCEPTUAL"
-        t1, t2 = "T₁ · sin producto", "T₂ · sin producto"
-        nota = ("Se completa al activar un resultado con ficha de procedencia válida. "
-                "No interpola imágenes ni sugiere cambios.")
-        clase = ""
+        return          # sin resultado no hay fechas que mostrar: no ocupa sitio sobre el mapa
     with st.container(key="linea_temporal"):
         st.markdown(
             f'<div class="mc-linea{clase}" aria-disabled="true">'

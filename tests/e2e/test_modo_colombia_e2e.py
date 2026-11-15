@@ -25,7 +25,7 @@ def velo(p) -> dict:
 
 
 def buscar(p, consulta):
-    if not p.page.locator(".st-key-lugar_texto input").first.is_visible():
+    if not p.visible("panel_explorador"):       # el buscador flota aparte: se mira el panel
         p.clic("btn_explorador")
     p.escribir("lugar_texto", consulta)
     p.clic("lugar_buscar")
@@ -75,13 +75,10 @@ def test_co02_co04_co05_busqueda_y_coordenadas(abrir, servidor_co):
     antes = p.vista()
     buscar(p, "Tokio")
     assert "no está en Colombia" in p.texto("panel_explorador") and p.vista() == antes
-    # «Ir a…» con coordenadas de Quito: no navega y lo explica.
-    p.page.locator(".st-key-popover_ir button").first.click()
-    p.page.wait_for_timeout(400)
-    p.escribir("ir_lat", "-0.18")
-    p.escribir("ir_lon", "-78.47")
-    p.clic("btn_ir")
-    assert "fuera de Colombia" in p.page.locator("[data-testid=stPopoverBody]").inner_text()
+    # Coordenadas de Quito escritas en el buscador: no navega y lo explica.
+    p.escribir("lugar_texto", "-0.18, -78.47")
+    p.esperar(1200)
+    assert "fuera de Colombia" in p.texto("buscador_flotante")
     assert p.vista() == antes
     assert not p.errores
 

@@ -39,8 +39,9 @@ def test_dependencias_externas_declaradas():
     """Todo paquete externo que importa la app está en requirements.txt (o en requirements-dev.txt
     si solo lo usan las pruebas). Evita que Replit falle por una dependencia que aquí llegó de rebote."""
     import ast
-    distribucion = {"streamlit_folium": "streamlit-folium"}
-    solo_desarrollo = {"playwright"}
+    distribucion = {"streamlit_folium": "streamlit-folium", "harmony": "harmony-py",
+                    "asf_search": "asf-search"}
+    solo_desarrollo = {"playwright", "asf_search"}
     pedidos = {ln.split("~=")[0].split(">=")[0].split("<")[0].strip().lower()
                for ln in (RAIZ / "requirements.txt").read_text().splitlines() if ln.strip() and not ln.startswith("#")}
     dev = (RAIZ / "requirements-dev.txt").read_text().lower()
@@ -52,7 +53,7 @@ def test_dependencias_externas_declaradas():
                     usados |= {a.name.split(".")[0] for a in n.names}
                 elif isinstance(n, ast.ImportFrom) and n.module and n.level == 0:
                     usados.add(n.module.split(".")[0])
-    externos = {m for m in usados if m not in sys.stdlib_module_names and m not in ("utils", "components")}
+    externos = {m for m in usados if m not in sys.stdlib_module_names and m not in ("utils", "components", "scripts")}
     faltan = [m for m in externos if distribucion.get(m, m).lower() not in pedidos
-              and not (m in solo_desarrollo and m in dev)]
+              and not (m in solo_desarrollo and distribucion.get(m, m).lower() in dev)]
     assert not faltan, f"importados pero no declarados en requirements.txt: {faltan}"

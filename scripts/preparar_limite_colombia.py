@@ -35,6 +35,7 @@ from shapely.ops import unary_union
 RAIZ = Path(__file__).resolve().parent.parent
 DESTINO = RAIZ / "data" / "contexto" / "colombia"
 VALIDACION = "colombia_mgn2025_municipal.geojson.gz"
+MUNICIPIOS = "municipios_mgn2025_departamental.geojson.gz"   # nombres de municipio/departamento por zona
 DIBUJO = "colombia_dibujo.geojson.gz"
 TOLERANCIA_DIBUJO = 0.003   # grados (~300 m): invisible a escala nacional, aligera la página
 
@@ -93,6 +94,17 @@ def main(origen: Path) -> None:
             "vertices": sum(len(p.exterior.coords) + sum(len(i.coords) for i in p.interiors) for p in partes),
             "limites": [round(v, 6) for v in geo.bounds],
             "sha256": escribir(geo, DESTINO / nombre, uso.split(" ")[0])}
+    # Municipios (nivel `departamental` de la fuente): solo para NOMBRAR la ubicación de una zona.
+    datos = json.loads((origen / "output" / "geojson" / "col_municipios_real_departamental.geojson")
+                       .read_text(encoding="utf-8"))
+    for f in datos["features"]:
+        f["properties"] = {k: f["properties"][k] for k in ("divipola_mun", "mpio_nombre", "dpto_nombre")}
+    texto = json.dumps(datos, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    (DESTINO / MUNICIPIOS).write_bytes(gzip.compress(texto, compresslevel=9, mtime=0))
+    ficha["archivos"][MUNICIPIOS] = {
+        "uso": "nombre de municipio y departamento de una zona (nivel departamental de la fuente)",
+        "municipios": len(datos["features"]),
+        "sha256": hashlib.sha256((DESTINO / MUNICIPIOS).read_bytes()).hexdigest()}
     (DESTINO / "FUENTE.json").write_text(json.dumps(ficha, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(ficha["archivos"], indent=2))
 

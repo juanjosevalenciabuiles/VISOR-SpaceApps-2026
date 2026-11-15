@@ -2,3 +2,6 @@
 -r requirements.txt
 playwright~=1.63.0
 ruff~=0.16.0
+
+# Preflight OPERA ASF únicamente; no se importa al ejecutar la app.
+asf-search

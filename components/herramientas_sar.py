@@ -181,8 +181,9 @@ def paso_area(centrar) -> None:
             _candidata(vista, None, "área visible del mapa", "zona_usar_vista", "Área visible")
 
     st.caption("MUNICIPIO")
-    _nota("Los límites municipales oficiales no están incluidos en esta versión. Busca el municipio por su "
-          "nombre para ubicarlo y dibuja la zona: no se usa ningún límite aproximado en su lugar.")
+    _nota("Los límites municipales del DANE (MGN 2025) se usan para decir en qué municipio está tu zona "
+          "(panel derecho), pero todavía no como zona de análisis: busca el municipio por su nombre para "
+          "ubicarlo y dibuja la zona.")
 
     with st.expander("Avanzado: coordenadas o GeoJSON", expanded=False, key="zona_avanzado"):
         st.caption("RECUADRO EN GRADOS (WGS84)")
@@ -508,21 +509,21 @@ def paso_analisis() -> None:
         return
     rtcs, avisos = flujo_sar.rtc_locales()
     disp = flujo_sar.disponibilidad(p, rtcs)
-    filas = [f"<tr><td>{d.polarizacion}</td><td>{_celda_rtc(d.antes, d.tipo_antes, d.empatados_antes)}</td>"
-             f"<td>{_celda_rtc(d.despues, d.tipo_despues, d.empatados_despues)}</td></tr>" for d in disp]
-    st.markdown('<div class="visor-seccion">Productos RTC en data/sar/</div>'
-                '<table class="mc-tabla mc-tabla-rtc"><thead><tr><th>Pol.</th><th>Antes</th><th>Después</th>'
-                f'</tr></thead><tbody>{"".join(filas)}</tbody></table>', unsafe_allow_html=True)
-    for a in avisos[:4]:
-        _nota(a)
-    for d in disp:
-        for fecha, empatados in (("antes", d.empatados_antes), ("después", d.empatados_despues)):
-            if empatados:
-                _nota(f"{d.polarizacion} {fecha}: {len(empatados)} RTC empatan para la misma escena "
-                      f"({', '.join(empatados)}). Deja solo el correcto en data/sar/.", "mc-aviso")
     completas = [d for d in disp if d.completa]
     t = trabajos.leer(st.session_state["trabajo_activo"]) if st.session_state.get("trabajo_activo") else None
     if not completas:
+        filas = [f"<tr><td>{d.polarizacion}</td><td>{_celda_rtc(d.antes, d.tipo_antes, d.empatados_antes)}</td>"
+                 f"<td>{_celda_rtc(d.despues, d.tipo_despues, d.empatados_despues)}</td></tr>" for d in disp]
+        st.markdown('<div class="visor-seccion">Productos RTC en data/sar/</div>'
+                    '<table class="mc-tabla mc-tabla-rtc"><thead><tr><th>Pol.</th><th>Antes</th><th>Después</th>'
+                    f'</tr></thead><tbody>{"".join(filas)}</tbody></table>', unsafe_allow_html=True)
+        for a in avisos[:4]:
+            _nota(a)
+        for d in disp:
+            for fecha, empatados in (("antes", d.empatados_antes), ("después", d.empatados_despues)):
+                if empatados:
+                    _nota(f"{d.polarizacion} {fecha}: {len(empatados)} RTC empatan para la misma escena "
+                          f"({', '.join(empatados)}). Deja solo el correcto en data/sar/.", "mc-aviso")
         st.markdown(progreso_html(_fases_previstas(region, p, completas)), unsafe_allow_html=True)
         _nota("Imágenes encontradas, pero sus datos de análisis todavía no están disponibles aquí: faltan los "
               "productos RTC de este par en data/sar/. El catálogo entrega escenas GRD; convertirlas a RTC "
@@ -531,15 +532,17 @@ def paso_analisis() -> None:
         st.button("Analizar", key="sar_analizar", type="primary", icon=":material/play_arrow:", disabled=True,
                   help="Bloqueado: faltan los productos RTC de este par.")
         return
-    _nota("Método: diferencia de retrodispersión (dB) entre las dos fechas, posterior − anterior, con un umbral "
-          "de disminución por polarización. Los umbrales son experimentales.")
-    for d in completas:
-        st.slider(f"Umbral de disminución {d.polarizacion} (dB)", 1.0, 10.0, flujo.UMBRAL_DEFECTO, 0.5,
-                  key=f"sar_umbral_{d.polarizacion}", on_change=_fijar,
-                  args=(d.polarizacion, "umbral_disminucion_db", f"sar_umbral_{d.polarizacion}"))
-        st.select_slider(f"Filtro de speckle {d.polarizacion} (ventana en píxeles)", [1, 3, 5, 7],
-                         flujo.VENTANA_DEFECTO, key=f"sar_ventana_{d.polarizacion}", on_change=_fijar,
-                         args=(d.polarizacion, "ventana_speckle", f"sar_ventana_{d.polarizacion}"))
+    with st.expander("Ajustes avanzados (umbrales y filtro)", expanded=False, key="sar_avanzado"):
+        _nota("Método: diferencia de retrodispersión (dB) entre las dos fechas, posterior − anterior, con un "
+              "umbral de disminución por polarización. Los umbrales son experimentales; si no los cambias se usan "
+              "los valores por defecto.")
+        for d in completas:
+            st.slider(f"Umbral de disminución {d.polarizacion} (dB)", 1.0, 10.0, flujo.UMBRAL_DEFECTO, 0.5,
+                      key=f"sar_umbral_{d.polarizacion}", on_change=_fijar,
+                      args=(d.polarizacion, "umbral_disminucion_db", f"sar_umbral_{d.polarizacion}"))
+            st.select_slider(f"Filtro de speckle {d.polarizacion} (ventana en píxeles)", [1, 3, 5, 7],
+                             flujo.VENTANA_DEFECTO, key=f"sar_ventana_{d.polarizacion}", on_change=_fijar,
+                             args=(d.polarizacion, "ventana_speckle", f"sar_ventana_{d.polarizacion}"))
     pols = [d.polarizacion for d in completas]
     parametros = flujo.parametros_actuales(pols)
     identificador = sesion.run_id(region.limites, p.antes.nombre, p.despues.nombre, parametros)
@@ -578,6 +581,19 @@ def paso_analisis() -> None:
     bloqueado = activo or (bool(por_dia) and not aceptar) or (previa is not None and not reanalizar)
     st.button("Analizar", key="sar_analizar", type="primary", icon=":material/play_arrow:", disabled=bloqueado,
               on_click=_pedir_analisis, help="Hay un trabajo en marcha." if activo else None)
+    # Mostrar el CTA antes del inventario RTC extenso para que quede visible en PC.
+    filas = [f"<tr><td>{d.polarizacion}</td><td>{_celda_rtc(d.antes, d.tipo_antes, d.empatados_antes)}</td>"
+             f"<td>{_celda_rtc(d.despues, d.tipo_despues, d.empatados_despues)}</td></tr>" for d in disp]
+    st.markdown('<div class="visor-seccion">Productos RTC en data/sar/</div>'
+                '<table class="mc-tabla mc-tabla-rtc"><thead><tr><th>Pol.</th><th>Antes</th><th>Después</th>'
+                f'</tr></thead><tbody>{"".join(filas)}</tbody></table>', unsafe_allow_html=True)
+    for a in avisos[:4]:
+        _nota(a)
+    for d in disp:
+        for fecha, empatados in (("antes", d.empatados_antes), ("después", d.empatados_despues)):
+            if empatados:
+                _nota(f"{d.polarizacion} {fecha}: {len(empatados)} RTC empatan para la misma escena "
+                      f"({', '.join(empatados)}). Deja solo el correcto en data/sar/.", "mc-aviso")
     # Solo una pulsación de «Analizar» en esta misma ejecución deja `lanzar` con contenido.
     permitido = (not activo and isinstance(lanzar, dict) and not (bool(por_dia) and not aceptar)
                  and (previa is None or lanzar.get("reanalizar")))
@@ -684,7 +700,25 @@ def _trabajos_recientes() -> None:
                           type="tertiary", on_click=_abrir_trabajo, args=(t,))
 
 
+SENSORES = ("NISAR · principal (banda L)", "Sentinel-1 · respaldo (banda C)")
+
+
 def render(centrar, abrir_explorador, pasos) -> None:
+    # Solo inundaciones en la versión pública: NISAR es el sensor principal.
+    # Sentinel-1 conserva el motor RTC validado como alternativa científica.
+    preseleccionado = SENSORES[1] if os.environ.get("VISOR_SENSOR_DEFECTO") == "SENTINEL" else SENSORES[0]
+    sensor = st.segmented_control("Sensor para estudiar inundaciones", SENSORES,
+                                  default=preseleccionado, key="sar_sensor")
+    if sensor == SENSORES[0]:
+        from components import nisar_auto_ui
+        area, gcov = st.tabs(("01 · Área", "02 · Buscar y preparar NISAR"), key="nisar_paso")
+        with area:
+            paso_area(centrar)
+        with gcov:
+            zona, error = region_actual()
+            nisar_auto_ui.render(zona, error)
+        return
+    st.caption("Sentinel-1: respaldo. El catálogo GRD se consulta, pero el análisis requiere RTC disponibles.")
     area, escenas, analisis, resultados = st.tabs(list(pasos), key="sar_paso")
     with area:
         paso_area(centrar)

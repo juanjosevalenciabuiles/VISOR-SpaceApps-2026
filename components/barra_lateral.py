@@ -6,6 +6,8 @@ una clave estable para que su valor se conserve aunque el panel se oculte.
 """
 from __future__ import annotations
 
+import os
+
 from dataclasses import dataclass, field
 from html import escape
 
@@ -47,9 +49,29 @@ def _interruptor_contexto(clave: str, hay_datos: bool) -> bool:
 
 
 def _buscar_lugar(ir_a) -> None:
-    """Callback de «Buscar»: solo consulta nombres y, si hay una única coincidencia, centra el mapa.
-    No define ninguna zona ni lanza ningún análisis."""
-    texto = str(st.session_state.get("lugar_texto", "")).strip()
+    """Al elegir una sugerencia o escribir otro texto: solo ubica el mapa. No define ninguna zona
+    ni lanza ningún análisis. Una sugerencia va directo; unas coordenadas también; el resto se busca."""
+    texto = str(st.session_state.get("lugar_texto") or "").strip()
+    if not texto:
+        st.session_state["lugares_encontrados"] = None
+        return
+    conocido = lugares.sugerencias().get(texto)
+    if conocido is not None:
+        st.session_state["lugares_encontrados"] = None
+        _ir_a_lugar(conocido, ir_a)
+        return
+    punto = lugares.coordenadas(texto)
+    if punto is not None:
+        try:
+            alcance_geografico.validar_punto(punto[0], punto[1], "El punto")
+        except alcance_geografico.FueraDeAlcance as e:
+            st.session_state["lugares_encontrados"] = {"consulta": texto, "lugares": [], "fuente": lugares.LOCAL,
+                                                       "aviso": str(e)}
+            return
+        st.session_state["lugares_encontrados"] = None
+        _ir_a_lugar(lugares.Lugar(f"{punto[0]:.4f}, {punto[1]:.4f}", "", "", punto[0], punto[1], 12,
+                                  "coordenadas escritas"), ir_a)
+        return
     encontrados, fuente, aviso = lugares.buscar(texto)
     st.session_state["lugares_encontrados"] = {"consulta": texto, "lugares": encontrados, "fuente": fuente,
                                                "aviso": aviso}
@@ -58,12 +80,16 @@ def _buscar_lugar(ir_a) -> None:
 
 
 def _ir_a_lugar(lugar, ir_a) -> None:
+    hallazgo = st.session_state.get("lugares_encontrados")
+    if hallazgo:                       # ya se llegó: el aviso de la búsqueda deja de tapar el panel
+        hallazgo["aviso"] = None
     st.session_state["lugar"] = {"etiqueta": lugar.etiqueta, "latitud": lugar.latitud, "longitud": lugar.longitud,
                                  "fuente": lugar.fuente}
     # Un resultado pertenece a su zona: si el lugar queda fuera de ella, se retira de la pantalla (los
     # archivos y el Historial no cambian) para que nunca parezca un resultado del lugar nuevo.
     zona = flujo.zona_confirmada()
-    if str(st.session_state.get("aviso_resultado") or "").startswith("Se retiró el resultado del mapa al ir a"):
+    previo = str(st.session_state.get("aviso_resultado") or "")
+    if previo.startswith("Se retiró el resultado del mapa al ir a") and lugar.etiqueta not in previo:
         st.session_state["aviso_resultado"] = None            # aviso de una navegación anterior: ya no aplica
     if st.session_state.get("resultado_activo"):
         dentro = zona is not None and zona[0] <= lugar.longitud <= zona[2] and zona[1] <= lugar.latitud <= zona[3]
@@ -73,48 +99,72 @@ def _ir_a_lugar(lugar, ir_a) -> None:
     ir_a(lugar.latitud, lugar.longitud, lugar.zoom)
 
 
-def buscador_lugar(ir_a, abrir_zona=None) -> None:
-    """«¿Qué lugar quieres analizar?»: busca por nombre y lleva el mapa allí."""
-    st.caption("¿QUÉ LUGAR QUIERES ANALIZAR?")
-    if alcance_geografico.restringido():       # aviso de alcance (PR #10) sobre la política única
-        st.caption("🇨🇴 MODO COLOMBIA · búsqueda y análisis limitados al país. "
-                   "Contorno: DANE MGN 2025; datos derivados por ytolosa/mapas-colombia, CC BY 4.0.")
-    st.text_input("Lugar", key="lugar_texto", label_visibility="collapsed",
-                  placeholder=("Buscar municipio o lugar en Colombia · ej.: Chigorodó, Rionegro, San Andrés"
-                               if alcance_geografico.restringido() else
-                               "Ciudad, municipio o lugar · ej.: Chigorodó, Nairobi, Tokio"))
-    st.button("Buscar", key="lugar_buscar", icon=":material/search:", type="primary", on_click=_buscar_lugar,
-              args=(ir_a,))
+def _elegir_lugar(lugar, ir_a) -> None:
+    """Una de varias coincidencias: va allí y cierra la lista."""
     hallazgo = st.session_state.get("lugares_encontrados")
     if hallazgo:
-        encontrados = hallazgo["lugares"]
-        if hallazgo.get("aviso"):
-            st.markdown(f'<div class="mc-aviso">{escape(hallazgo["aviso"])}</div>', unsafe_allow_html=True)
-        if not encontrados and not hallazgo.get("aviso"):
-            alcance = ("" if hallazgo["fuente"] == lugares.EN_LINEA else
-                       " Sin geocodificador en línea solo se buscan los lugares del catálogo local (capitales de "
-                       "departamento, Urabá y San Andrés y Providencia" +
-                       (")." if alcance_geografico.restringido() else " y ciudades principales del mundo)."))
-            st.markdown(f'<div class="mc-aviso">No se encontró «{escape(hallazgo["consulta"])}».{alcance} '
-                        "Puedes mover el mapa a mano y dibujar la zona.</div>", unsafe_allow_html=True)
-        elif len(encontrados) > 1:
-            st.markdown('<div class="visor-leyenda-nota">Hay varias coincidencias. Elige una:</div>',
-                        unsafe_allow_html=True)
-            for i, lugar in enumerate(encontrados):
-                st.button(lugar.etiqueta, key=f"lugar_ir_{i}", icon=":material/location_on:", type="tertiary",
-                          on_click=_ir_a_lugar, args=(lugar, ir_a))
-        if encontrados:
-            fuente = (lugares.ATRIBUCION_NOMINATIM if hallazgo["fuente"] == lugares.EN_LINEA
-                      and lugares.proveedor() == lugares.NOMINATIM else f"Fuente: {hallazgo['fuente']}")
-            st.markdown(f'<div class="visor-leyenda-nota">{escape(fuente)}. Posición aproximada, solo para ubicar '
-                        "el mapa: no es un límite ni una zona de análisis.</div>", unsafe_allow_html=True)
+        hallazgo["lugares"] = [lugar]
+    _ir_a_lugar(lugar, ir_a)
+
+
+def _nota_fuente(fuente: str) -> str:
+    texto = (lugares.ATRIBUCION_NOMINATIM if fuente == lugares.EN_LINEA and lugares.proveedor() == lugares.NOMINATIM
+             else f"Fuente: {fuente}")
+    return (f'<div class="visor-leyenda-nota">{escape(texto)}. Posición aproximada, solo para ubicar el mapa: no es '
+            "un límite ni una zona de análisis.</div>")
+
+
+def buscador_lugar(ir_a, inicio=None) -> None:
+    """Buscador flotante sobre el mapa (como en un mapa web): sugiere mientras se escribe y lleva allí.
+    Debajo solo aparece lo transitorio: un aviso o la lista cuando hay varias coincidencias."""
+    colombia = alcance_geografico.restringido()
+    with st.container(horizontal=True, vertical_alignment="center", key="buscador", gap="small"):
+        # Las sugerencias son una lista local. Otro texto o unas coordenadas también valen: Enter.
+        st.selectbox(
+            "¿Qué lugar quieres analizar?", options=list(lugares.sugerencias()), index=None, key="lugar_texto",
+            accept_new_options=True, on_change=_buscar_lugar, args=(ir_a,), label_visibility="collapsed",
+            placeholder="Busca un municipio o lugar en Colombia" if colombia else "Busca una ciudad o un lugar",
+            help=("Escribe y elige una sugerencia; también puedes escribir otro lugar o unas coordenadas "
+                  "(7.67, -76.68) y pulsar Enter. " +
+                  ("Modo Colombia: búsqueda y análisis limitados al país. Municipios y contorno: DANE, MGN 2025; "
+                   "datos derivados por ytolosa/mapas-colombia, CC BY 4.0." if colombia else "")))
+        st.button("Buscar", key="lugar_buscar", icon=":material/search:", type="primary", on_click=_buscar_lugar,
+                  args=(ir_a,), help="Buscar lo escrito (o unas coordenadas: 7.67, -76.68)")
+        if inicio is not None:
+            st.button("Vista inicial", key="btn_inicio", icon=":material/home:", on_click=inicio,
+                      help="Volver a la vista general")
+    hallazgo = st.session_state.get("lugares_encontrados")
+    if not hallazgo:
+        return
+    encontrados = hallazgo["lugares"]
+    if hallazgo.get("aviso"):
+        st.markdown(f'<div class="mc-aviso">{escape(hallazgo["aviso"])}</div>', unsafe_allow_html=True)
+    if not encontrados and not hallazgo.get("aviso"):
+        alcance = ("" if hallazgo["fuente"] == lugares.EN_LINEA else
+                   " Sin geocodificador en línea solo se buscan los municipios y lugares del catálogo local.")
+        st.markdown(f'<div class="mc-aviso">No se encontró «{escape(hallazgo["consulta"])}».{alcance} '
+                    "Puedes mover el mapa a mano y dibujar la zona.</div>", unsafe_allow_html=True)
+    elif len(encontrados) > 1:
+        st.markdown('<div class="visor-leyenda-nota">Hay varias coincidencias. Elige una:</div>',
+                    unsafe_allow_html=True)
+        for i, lugar in enumerate(encontrados):
+            st.button(lugar.etiqueta, key=f"lugar_ir_{i}", icon=":material/location_on:", type="tertiary",
+                      on_click=_elegir_lugar, args=(lugar, ir_a))
+        st.markdown(_nota_fuente(hallazgo["fuente"]), unsafe_allow_html=True)
+
+
+def lugar_ubicado(abrir_zona=None) -> None:
+    """En el Explorador: dónde quedó el mapa tras la búsqueda y el paso siguiente (definir la zona)."""
+    if alcance_geografico.restringido():
+        st.markdown('<div class="visor-leyenda-nota" id="nota-modo-colombia">Modo Colombia · solo territorio '
+                    "colombiano</div>", unsafe_allow_html=True)
     lugar = st.session_state.get("lugar")
     if lugar:
         st.markdown(f'<div class="mc-resultado"><span class="mc-insignia mc-insignia-tenue">UBICADO</span>'
-                    f'{escape(lugar["etiqueta"])}</div>', unsafe_allow_html=True)
+                    f'{escape(lugar["etiqueta"])}</div>{_nota_fuente(lugar["fuente"])}', unsafe_allow_html=True)
     if abrir_zona is not None:
         st.button("Definir la zona de análisis", key="lugar_definir_zona", icon=":material/crop_free:",
-                  on_click=abrir_zona, help="Abre Herramientas SAR en el paso 01: dibuja la zona sobre el mapa.")
+                  on_click=abrir_zona, help="Abre Herramientas SAR en el paso 1: dibuja la zona sobre el mapa.")
 
 
 def _ver_historico(id_resultado: str) -> None:
@@ -194,8 +244,8 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None,
         if titulo:
             st.markdown('<div class="visor-lateral-titulo">🛰️ V.I.S.O.R.</div>', unsafe_allow_html=True)
 
-        if ir_a is not None:
-            buscador_lugar(ir_a, abrir_zona)
+        if abrir_zona is not None:
+            lugar_ubicado(abrir_zona)
 
         activos = _controles_resultados(resultados, centrar, activo) if resultados is not None else {}
 
@@ -224,15 +274,16 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None,
             key="mapa_base",
             on_change=lambda: st.session_state.pop("aviso_mapa_base", None),
         )
-        st.markdown(
-            f'<div class="visor-leyenda-nota visor-nota-base">{escape(MAPAS_BASE[mapa_base].uso)}</div>',
-            unsafe_allow_html=True,
-        )
         faltan = mapas_base.no_ofrecidos()
-        if faltan:
-            st.markdown('<div class="visor-leyenda-nota">No disponibles aquí: ' + "; ".join(
-                f"{escape(MAPAS_BASE[k].nombre)} ({escape(m)})" for k, m in faltan.items()) + ".</div>",
-                unsafe_allow_html=True)
+        with st.expander("Sobre este mapa base", expanded=False, key="nota_mapa_base"):   # detalle técnico, plegado
+            st.markdown(
+                f'<div class="visor-leyenda-nota visor-nota-base">{escape(MAPAS_BASE[mapa_base].uso)}</div>',
+                unsafe_allow_html=True,
+            )
+            if faltan:
+                st.markdown('<div class="visor-leyenda-nota">No disponibles aquí: ' + "; ".join(
+                    f"{escape(MAPAS_BASE[k].nombre)} ({escape(m)})" for k, m in faltan.items()) + ".</div>",
+                    unsafe_allow_html=True)
 
         st.caption("INFORMACIÓN GEOGRÁFICA")
         hay = disponibles()
@@ -263,9 +314,12 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None,
                         "No son observaciones de satélite ni resultados de un análisis.</div>",
                         unsafe_allow_html=True)
             mostrar_capa = st.toggle("Mostrar capa DEMO", value=False, key="capa_sar")
+            solo_inundaciones = os.environ.get("VISOR_FENOMENOS_LEGACY") != "1"
+            if solo_inundaciones and st.session_state.get("fenomeno") not in (None, "inundacion"):
+                st.session_state["fenomeno"] = "inundacion"
             clave = st.radio(
                 "Fenómeno",
-                options=list(FENOMENOS),
+                options=["inundacion"] if solo_inundaciones else list(FENOMENOS),
                 format_func=lambda k: f"{FENOMENOS[k].icono}  {FENOMENOS[k].nombre}",
                 key="fenomeno",
             )

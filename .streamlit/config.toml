@@ -7,6 +7,8 @@ textColor = "#F5F5F7"
 
 [server]
 headless = true
+# Sirve static/ en /app/static/ (clips de ECO). Solo archivos de interfaz: nunca datos SAR.
+enableStaticServing = true
 # CORS y XSRF quedan con sus valores por defecto (activados). No desactivarlos
 # para "arreglar" la vista previa: si el iframe de Replit no conecta, primero
 # identificar la causa (ver README, sección Replit).

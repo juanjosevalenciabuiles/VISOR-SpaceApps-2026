@@ -38,7 +38,7 @@ def test_resultado_exploratorio_desde_el_historial(abrir):
     info = p.texto("panel_info")
     assert "No es una inundación confirmada" in info and "No declarado en el archivo" in info
     assert "no se ejecutó un análisis nuevo" in info
-    assert "CONCEPTUAL" in p.texto("linea_temporal").upper()
+    assert not p.visible("linea_temporal"), "sin fechas declaradas no hay línea temporal"
 
     deslizador = p.page.locator(".st-key-res_opacidad input[type=range]").first
     deslizador.focus()

@@ -8,7 +8,7 @@
   "crs": "EPSG:4326",
   "variante": "real (San Andrés y Providencia en su posición real)",
   "procesado": "unión de departamentos (shapely.unary_union) + buffer(0); sin añadir ni mover geometrías",
-  "generado_utc": "2026-11-14T16:33:29+00:00",
+  "generado_utc": "2026-11-14T19:17:00+00:00",
   "advertencias": [
     "Límite de una fuente estadística (DANE), no una definición jurídica de fronteras.",
     "Solo territorio terrestre e insular representado en la fuente: no incluye mar territorial, zona económica exclusiva ni límites marítimos.",
@@ -40,6 +40,11 @@
         13.3947
       ],
       "sha256": "0efc7ec88ab14e9891e9b5faeefae99d6fe3e40b30a7d20543446b87c6cfa4bc"
+    },
+    "municipios_mgn2025_departamental.geojson.gz": {
+      "uso": "nombre de municipio y departamento de una zona (nivel departamental de la fuente)",
+      "municipios": 1122,
+      "sha256": "1106881e24dff807cfd13443c95ab9955109cacc119e6c3a29a50dd825e3c7e1"
     }
   }
 }

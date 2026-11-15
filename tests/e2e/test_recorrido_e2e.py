@@ -32,7 +32,10 @@ def huellas(carpeta):
 
 def sin_resultado(p) -> bool:
     barra, info = p.texto("barra_superior"), p.texto("panel_info")
-    return (p.capas_resultado() == [] and "SIN RESULTADO" in barra and "Cómo empezar" in info
+    # Sin zona: la guía «Cómo empezar». Con zona confirmada: el contexto de la zona con la tarjeta del radar
+    # todavía vacía («Aún no has realizado un análisis»). En ningún caso cifras de un resultado.
+    sin_analisis = "Cómo empezar" in info or "Aún no has realizado un análisis" in info
+    return (p.capas_resultado() == [] and "SIN RESULTADO" in barra and sin_analisis
             and "Píxeles" not in info and not re.search(r"\d ha\b", info) and "DEMO · DATOS" not in barra)
 
 
@@ -49,7 +52,7 @@ def test_a_todavia_no_analice(abrir, servidor_propio):
     p.marcar_mapa()
     assert sin_resultado(p), "primera carga"
     assert len(list(analisis.glob("*.tif"))) >= 3, "hay archivos en disco y aun así no se dibujan"
-    assert "CONCEPTUAL" in p.texto("linea_temporal").upper()
+    assert not p.visible("linea_temporal"), "sin resultado no hay línea temporal"
 
     # Buscar un lugar: mueve el mapa y pone un marcador; no crea zona ni resultado.
     p.escribir("lugar_texto", "rionegro")

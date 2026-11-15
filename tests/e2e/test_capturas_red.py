@@ -51,7 +51,7 @@ def teselas_reales(p) -> int:
 
 
 def abrir_explorador(p):
-    if not p.page.locator(".st-key-lugar_texto input").first.is_visible():
+    if not p.visible("panel_explorador"):       # el buscador flota aparte: se mira el panel
         p.clic("btn_explorador")
 
 
@@ -147,6 +147,58 @@ def test_capturas_modo_colombia_con_servicios_reales(navegador, servidor_real_co
         ir(p, "Nairobi, Kenya")
         assert "no está en Colombia" in p.texto("panel_explorador")
         capturar(p, "CO04_nairobi_rechazado")
+        assert not p.errores
+    finally:
+        ctx.close()
+
+
+@pytest.fixture(scope="module")
+def servidor_real_ctx(tmp_path_factory):
+    # Modo Colombia con IDEAM y NASA EONET reales en el panel derecho.
+    s = Servidor(preparar_datos(tmp_path_factory.mktemp("reales_ctx") / "data"),
+                 {"VISOR_GEOCODIFICADOR_URL": None, "VISOR_ASF_SIMULADO": None, "VISOR_REGION_MODE": "CO",
+                  "VISOR_CONTEXTO_EXTERNO": None})
+    yield s
+    s.cerrar()
+
+
+def _esperar_fuentes(p, segundos=60):
+    p.page.wait_for_function(
+        "()=>{const e=[...document.querySelectorAll('#ctx-ideam [data-estado], #ctx-eonet [data-estado]')]"
+        ".map(x=>x.dataset.estado); return document.querySelector('#ctx-zona') && !e.includes('CONSULTANDO')}",
+        timeout=segundos * 1000)
+    p.esperar(1500)
+
+
+def test_capturas_contexto_ambiental_real(navegador, servidor_real_ctx):
+    ctx = navegador.new_context(viewport={"width": 1440, "height": 900})
+    pagina_ctx = ctx.new_page()
+    pagina_ctx.on("response", lambda r: "upload.wikimedia.org" in r.url and print("CTX_WIKIMEDIA", r.status, r.url))
+    p = Pagina(pagina_ctx, servidor_real_ctx.url, red_real=True)
+    try:
+        for nombre, coords in (("CTX01_chigorodo", ("-76.8", "7.55", "-76.55", "7.8")),
+                               ("CTX02_la_mojana", ("-75.2", "8.3", "-74.5", "9.0"))):
+            p.confirmar_zona(*coords)
+            _esperar_fuentes(p)
+            try:   # foto de Wikimedia Commons (si la página del municipio tiene una con licencia)
+                p.page.wait_for_selector('#ctx-foto[data-origen="wikimedia"]', timeout=30000)
+                p.page.wait_for_function("()=>{const f=document.querySelector('#ctx-foto');"
+                                         "const i=f&&f.querySelector('img'); return i && i.complete && i.naturalWidth>0}",
+                                         timeout=10000)
+                p.esperar(2500)
+            except Exception:  # noqa: BLE001 — se informa abajo: la ficha cae a la vista satelital
+                pass
+            foto = p.page.locator("#ctx-foto").first
+            print("CTX_FOTO", nombre, foto.get_attribute("data-origen"), foto.inner_text(),
+                  "| imagen cargada:", p.page.evaluate("()=>{const i=document.querySelector('#ctx-foto img');"
+                                                       "return i ? i.naturalWidth : -1}"),
+                  "| ECO:", p.page.locator("#eco-avatar").first.get_attribute("data-clip"),
+                  p.page.locator("#eco-mensaje").first.inner_text().replace("\n", " "))
+            texto = p.texto("panel_info")
+            print("CTX_PANEL", nombre, " | ".join(texto.split("\n")[:40]))
+            assert "Conozcamos esta zona" in texto and "Fuente no disponible" not in texto, texto[:1500]
+            p.page.locator(".st-key-panel_info").first.screenshot(path=str(DESTINO / f"{nombre}_{NAVEGADOR}.png"))
+            capturar(p, nombre + "_pantalla")
         assert not p.errores
     finally:
         ctx.close()

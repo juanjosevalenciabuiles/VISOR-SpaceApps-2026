@@ -106,6 +106,7 @@ class Servidor:
         entorno = {**os.environ, "VISOR_DATA_DIR": str(datos), "VISOR_ASF_SIMULADO": str(CATALOGO),
                    "VISOR_GEOCODIFICADOR_URL": "desactivado", "VISOR_TRABAJOS_SINCRONOS": "0",
                    "VISOR_TRABAJOS_DIR": str(datos / "trabajos"), "VISOR_DIAGNOSTICO": "desactivado",
+                   "VISOR_CONTEXTO_EXTERNO": "desactivado", "VISOR_CONTEXTO_SINCRONO": "0",
                    **(entorno_extra or {})}
         entorno = {k: v for k, v in entorno.items() if v is not None}   # None = quitar la variable
         self.registro = open(datos.parent / f"streamlit_{self.puerto}.log", "w")
@@ -146,7 +147,9 @@ def navegador():
         pytest.fail(f"VISOR_E2E_NAVEGADOR={NAVEGADOR!r} no es chromium, firefox ni webkit")
     with sync_api.sync_playwright() as p:
         try:
-            b = getattr(p, NAVEGADOR).launch()
+            # VISOR_E2E_EJECUTABLE: usar un navegador ya instalado (p. ej. /usr/bin/google-chrome) sin descargarlo.
+            ruta = os.environ.get("VISOR_E2E_EJECUTABLE")
+            b = getattr(p, NAVEGADOR).launch(**({"executable_path": ruta, "args": ["--no-sandbox"]} if ruta else {}))
         except Exception as e:  # noqa: BLE001
             mensaje = f"{NAVEGADOR} no disponible: {str(e).splitlines()[0][:200]}"
             if EXIGIR:
@@ -283,7 +286,13 @@ class Pagina:
         return self.page.locator(f".st-key-{clave}").first.is_visible()
 
     def texto(self, clave: str) -> str:
-        return self.page.locator(f".st-key-{clave}").first.inner_text()
+        """Texto del bloque, incluido lo plegado en «Detalles técnicos» y similares (se despliega para leerlo)."""
+        bloque = self.page.locator(f".st-key-{clave}").first
+        bloque.evaluate("e=>e.querySelectorAll('details.mc-detalles').forEach(d=>{d.open=true})")
+        texto = bloque.inner_text()
+        if clave == "panel_explorador":       # el buscador flota fuera del panel: sus avisos cuentan aquí
+            texto += "\n" + self.page.locator(".st-key-buscador_flotante").first.inner_text()
+        return texto
 
     # --- Recorrido: resultados, historial, DEMO y zona -------------------------------------
 
