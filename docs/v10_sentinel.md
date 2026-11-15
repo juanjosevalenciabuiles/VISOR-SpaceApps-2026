@@ -51,3 +51,8 @@ Se añadieron cinco casos sintéticos sin red en `tests/v10_sentinel/test_wtr_ao
 ## CMR: límite conservador de paginación
 
 La búsqueda actual consulta una sola página de 100 granules. Una respuesta de 100 registros se considera **incompleta**, y `consultar_cmr` devuelve `SIN_DATOS` / `CMR_NO_VERIFICABLE` en vez de escoger un par sesgado. Falta paginación CMR verificable para periodos extensos; ningún enlace candidato habilita WTR/CONF, QA o publicación de mapas. Pruebas sin red en `test_cmr.py`.
+
+
+## CMR paginado (15/11)
+
+`consultar_cmr` recorre hasta 10 páginas de 100 metadatos (máximo 1000), con 2 MB por respuesta y timeout por petición. Si alcanza el límite o detecta IDs repetidos devuelve `SIN_DATOS`, sin selección parcial ni raster. El catálogo aún no verifica WTR/CONF, QA o acceso Earthdata. Pruebas sintéticas de paginación en `test_cmr.py`; CI del commit nuevo pendiente.
