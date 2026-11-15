@@ -71,6 +71,18 @@ def _compatible(job: dict | None, zona, inicio: date, fin: date) -> bool:
     return _fechas_compatibles(pre, post, inicio, fin)
 
 
+def _preparacion_existente(zona, inicio: date, fin: date) -> dict | None:
+    """Recuperar el par Harmony compatible más reciente aun en otra sesión.
+
+    Los trabajos se registran en disco; guardar solo el último job_id en
+    session_state hacía invisible un par válido preparado previamente.
+    """
+    for job in trabajos.listar(200):
+        if _compatible(job, zona, inicio, fin):
+            return job
+    return None
+
+
 def _solicitar(zona, inicio: date, fin: date):
     hoy = datetime.now(timezone.utc).date()
     if inicio > fin or fin > hoy:
@@ -186,20 +198,19 @@ def render() -> None:
     fin = col_b.date_input("Fin del periodo", value=fin_def,
                            key="v9_fin_periodo", format="YYYY-MM-DD")
     firma = _firma(zona, inicio, fin)
-    preparado_prev = None
-    previo_id = st.session_state.get("nisar_auto_job")
-    if previo_id:
-        preparado_prev = trabajos.leer(previo_id)
-    if preparado_prev and _compatible(preparado_prev, zona, inicio, fin):
-        if st.button("Usar recortes NISAR ya preparados (sin descargar)", key="v9_reutilizar"):
-            st.session_state.update(v9_firma=firma, v9_preparacion=previo_id,
-                                    v9_mapa_job=None, v9_publicado=None)
+    # Priorizar los recortes aptos ya guardados, incluso si se prepararon
+    # en una sesión anterior. No descargar el mismo par una segunda vez.
+    preparado_prev = _preparacion_existente(zona, inicio, fin)
+    if preparado_prev:
+        st.caption("Ya hay un par NISAR preparado para esta zona y periodo. "
+                   "Se reutilizará sin repetir descargas de NASA Harmony.")
     if st.button("Buscar y analizar cambios", key="v9_analizar", type="primary"):
         st.session_state["v9_error"] = None
         st.session_state.update(v9_firma=None, v9_preparacion=None,
                                 v9_mapa_job=None, v9_publicado=None)
-        if preparado_prev and _compatible(preparado_prev, zona, inicio, fin):
-            st.session_state.update(v9_firma=firma, v9_preparacion=previo_id)
+        if preparado_prev:
+            st.session_state.update(v9_firma=firma, v9_preparacion=preparado_prev["job_id"],
+                                    nisar_auto_job=preparado_prev["job_id"])
         else:
             with st.spinner("Buscando escenas NISAR comparables en NASA/ASF…"):
                 try:
