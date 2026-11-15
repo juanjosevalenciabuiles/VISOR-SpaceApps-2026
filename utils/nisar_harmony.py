@@ -16,6 +16,7 @@ import os
 import re
 import shutil
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
@@ -78,7 +79,14 @@ def capacidades(abrir=None, madurez: str = "VALIDATED") -> dict:
     nombre = COLECCIONES_AUTORIZADAS[madurez]
     url = CAP_URL if madurez == "VALIDATED" else (
         "https://harmony.earthdata.nasa.gov/capabilities?shortName=" + nombre)
-    data = _json_publico(url, abrir)
+    try:
+        data = _json_publico(url, abrir)
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
+        raise ErrorHarmony(
+            "No se pudo verificar el servicio Harmony para NISAR " + madurez
+            + ". La disponibilidad del catálogo no garantiza que Harmony permita recortar "
+              "esta colección: no se descargó ningún GeoTIFF."
+        ) from exc
     if data.get("shortName") != nombre or not re.fullmatch(r"C\d+-ASF", data.get("conceptId") or ""):
         raise ErrorHarmony("Harmony no identifica la colección NISAR " + madurez + " en ASF.")
     nombres = {

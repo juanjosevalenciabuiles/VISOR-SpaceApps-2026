@@ -269,7 +269,10 @@ def preparar_harmony(plan: Plan, carpeta: Path | None = None, notificar=None, co
     if len(madureces) != 1 or not madureces.issubset({"VALIDATED", "PROVISIONAL"}):
         raise ErrorAutoNISAR("No se pueden mezclar productos de madurez distinta en un par NISAR.")
     madurez = next(iter(madureces))
-    caps = caps if caps is not None else harmony.capacidades(madurez=madurez)
+    try:
+        caps = caps if caps is not None else harmony.capacidades(madurez=madurez)
+    except harmony.ErrorHarmony as exc:
+        raise ErrorAutoNISAR(str(exc)) from None
     if caps.get("madurez", "VALIDATED") != madurez:
         raise ErrorAutoNISAR("Harmony no ha validado capacidades para la colección " + madurez + ".")
     carpeta = Path(carpeta) if carpeta is not None else DATA_DIR / "nisar" / "harmony"
