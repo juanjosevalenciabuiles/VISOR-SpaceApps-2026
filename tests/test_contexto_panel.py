@@ -268,3 +268,43 @@ def test_app_contexto_desactivado_lo_dice(monkeypatch, tmp_path):
     confirmar_zona(at)
     texto = _texto(at)
     assert 'data-estado="DESACTIVADO"' in texto and "Está en Chigorodó" in texto
+
+
+def test_busqueda_rionegro_no_se_renombra_san_carlos_por_fraccion():
+    from components import contexto_zona as cz
+    from utils import lugares
+    from utils.contexto_local import ContextoLocal, Municipio
+    rionegro = next(x for x in lugares.sugerencias().values()
+                    if x.nombre == "Rionegro" and x.region == "Antioquia")
+    encontrado = cl.municipio_en_punto(rionegro.longitud, rionegro.latitud)
+    assert encontrado is not None and encontrado.nombre == "Rionegro"
+    local = ContextoLocal(municipios=[
+        Municipio("San Carlos", "Antioquia", "05649", .67),
+        Municipio(encontrado.nombre, encontrado.departamento, encontrado.divipola, .33)], area_km2=20)
+    zona = {"clave": "ejemplo", "geometria": mapping(box(rionegro.longitud - .02, rionegro.latitud - .02,
+                                                     rionegro.longitud + .02, rionegro.latitud + .02)),
+            "limites": (rionegro.longitud - .02, rionegro.latitud - .02,
+                       rionegro.longitud + .02, rionegro.latitud + .02)}
+    lugar = {"etiqueta": rionegro.etiqueta, "latitud": rionegro.latitud, "longitud": rionegro.longitud}
+    ref = cz.municipio_de_busqueda(zona, local, lugar)
+    assert ref is not None and ref.nombre == "Rionegro"
+    fuentes = {"wiki": {"estado": "DESACTIVADO"}, "ideam": {"estado": "DESACTIVADO"},
+               "eonet": {"estado": "DESACTIVADO"}}
+    html = cz.cabecera_html(zona, local, fuentes, referencia=ref)
+    assert '<h2 class="mc-ficha-nombre">Rionegro</h2>' in html
+    assert "Buscaste Rionegro" in html and "San Carlos" in html and "67 %" in html
+    assert "33 %" in cz.barra_municipios(local)
+    frases = cz.frases_principales(local, date(2026, 10, 1), date(2026, 11, 1),
+                                   "periodo", fuentes, referencia=ref)
+    assert "Rionegro" in frases[0] and "San Carlos" in frases[1]
+
+
+def test_busqueda_fuera_de_zona_no_se_atribuye_al_area():
+    from components import contexto_zona as cz
+    from utils.contexto_local import ContextoLocal, Municipio
+    local = ContextoLocal(municipios=[Municipio("San Carlos", "Antioquia", "05649", 1.0)])
+    zona = {"geometria": mapping(box(-75.2, 6.0, -75.1, 6.1))}
+    assert cz.municipio_de_busqueda(zona, local, {
+        "etiqueta": "Rionegro, Antioquia, Colombia", "latitud": 6.15, "longitud": -75.38}) is None
+    assert cz.municipio_de_busqueda(zona, local, {
+        "etiqueta": "Rionegro, Antioquia, Colombia", "latitud": None, "longitud": None}) is None
