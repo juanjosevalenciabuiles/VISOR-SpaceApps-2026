@@ -705,11 +705,11 @@ SENSORES = ("NISAR · principal (banda L)", "Sentinel-1 · respaldo (banda C)")
 
 
 def render(centrar, abrir_explorador, pasos) -> None:
-    # Solo inundaciones en la versión pública: NISAR es el sensor principal.
-    # Sentinel-1 conserva el motor RTC validado como alternativa científica.
-    preseleccionado = SENSORES[1] if os.environ.get("VISOR_SENSOR_DEFECTO") == "SENTINEL" else SENSORES[0]
-    sensor = st.segmented_control("Sensor para estudiar inundaciones", SENSORES,
-                                  default=preseleccionado, key="sar_sensor")
+    # El usuario no elige sensor: proporciona AOI y periodo una sola vez.
+    # En la versión pública se usa el pipeline NISAR V9 disponible. El flujo
+    # científico Sentinel RTC es heredado, solo accesible con configuración
+    # explícita de pruebas/diagnóstico (no es un fallback automático inventado).
+    sensor = SENSORES[1] if os.environ.get("VISOR_SENSOR_DEFECTO") == "SENTINEL" else SENSORES[0]
     if sensor == SENSORES[0]:
         from components import nisar_auto_ui
         area, gcov = st.tabs(("01 · Área", "02 · Buscar y preparar NISAR"), key="nisar_paso")

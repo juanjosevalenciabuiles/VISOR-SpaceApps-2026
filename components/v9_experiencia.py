@@ -146,8 +146,9 @@ def _seguimiento(firma):
 def render() -> None:
     """Panel principal PC, preserva el editor científico existente sin reemplazarlo."""
     st.markdown("### Analizar cambios en el agua")
-    st.caption("Elige la zona en el mapa y un periodo de interés. NISAR L se consulta primero; "
-               "los resultados de radar no son por sí solos mapas de inundación.")
+    st.caption("Selecciona únicamente la zona y el periodo. El motor elige las escenas compatibles "
+               "y aplica QA; no tienes que escoger satélite ni descargar archivos manualmente. "
+               "El resultado NISAR disponible es exploratorio, no una inundación confirmada.")
     zona = flujo.zona_confirmada()
     if zona is None:
         st.info("Primero dibuja o confirma una zona en «1 · Zona».")

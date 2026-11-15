@@ -361,21 +361,16 @@ def herramientas_sar() -> None:
                       on_click=minimizar_sar)
             st.button("Cerrar", key="cerrar_sar", icon=":material/close:", type="tertiary",
                       on_click=cerrar_sar)
-        st.markdown(
-            '<div class="mc-aviso" title="NISAR permite preparar recortes GCOV con NASA Harmony. '
-            'Sentinel-1 requiere RTC locales. Una imagen o cambio SAR aislado no confirma inundaciones.">'
-            "NISAR (banda L) principal · Sentinel-1 (banda C) respaldo. "
-            "Busca y prepara imágenes; compara dos fechas para analizar posibles cambios.</div>",
-            unsafe_allow_html=True,
-        )
-        # En el recorrido científico Sentinel (RTC), el CTA debe permanecer
-        # visible dentro del panel. El flujo público NISAR tiene su propia
-        # entrada área+periodo y no debe empujar los controles heredados.
+        # La selección de fuente es una decisión del motor, no una pregunta
+        # al visitante. No prometer Sentinel automático antes de tener su
+        # pipeline OPERA integrado y científicamente validado.
         import os
-        sensor_actual = st.session_state.get("sar_sensor")
-        sensor_inicial = (herramientas.SENSORES[1] if os.environ.get("VISOR_SENSOR_DEFECTO") == "SENTINEL"
-                          else herramientas.SENSORES[0])
-        if (sensor_actual or sensor_inicial) == herramientas.SENSORES[0]:
+        modo_legado = os.environ.get("VISOR_SENSOR_DEFECTO") == "SENTINEL"
+        if modo_legado:
+            st.caption("Diagnóstico avanzado Sentinel-1: requiere RTC locales; no es un análisis automático.")
+        else:
+            st.caption("Selecciona el área y las fechas: V.I.S.O.R. gestiona la búsqueda NISAR "
+                       "sin pedirte escoger satélite. Sentinel-1 automático sigue en validación.")
             v9_experiencia.render()
         herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
         st.html(SUBIR_AL_CAMBIAR_DE_PASO, unsafe_allow_javascript=True)
