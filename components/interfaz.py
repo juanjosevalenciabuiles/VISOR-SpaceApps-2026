@@ -27,7 +27,7 @@ from components import v9_experiencia
 from components import resultados as ui_resultados
 from components.barra_lateral import Controles
 from components.panel_info import insignia
-from utils import alcance_geografico
+from utils import alcance_geografico, mapas_base
 from utils.config import MAPA_CENTRO, MAPA_ZOOM, Fenomeno
 from utils import procedencia, trabajos
 from utils.geotiff import Capa
@@ -231,6 +231,12 @@ def estado_html(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple = (
     return '<div class="mc-estado">' + '<span class="mc-separador"></span>'.join(grupos) + "</div>"
 
 
+def _cambiar_mapa_rapido(clave: str) -> None:
+    """Cambiar solo teselas del mapa; conserva escala, AOI y resultados."""
+    if clave in mapas_base.ofrecidos():
+        st.session_state["mapa_base"] = clave
+
+
 def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple = (),
                    capa_visible: bool = True) -> None:
     with st.container(key="barra_superior", horizontal=True, vertical_alignment="center", gap="small"):
@@ -249,6 +255,17 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple 
                   type="primary" if st.session_state["ui_info"] else "secondary")
         st.button("Herramientas SAR", key="btn_sar", help="Herramientas SAR: área, escenas, análisis y resultados", icon=":material/satellite_alt:", on_click=abrir_sar,
                   type="primary" if st.session_state["ui_sar"] == "abierto" else "secondary")
+        with st.popover("Mapas", icon=":material/layers:", help="Cambiar el mapa base sin alterar los análisis"):
+            st.caption("MAPA BASE · CAMBIO INMEDIATO")
+            for clave in ("osm_oscuro", "calles", "satelital", "topografico"):
+                if clave in mapas_base.ofrecidos():
+                    st.button(
+                        mapas_base.MAPAS_BASE[clave].nombre,
+                        key=f"mapa_rapido_{clave}", on_click=_cambiar_mapa_rapido, args=(clave,),
+                        use_container_width=True,
+                        type="primary" if st.session_state.get("mapa_base") == clave else "secondary",
+                    )
+            st.caption("El fondo no es una observación SAR ni una predicción.")
         if st.button("Ayuda", key="btn_ayuda", help="Ayuda y estados de procedencia", icon=":material/help:"):
             mostrar_ayuda()
 

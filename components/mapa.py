@@ -46,6 +46,15 @@ ESTILO_LIENZO = """<style id="visor-lienzo">
 html, body { margin: 0; height: 100%; overflow: hidden; background: #06121e; }
 #map_div, #map_div2 { width: 100vw !important; height: 100vh !important; height: 100dvh !important; }
 .leaflet-container { background: #06121e; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+/* Herramienta destacada, situada en el área libre entre el panel y la ficha. */
+.leaflet-control.visor-dos-esquinas { margin-top: 92px !important; margin-right: 354px !important; }
+.visor-dos-esquinas button { cursor:pointer; white-space:nowrap; padding:10px 13px; font:600 12px/1.2 Inter,Arial,sans-serif;
+ color:#f2fbff; border:1px solid rgba(46,230,200,.6); background:#0a2434; border-radius:10px;
+ box-shadow:0 7px 22px rgba(0,0,0,.4); }
+.visor-dos-esquinas button[aria-pressed="true"] { background:#006a7a; border-color:#8dfff3; }
+.visor-dos-esquinas button:focus-visible { outline:3px solid #2ee6c8; outline-offset:2px; }
+.visor-dos-esquinas small { display:block; font:11px Inter,Arial,sans-serif; color:#e6f9ff; margin-top:4px; }
+@media (max-width: 1240px) {.leaflet-control.visor-dos-esquinas { margin-right: 20px !important; margin-top: 86px !important; }}
 /* El zoom pasa a la esquina inferior derecha, justo encima de la atribución: por debajo
    del panel de información (que termina a 190 px del borde) y lejos de la línea temporal. */
 .leaflet-top.leaflet-left { top: auto; left: auto; right: 14px; bottom: 40px;
@@ -121,6 +130,72 @@ class AvisoTeselas(MacroElement):
 {% endmacro %}""")
 
 
+
+class SeleccionDosEsquinas(MacroElement):
+    """Control visible: click en esquina 1, click en esquina 2, emitir draw:created.
+
+    Comparte el FeatureGroup de Leaflet.Draw, por lo que streamlit-folium
+    recibe el mismo GeoJSON que con la herramienta de rectángulo anterior.
+    """
+    _template = Template("""{% macro script(this, kwargs) %}
+(function(m) {
+  var activo=false, primero=null, marcador=null, btn=null;
+  var Control=L.Control.extend({
+    options:{position:'topright'},
+    onAdd:function() {
+      var cont=L.DomUtil.create('div','leaflet-control visor-dos-esquinas');
+      btn=L.DomUtil.create('button','');
+      btn.type='button';
+      btn.id='visor-seleccionar-dos-esquinas';
+      btn.setAttribute('aria-pressed','false');
+      btn.setAttribute('title','Marca con el mouse las dos esquinas opuestas del área de estudio');
+      btn.textContent='▧ Seleccionar zona';
+      cont.appendChild(btn);
+      L.DomEvent.disableClickPropagation(cont);
+      L.DomEvent.disableScrollPropagation(cont);
+      L.DomEvent.on(btn,'click',function(ev){
+        L.DomEvent.stop(ev);
+        activo=!activo; primero=null;
+        if(marcador){m.removeLayer(marcador); marcador=null;}
+        btn.setAttribute('aria-pressed',String(activo));
+        btn.textContent=activo ? '1/2 · Primera esquina' : '▧ Seleccionar zona';
+        m.getContainer().style.cursor=activo ? 'crosshair':'';
+      });
+      return cont;
+    }
+  });
+  new Control().addTo(m);
+  m.on('click',function(ev){
+    if(!activo) return;
+    if(!primero){
+      primero=ev.latlng;
+      marcador=L.circleMarker(primero,{radius:5,color:'#2ee6c8',
+        fillColor:'#2ee6c8',fillOpacity:1,interactive:false}).addTo(m);
+      btn.textContent='2/2 · Esquina opuesta';
+      return;
+    }
+    var o=Math.min(primero.lng,ev.latlng.lng), e=Math.max(primero.lng,ev.latlng.lng);
+    var s=Math.min(primero.lat,ev.latlng.lat), n=Math.max(primero.lat,ev.latlng.lat);
+    if(e-o<0.001||n-s<0.001){
+      btn.textContent='Aleja la segunda esquina (>100 m)';
+      return;
+    }
+    var rect=L.rectangle([[s,o],[n,e]],{color:'#ffd60a',weight:2,fillOpacity:.05});
+    if(marcador){m.removeLayer(marcador); marcador=null;}
+    activo=false; primero=null;
+    btn.setAttribute('aria-pressed','false');
+    btn.textContent='▧ Seleccionar zona';
+    m.getContainer().style.cursor='';
+    // Event hook documentado de Leaflet.Draw: NO crear zona confirmada implícita.
+    m.fire(L.Draw.Event.CREATED,{layer:rect,layerType:'rectangle'});
+  });
+  m.getContainer().addEventListener('keydown',function(e){
+    if(e.key==='Escape' && activo) btn.click();
+  });
+})({{ this._parent.get_name() }});
+{% endmacro %}""")
+
+
 def vista_inicio() -> tuple[tuple[float, float], int]:
     """Centro y zoom de partida: Colombia entera (con San Andrés) en Modo Colombia; Antioquia en GLOBAL."""
     if alcance_geografico.restringido():
@@ -184,6 +259,7 @@ def mapa_fijo() -> folium.Map:
     # Pantalla completa del mapa (API Fullscreen del navegador; el iframe de Streamlit la permite).
     Fullscreen(position="topleft", title="Pantalla completa", title_cancel="Salir de pantalla completa",
                force_separate_button=True).add_to(m)
+    SeleccionDosEsquinas().add_to(m)
     AvisoTeselas().add_to(m)
     return m
 

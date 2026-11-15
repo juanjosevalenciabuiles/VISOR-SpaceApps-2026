@@ -156,11 +156,11 @@ def render() -> None:
     hoy = datetime.now(timezone.utc).date()
     inicio_def = hoy - timedelta(days=23)
     fin_def = hoy - timedelta(days=16)
-    col_a, col_b = st.columns(2)
-    inicio = col_a.date_input("Inicio del periodo", value=inicio_def,
-                              key="v9_inicio_periodo", format="YYYY-MM-DD")
-    fin = col_b.date_input("Fin del periodo", value=fin_def,
-                           key="v9_fin_periodo", format="YYYY-MM-DD")
+    # Las fechas se editan EN LA LÍNEA DE TIEMPO: una sola fuente de estado.
+    # Mantener defaults si este componente se ejecuta aislado en AppTest.
+    inicio = st.session_state.setdefault("v9_inicio_periodo", inicio_def)
+    fin = st.session_state.setdefault("v9_fin_periodo", fin_def)
+    st.caption(f"Periodo elegido en la línea temporal: {inicio.isoformat()} → {fin.isoformat()}")
     firma = _firma(zona, inicio, fin)
     preparado_prev = None
     previo_id = st.session_state.get("nisar_auto_job")

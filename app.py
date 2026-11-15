@@ -6,9 +6,8 @@ interfaz vive en components/ y la lógica de datos en utils/.
 """
 import streamlit as st
 
-from components import estilos, flujo, interfaz, mapa
+from components import estilos, flujo, interfaz, linea_temporal, mapa
 from components import herramientas_sar as herramientas
-from components import resultados as ui_resultados
 from utils import alcance_geografico, diagnostico
 from utils.config import FENOMENOS
 from utils.geotiff import ErrorCapa, cargar_capa
@@ -22,6 +21,7 @@ st.set_page_config(
 )
 
 interfaz.inicializar_estado()
+linea_temporal.inicializar()
 
 # 1. Inventario de data/analisis/ (solo para el historial) y resultado autorizado para esta ejecución.
 #    Que un archivo exista NO lo pone en el mapa: solo se dibuja el resultado activo de la sesión,
@@ -32,6 +32,10 @@ activo = flujo.sincronizar(resultados)
 # Comprobación ligera de servicios externos, una vez cada 15 min por proceso y sin bloquear la vista.
 diagnostico.comprobar_en_segundo_plano()
 controles = interfaz.panel_explorador(resultados, activo)
+# Dos capas simultáneas solo tras selección explícita desde la línea de tiempo.
+comparacion = linea_temporal.capas_para_mapa(resultados)
+if comparacion is not None:
+    controles.resultados = comparacion
 fenomeno = FENOMENOS[controles.clave]
 estilos.inyectar_tema(fenomeno)
 interfaz.aplicar_css_estado()
@@ -55,5 +59,5 @@ interfaz.barra_superior(fenomeno, capa, activos, controles.mostrar_capa)
 interfaz.buscador()
 interfaz.panel_informacion(fenomeno, capa, error, controles, resultados)
 interfaz.herramientas_sar()
-interfaz.linea_temporal(ui_resultados.fechas_activas(resultados, controles.resultados))
+linea_temporal.render(resultados)
 interfaz.guia_eco(activos)

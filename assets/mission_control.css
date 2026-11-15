@@ -210,10 +210,20 @@ i.mc-transparente { background: repeating-conic-gradient(rgba(255, 255, 255, 0.2
 
 /* ---------- Línea temporal conceptual ---------- */
 .st-key-linea_temporal {
-  bottom: 20px; left: 50%; transform: translateX(-50%);
-  width: min(560px, calc(100vw - 2 * var(--mc-ancho) - 80px)); min-width: 300px;
-  padding: 8px 18px 8px !important; gap: 0 !important;
+  bottom: 16px; left: 50%; transform: translateX(-50%);
+  width: min(760px, calc(100vw - 2 * var(--mc-ancho) - 75px)); min-width: 380px;
+  padding: 10px 16px !important; gap: 0.2rem !important;
+  max-height: min(290px, 42vh); overflow-y: auto; overscroll-behavior: contain;
 }
+.st-key-linea_temporal [data-testid="stDateInput"] { flex:1; min-width:0; }
+.st-key-linea_temporal [data-testid="stDateInput"] input { font-size:0.78rem; min-height:36px; }
+.st-key-linea_temporal [data-testid="stRadio"] p { font-size:0.73rem; }
+.st-key-linea_temporal [data-testid="stSelectbox"] { margin-top: 3px; }
+.st-key-linea_temporal [data-testid="stCaptionContainer"] { font-size:0.69rem; line-height:1.35; }
+.visor-riel-tiempo {display:flex; gap:6px; overflow-x:auto; max-width:100%; margin:6px 0; padding-bottom:3px;}
+.visor-marca-tiempo {display:inline-flex; white-space:nowrap; font-size:10px; line-height:1.2;
+ padding:5px 7px; border:1px solid rgba(46,230,200,.42); border-radius:20px;
+ background:rgba(46,230,200,.11); color:#e4f8f5;}
 .mc-linea-titulo { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.16em; color: var(--mc-tenue); }
 .mc-linea-pista { display: flex; align-items: center; gap: 0.6rem; margin: 0.35rem 0 0.25rem; }
 .mc-linea-punto { font-size: 0.7rem; color: var(--mc-tenue); white-space: nowrap; }
