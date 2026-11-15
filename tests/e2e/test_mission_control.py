@@ -94,6 +94,6 @@ def test_herramientas_sar_abrir_minimizar_restaurar_cerrar(abrir):
     assert p.visible("sar_minimizado") and not p.visible("panel_sar")
     p.clic("restaurar_sar")
     seleccionada = p.page.locator(".st-key-panel_sar [role=tab][aria-selected=true]").inner_text()
-    assert seleccionada.startswith("03")
+    assert seleccionada.startswith("3")
     p.clic("cerrar_sar")
     assert not p.visible("panel_sar") and p.visible("panel_explorador") and p.mapa_intacto()

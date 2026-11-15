@@ -89,7 +89,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #06121e; }
   .leaflet-top.leaflet-left { bottom: auto; top: 88px; }
 }
 @media (max-width: 720px) {
-  .leaflet-top.leaflet-left { bottom: auto; top: 76px; right: 10px; }
+  .leaflet-top.leaflet-left { bottom: auto; top: 134px; right: 10px; }   /* bajo el buscador flotante */
   .leaflet-control-scale { display: none; }
   .leaflet-control-attribution { font-size: 9px; max-width: 100vw; }
 }

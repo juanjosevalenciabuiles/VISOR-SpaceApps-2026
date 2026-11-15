@@ -431,7 +431,7 @@ a.mc-ficha-credito:hover { text-decoration: underline; }
   background: linear-gradient(138deg, rgba(var(--theme-rgb), .14), rgba(7, 19, 34, .82) 60%), rgba(8, 22, 36, .82);
   box-shadow: var(--mc-sombra); -webkit-backdrop-filter: var(--mc-desenfoque); backdrop-filter: var(--mc-desenfoque); }
 .st-key-panel_explorador, .st-key-panel_sar { top: calc(var(--mc-arriba) + var(--mc-buscador)); max-height:
-  calc(100vh - var(--mc-arriba) - var(--mc-buscador) - 40px); }
+  calc(100vh - var(--mc-arriba) - var(--mc-buscador) - var(--mc-abajo)); }   /* libre la escala del mapa */
 .st-key-sar_minimizado { top: calc(var(--mc-arriba) + var(--mc-buscador)); }
 .st-key-buscador { flex-wrap: nowrap !important; }
 .st-key-buscador > div:first-child { flex: 1 1 auto; min-width: 0; }
@@ -446,17 +446,19 @@ a.mc-ficha-credito:hover { text-decoration: underline; }
   .st-key-panel_explorador, .st-key-panel_sar { top: auto !important; max-height: 46vh; }
   .st-key-sar_minimizado { top: auto; }
   /* Celular: ECO en una fila (burbuja + avatar) entre el buscador y las hojas inferiores */
-  .st-key-eco, .st-key-eco_oculto { top: 132px !important; right: 8px !important; flex-direction: row !important;
-    align-items: center !important; flex-wrap: nowrap !important; }
+  .st-key-eco, .st-key-eco_oculto { top: 132px !important; left: 8px; right: auto !important;
+    max-width: calc(100vw - 176px); flex-direction: row-reverse !important; justify-content: flex-end;
+    align-items: center !important; flex-wrap: nowrap !important; }   /* a la derecha van los controles del mapa */
   .st-key-eco { height: auto !important; min-height: 56px; }
   .st-key-eco > * { flex-shrink: 0 !important; height: auto !important; }
-  .st-key-eco .eco-burbuja { display: block; overflow: visible; max-width: 236px; max-height: none;
+  .st-key-eco .eco-burbuja { display: block; overflow: visible; max-width: 150px; max-height: none;
+    border-radius: 14px 14px 14px 4px;
     font-size: .68rem; line-height: 1.3; padding: .3rem .55rem; }
   .st-key-eco .eco-nombre { display: none; }
   .st-key-eco [data-testid="stElementContainer"], .st-key-eco [data-testid="stMarkdownContainer"] {
     height: auto !important; overflow: visible !important; }
   .st-key-eco .eco-avatar { margin-left: 0; flex: 0 0 52px; }
-  .st-key-eco_ocultar { right: 56px; top: -10px; }
+  .st-key-eco_ocultar { right: -6px; top: -10px; }
 }
 /* Tamaños parejos en el panel derecho (guía, notas y ficha) */
 .st-key-panel_info p.visor-leyenda-nota, .st-key-panel_info .visor-leyenda-nota { font-size: .74rem !important;

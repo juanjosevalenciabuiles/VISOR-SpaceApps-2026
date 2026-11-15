@@ -51,7 +51,7 @@ def teselas_reales(p) -> int:
 
 
 def abrir_explorador(p):
-    if not p.page.locator(".st-key-lugar_texto input").first.is_visible():
+    if not p.visible("panel_explorador"):       # el buscador flota aparte: se mira el panel
         p.clic("btn_explorador")
 
 
