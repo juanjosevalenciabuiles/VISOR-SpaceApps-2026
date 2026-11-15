@@ -13,3 +13,9 @@ Fuente de producto: [PO.DAAC](https://podaac.jpl.nasa.gov/dataset/OPERA_L3_DSWX-
 Tras pulsar «Buscar y analizar»: búsqueda CMR → comprobación de assets/QA y presupuesto → lectura remota por ventanas → máscara WTR validada contra especificación de versión → baseline pre/post → GeoTIFF georreferenciado + `visor.ficha.v1` con fechas, QA, SHA256 y linaje → registro en visor. Los jobs de cada sensor deberán comunicar fallos parciales independientes y limitar concurrencia. **Este incremento solo implementa el primer filtro de metadatos.**
 
 Tests sintéticos sin red: `pytest -q tests/v10_sentinel/`. No se han ejecutado en GitHub todavía; CI debe confirmar.
+
+## Incremento 2: validación defensiva de metadatos
+
+`utils/v10_sentinel/validacion.py` comprueba coordenadas finitas y rango de bbox (rechaza NaN, infinito y antimeridiano), fechas de observación completas con zona horaria y URLs candidatas HTTPS sin credenciales, IP literal, localhost, puerto no estándar o fragmento. El planificador reutiliza las validaciones de bbox y URL; conserva fechas ISO de día completo para compatibilidad con V9 y fixtures, pero acepta timestamps ISO con zona. Esto **no** demuestra que el host sea de NASA, que el enlace esté autorizado, que soporte HTTP Range ni que sea un COG: un verificador de assets confiables sigue siendo obligatorio antes de cualquier IO. Tests sintéticos en `tests/v10_sentinel/test_validacion.py` (sin red).
+
+CI del commit anterior `8d67a4d`: unidad/integración/Ruff **success**; Playwright Firefox y Chromium **failure**; verificaciones reales manuales omitidas. El CI de este incremento aún no está verificado. No hay WTR real, raster, ni mapa de agua.
