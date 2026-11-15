@@ -183,7 +183,7 @@ def render() -> None:
                     job_id = _solicitar(zona, inicio, fin)
                     st.session_state.update(v9_firma=firma, v9_preparacion=job_id,
                                             nisar_auto_job=job_id)
-                except (ValueError, nisar_auto.ErrorAutoNISAR, cat.ErrorCatalogo) as exc:
+                except (ValueError, nisar_auto.ErrorAutoNISAR) as exc:
                     st.session_state["v9_error"] = str(exc)
                 except Exception:
                     st.session_state["v9_error"] = ("No se pudo iniciar la consulta NASA/ASF. "
