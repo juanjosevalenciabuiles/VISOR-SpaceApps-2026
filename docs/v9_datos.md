@@ -40,3 +40,14 @@ Por bloques calcula `ΔdB=10log10(gamma0_post/gamma0_pre)` exclusivamente donde 
 `utils/v9_datos/ventanas.py::planificar_periodo(escenas, aoi, inicio, fin=None, margen_dias=30, presupuesto_bytes=200000000)` selecciona fechas automáticamente desde **área + periodo**. La escena pre debe preceder estrictamente el inicio y la post seguir estrictamente el final; observaciones durante el periodo no se utilizan como baseline pre/post. El filtro conserva fechas originales, exige compatibilidad y QA mediante `planificar_stack`, cuenta escenas excluidas por margen (`fuera_ventana`) y devuelve `periodo_interes`. Una fecha aproximada se expresa con `fin=None`. Si faltan QA/par/cobertura, no genera raster. Los resultados `PLAN_METADATOS` son planes, no detección de inundación.
 
 Pruebas sintéticas añadidas en `tests/v9_datos/test_ventanas.py`; consultar CI para ejecución verificada. Este adaptador no consulta directamente ASF, no descarga y no integra todavía COG reales. **Reconciliación requerida:** V8 PR #17 cambió a `e73d3de` y no se fusionó en IA1.
+
+## Incremento 5 — adaptadores DSWx-S1 / IMERG con verificación explícita
+
+`utils/v9_datos/fuentes.py::adaptar_observacion(producto, metadatos, pixeles_verificados=False)` convierte **únicamente observaciones ya inspeccionadas** al contrato de `utils/verificacion_multifuente.py`: `tipo, observed_at, valid, relacion_espacial, origen, fuente, producto, url, qa, limitaciones`. No consulta APIs ni lee píxeles. Requiere fecha ISO, URL HTTPS, granule de origen, QA `APTO`, cobertura local `aoi`, y confirmación explícita del integrador de haber inspeccionado los píxeles. Por defecto devuelve `valid=False`.
+
+- DSWx-S1: `tipo=agua_satelital` solo si el integrador documenta `agua_observada=True` tras verificar clasificación y QA. `origen=S1:<granule_origen>` debe coincidir con el linaje de cualquier otro derivado del mismo Sentinel-1, evitando contarlo como observación independiente. Agua observada **no equivale** a inundación.
+- IMERG: `tipo=lluvia`, nunca agua ni inundación. Exige precipitación numérica finita y no negativa y QA observacional. `origen=GPM:<granule_origen>`. La lluvia no confirma inundaciones.
+- `pixeles_verificados=True` **no ejecuta una comprobación**: es una declaración de responsabilidad del llamador. Se prohíbe pasarla automáticamente desde metadatos de catálogo. Falta implementar y validar el lector real de DSWx/IMERG, máscaras, calidad y procedencia.
+- Pruebas offline: `tests/v9_datos/test_fuentes.py`, con negativos de catálogo, QA, AOI, linaje, fechas, URL y lluvia inválida. No se usaron escenas reales ni se descargaron datos.
+
+El integrador debe reconciliar el HEAD V8 #17 `e73d3de` ya fusionado a main, sin merge forzado de la rama IA1. La PR sigue draft, **no lista para fusionar**. La CI del nuevo incremento se comprueba por separado.
