@@ -35,6 +35,7 @@ def ficha_resultado_nisar(generado_por):
     return SimpleNamespace(
         ruta=Path("data/analisis/nisar_v9_real_dif_db.tif"),
         archivo="data/analisis/nisar_v9_real_dif_db.tif",
+        nombre="Diferencia de retrodispersión (dB)",
         ficha=ficha,
         capa=capa,
         perfil=PERFILES["diferencia_db"],
