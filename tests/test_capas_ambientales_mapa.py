@@ -3,7 +3,6 @@
 Ningún polígono de alerta representa píxeles de inundación detectada.
 """
 import json
-from datetime import date
 
 import folium
 import pytest
