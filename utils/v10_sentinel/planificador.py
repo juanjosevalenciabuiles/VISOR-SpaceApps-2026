@@ -5,23 +5,18 @@ Los registros son metadatos normalizados de CMR; no constituyen evidencia de agu
 from __future__ import annotations
 
 from datetime import date
-from urllib.parse import urlsplit
+from utils.v10_sentinel.validacion import bbox_valida, fecha_observacion, url_candidata
 
 COLLECTION = "OPERA_L3_DSWX-S1_V1"
 MAX_BYTES = 384 * 1024 * 1024
 
 
 def _fecha(value: str) -> date:
-    return date.fromisoformat(value[:10])
+    return fecha_observacion(value).date()
 
 
 def _bbox(value: object) -> tuple[float, float, float, float]:
-    if not isinstance(value, (tuple, list)) or len(value) != 4:
-        raise ValueError("AOI bbox inválida")
-    west, south, east, north = (float(v) for v in value)
-    if not (-180 <= west < east <= 180 and -90 <= south < north <= 90):
-        raise ValueError("AOI bbox inválida o cruza antimeridiano")
-    return west, south, east, north
+    return bbox_valida(value)
 
 
 def _cubre(aoi: tuple[float, ...], footprint: object) -> bool:
@@ -50,11 +45,11 @@ def planificar(aoi_bbox: object, inicio: str, fin: str, escenas: list[dict],
         motivo = None
         try:
             fecha = _fecha(item["observed_at"])
-            url = urlsplit(item["wtr_url"])
+            url = item["wtr_url"]
             nbytes = item["estimated_window_bytes"]
             if item.get("collection") != COLLECTION:
                 motivo = "COLECCION"
-            elif url.scheme != "https" or not url.hostname or url.username or url.password:
+            elif not url_candidata(url):
                 motivo = "URL"
             elif not _cubre(aoi, item.get("bbox")):
                 motivo = "COBERTURA"
