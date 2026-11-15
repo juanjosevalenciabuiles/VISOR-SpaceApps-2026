@@ -33,6 +33,30 @@ def _fechas_de_preparacion(job_id: str):
             date.fromisoformat(pares[1]["observed_at"][:10]))
 
 
+def _fechas_compatibles(pre: date, post: date, inicio: date, fin: date) -> bool:
+    """El usuario elige un intervalo: acepta dos tomas dentro de él o que lo rodeen.
+
+    Siempre exige dos observaciones distintas, reales y ordenadas. Las fechas
+    efectivas del producto quedan en la ficha; no se inventan observaciones.
+    """
+    return (pre < post and inicio <= fin and
+            ((inicio <= pre and post <= fin) or (pre < inicio and fin < post)))
+
+
+def _pares_del_periodo(pares, inicio: date, fin: date) -> list:
+    """Prioriza adquisiciones dentro del rango y, si faltan, pares pre/post.
+
+    Para intervalos cortos entre pasadas NISAR, una toma anterior y otra
+    posterior permiten estudiar el cambio sin fingir fechas intermedias.
+    """
+    dentro = [p for p in pares if inicio <= p.antes.nombre.inicio.date()
+              < p.despues.nombre.inicio.date() <= fin]
+    if dentro:
+        return dentro
+    return [p for p in pares if p.antes.nombre.inicio.date() < inicio
+            and p.despues.nombre.inicio.date() > fin]
+
+
 def _compatible(job: dict | None, zona, inicio: date, fin: date) -> bool:
     if not isinstance(job, dict) or job.get("estado") != trabajos.APTO:
         return False
@@ -44,39 +68,38 @@ def _compatible(job: dict | None, zona, inicio: date, fin: date) -> bool:
         pre, post = _fechas_de_preparacion(job["job_id"])
     except (QAInsuficiente, OSError, KeyError, ValueError):
         return False
-    return pre < inicio <= fin < post
+    return _fechas_compatibles(pre, post, inicio, fin)
 
 
 def _solicitar(zona, inicio: date, fin: date):
-    if inicio > fin or fin >= datetime.now(timezone.utc).date():
-        raise ValueError("El periodo debe terminar antes de hoy para buscar una imagen posterior.")
-    if inicio <= cat.INICIO_VALIDATED:
+    hoy = datetime.now(timezone.utc).date()
+    if inicio > fin or fin > hoy:
+        raise ValueError("El intervalo debe estar ordenado y no incluir fechas futuras.")
+    if fin < cat.INICIO_VALIDATED:
         raise ValueError(
-            "Esta integración consulta NISAR VALIDATED (adquisiciones desde el 21/10/2026). "
-            "Para periodos anteriores se requiere el flujo PROVISIONAL, separado y señalizado."
+            "NISAR VALIDATED solo ofrece adquisiciones a partir del 21/10/2026. "
+            "Este rango es anterior; el flujo PROVISIONAL necesita validación separada."
         )
     if not os.environ.get(nisar_descarga.VARIABLE_TOKEN, "").strip():
         raise ValueError("Configura EARTHDATA_TOKEN en los Secrets de Replit; no lo pegues en el chat.")
     desde = max(cat.INICIO_VALIDATED, inicio - timedelta(days=MARGEN_DIAS))
-    hasta = min(datetime.now(timezone.utc).date(), fin + timedelta(days=MARGEN_DIAS))
+    hasta = min(hoy, fin + timedelta(days=MARGEN_DIAS))
     resultado = cat.buscar(*zona, desde, hasta, madurez="VALIDATED")
-    candidatos = [p for p in resultado.pares
-                  if p.antes.nombre.inicio.date() < inicio and p.despues.nombre.inicio.date() > fin]
+    candidatos = _pares_del_periodo(resultado.pares, inicio, fin)
     if not candidatos:
         raise ValueError(
-            "Sin un par NISAR comparable antes y después del periodo. "
-            "No se inventará un mapa: prueba con otra zona o un periodo histórico más corto."
+            "No hay dos adquisiciones NISAR compatibles dentro del rango ni antes/después de él. "
+            "No se fabricará un GeoTIFF: amplía el periodo o reduce la zona."
         )
     plan = nisar_auto.planear(
         replace(resultado, pares=candidatos), max_gb=15.0, aceptar_escena_unica=False,
     )
-    # El clic del usuario autoriza un recorte de máximo 384 MiB; nunca HDF5 completos.
+    # Un clic autoriza recortes de hasta 384 MiB; nunca HDF5 completos.
     from components import nisar_auto_ui
     preparado = nisar_auto_ui._ejecutar_en_cola(
         resultado, plan, nisar_auto_ui.METODOS[0], MAX_HARMONY_MB,
     )
     return preparado["job_id"]
-
 
 @st.fragment(run_every=2.0)
 def _seguimiento(firma):
