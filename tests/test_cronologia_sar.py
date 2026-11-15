@@ -92,3 +92,14 @@ def test_aoi_invalida_no_habilita_overlays(zona, limites):
 def test_intervalo_invalido_no_reutiliza_overlays(inicio, fin):
     r = _res("nisar", "NISAR", ["2026-10-22", "2026-11-03"])
     assert crono.capas_visibles([r], ZONA, inicio, fin, "NISAR") == {}
+
+
+def test_seleccion_explicita_ausente_no_sustituye_producto():
+    n = _res("nisar_actual", "NISAR", ["2026-10-22", "2026-11-03"])
+    s = _res("sentinel_actual", "Sentinel-1", ["2026-10-25", "2026-11-05"])
+    inicio, fin = date(2026, 10, 25), date(2026, 11, 3)
+    assert crono.capas_visibles([n, s], ZONA, inicio, fin, "Ambos",
+                                {"NISAR": "nisar_ya_no_disponible"}) == {"sentinel_actual": 0.7}
+    assert crono.capas_visibles([n], ZONA, inicio, fin, "NISAR",
+                                {"NISAR": ""}) == {}
+    assert crono.capas_visibles([n], ZONA, inicio, fin, "NISAR") == {"nisar_actual": 0.85}
