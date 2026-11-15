@@ -45,26 +45,24 @@ def render(resultados: list | tuple) -> None:
     inicializar()
     zona = flujo.zona_confirmada()
     hoy = datetime.now(timezone.utc).date()
+    # El intervalo es un control público permanente, no una línea temporal ficticia.
+    with st.container(horizontal=True, vertical_alignment="bottom", gap="small"):
+        st.date_input("Desde", key="v9_inicio_periodo", format="YYYY-MM-DD",
+                      min_value=date(2014, 4, 3), max_value=hoy, on_change=_periodo_cambiado)
+        st.date_input("Hasta", key="v9_fin_periodo", format="YYYY-MM-DD",
+                      min_value=date(2014, 4, 3), max_value=hoy, on_change=_periodo_cambiado)
+    inicio, fin = st.session_state["v9_inicio_periodo"], st.session_state["v9_fin_periodo"]
+    if inicio > fin or fin >= hoy:
+        st.caption("El periodo debe terminar antes de hoy para comparar con datos posteriores.")
+        return
+    if zona is None:
+        return
+    productos = cronologia_sar.productos_disponibles(resultados, zona, inicio, fin)
+    if not productos:
+        return
     with st.container(key="linea_temporal"):
         st.markdown('<div class="mc-linea-titulo">LÍNEA DE TIEMPO · OBSERVACIONES REALES</div>',
                     unsafe_allow_html=True)
-        with st.container(horizontal=True, vertical_alignment="bottom", gap="small"):
-            st.date_input("Desde", key="v9_inicio_periodo", format="YYYY-MM-DD",
-                          min_value=date(2014, 4, 3), max_value=hoy, on_change=_periodo_cambiado)
-            st.date_input("Hasta", key="v9_fin_periodo", format="YYYY-MM-DD",
-                          min_value=date(2014, 4, 3), max_value=hoy, on_change=_periodo_cambiado)
-        inicio, fin = st.session_state["v9_inicio_periodo"], st.session_state["v9_fin_periodo"]
-        if inicio > fin or fin >= hoy:
-            st.caption("El periodo debe terminar antes de hoy para comparar con datos posteriores.")
-            return
-        if zona is None:
-            st.caption("Selecciona tu zona con dos clics en el mapa; luego pulsa «Analizar cambios».")
-            return
-        productos = cronologia_sar.productos_disponibles(resultados, zona, inicio, fin)
-        if not productos:
-            st.caption("Sin mapas temporales verificables todavía. Al procesar escenas reales, "
-                       "sus fechas aparecerán aquí; cambiar el periodo no inicia descargas.")
-            return
         puntos = cronologia_sar.puntos_observados(productos)
         riel = "".join(
             '<span class="visor-marca-tiempo" title="Adquisición real; no fecha interpolada">'
