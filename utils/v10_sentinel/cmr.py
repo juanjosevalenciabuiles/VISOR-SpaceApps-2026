@@ -8,6 +8,8 @@ from urllib.request import Request, urlopen
 
 CMR_URL = "https://cmr.earthdata.nasa.gov/search/granules.json"
 SHORT_NAME = "OPERA_L3_DSWX-S1_V1"
+# PO.DAAC Version 1.0, colección CMR oficial; evita versiones homónimas.
+COLLECTION_CONCEPT_ID = "C2949811996-POCLOUD"
 
 
 def parametros_cmr(aoi_bbox: tuple[float, float, float, float], inicio: str, fin: str) -> str:
@@ -21,6 +23,7 @@ def parametros_cmr(aoi_bbox: tuple[float, float, float, float], inicio: str, fin
         raise ValueError("Fechas UTC con zona horaria y orden válido requeridas")
     args = {
         "short_name": SHORT_NAME,
+        "collection_concept_id": COLLECTION_CONCEPT_ID,
         "bounding_box": ",".join(str(v) for v in bbox),
         "temporal": f"{desde.astimezone(timezone.utc).isoformat()},{hasta.astimezone(timezone.utc).isoformat()}",
         "page_size": "100",
