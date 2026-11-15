@@ -32,7 +32,7 @@ def publicar_comparacion(
     Las banderas deben venir de verificaciones reales externas: no se infieren
     de CMR ni de la presencia de enlaces. No confirma una inundación.
     """
-    if not (qa_verificada and fuente_verificada):
+    if qa_verificada is not True or fuente_verificada is not True:
         return {"estado": "NO_APTA", "motivo": "FUENTE_O_QA_NO_VERIFICADA"}
     if resultado.get("estado") != "APTA" or not resultado.get("cobertura_qa_completa"):
         return {"estado": "NO_APTA", "motivo": "COBERTURA_QA_INCOMPLETA"}
