@@ -40,8 +40,15 @@ def extraer_granulos(payload: dict, *, pagina_final: bool = True) -> list[dict]:
         raise ValueError("CMR_PAGINACION_PENDIENTE: página completa de 100 granulos")
     salida = []
     for item in entries:
-        if not isinstance(item, dict) or not item.get("id") or not item.get("time_start"):
+        if (not isinstance(item, dict) or not isinstance(item.get("id"), str)
+                or not item["id"].strip() or not isinstance(item.get("time_start"), str)):
             raise ValueError("CMR granulo incompleto: catalogo no verificable")
+        try:
+            fecha = datetime.fromisoformat(item["time_start"].replace("Z", "+00:00"))
+            if fecha.tzinfo is None:
+                raise ValueError("CMR fecha sin zona")
+        except (ValueError, OverflowError) as exc:
+            raise ValueError("CMR fecha de observacion invalida") from exc
         enlaces = []
         for link in item.get("links", []):
             if not isinstance(link, dict):
