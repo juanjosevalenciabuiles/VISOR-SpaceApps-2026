@@ -123,6 +123,12 @@ def capas_visibles(resultados: list, zona, inicio: date, fin: date, modo: str,
         return {}
     productos = productos_disponibles(resultados, zona, inicio, fin)
     preferidos = seleccion or {}
+    # Los identificadores deben ser unívocos: un mismo ID entre sensores
+    # no permite determinar qué raster se activaría en el visor.
+    conteos = {}
+    for producto in productos:
+        conteos[producto.identificador] = conteos.get(producto.identificador, 0) + 1
+    productos = [p for p in productos if conteos[p.identificador] == 1]
     salida = {}
     for sensor in ("NISAR", "Sentinel-1"):
         if modo not in ("Ambos", sensor):
