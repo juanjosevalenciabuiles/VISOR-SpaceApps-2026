@@ -23,3 +23,9 @@ CI del commit anterior `8d67a4d`: unidad/integración/Ruff **success**; Playwrig
 ## Incremento 3: reparación de parser y regresión temporal
 
 Se corrigió un defecto de sintaxis verificable en `planificador.py::_fecha`: el archivo contenía secuencias literales `\\n` dentro del cuerpo de la función, impidiendo importar el módulo. El arreglo conserva la entrada V9 por fecha diaria y la normalización de observaciones UTC. `tests/v10_sentinel/test_regresion_fechas.py` cubre un par pre/post sintético y la ausencia de post. **No se ejecutaron estas pruebas localmente**; la CI del nuevo SHA debe confirmarlas. La CI del SHA anterior `ed5bac3` concluyó en fallo global, sin diagnóstico por job en esta comprobación. No hay raster ni observaciones verificadas.
+
+## Incremento 4: comparación WTR sin clases inventadas
+
+`utils/v10_sentinel/wtr.py::comparar_wtr` ofrece una operación **pura y sintética** para matrices pre/post y máscaras QA. Requiere `version_verificada=True` **solo después** de que un adaptador externo valide la tabla oficial de códigos de la versión real. El diccionario de entrada únicamente admite claves `agua` y `no_agua` con códigos inequívocos; otros códigos (sombra, HAND, nodata, clases desconocidas) se excluyen por píxel, al igual que cualquier QA inválida. Salidas internas: 0 sin agua posterior, 1 agua persistente, 2 agua nueva, 255 sin QA; **estos son códigos de salida propios, no códigos oficiales OPERA**. Si no queda ningún píxel apto, estado `NO_APTA` y ninguna matriz publicable. No calcula áreas ni probabilidades.
+
+Pruebas sintéticas sin red en `tests/v10_sentinel/test_wtr.py`. No hay ejecución local confirmada; comprobar CI del SHA exacto. **No usar esta función sobre productos reales hasta validar los códigos WTR oficiales y sus máscaras QA.** Aún faltan CMR real, COG windows, mosaicos, cache, GeoTIFF y ficha. No es un mapa de inundación.
