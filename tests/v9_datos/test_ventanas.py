@@ -28,7 +28,7 @@ def test_fuera_ventana_y_qa_no_generan_mapa():
     escenas = [escena("pre", "2026-06-01"), escena("post", "2026-08-02", qa=None)]
     plan = planificar_periodo(escenas, AOI, "2026-07-10", "2026-07-25",
                              margen_dias=20)
-    assert plan["estado"] == "SIN_DATOS"
+    assert plan["estado"] == "SIN_PAR"  # Existe una toma post, pero falta baseline pre.
     assert plan["fuera_ventana"] == 1
     escenas[0]["observed_at"] = "2026-07-01"
     plan = planificar_periodo(escenas, AOI, "2026-07-10", "2026-07-25",
