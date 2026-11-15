@@ -20,7 +20,7 @@ from utils import mapas_base
 from utils.capas_contexto import CAPAS_CONTEXTO, disponibles
 from utils.config import FENOMENOS, Fenomeno, carto_estado
 from utils.geotiff import Capa
-from utils.mapas_base import MAPA_BASE_PREDETERMINADO, MAPAS_BASE, obtener
+from utils.mapas_base import MAPA_BASE_PREDETERMINADO, obtener
 
 
 @dataclass
