@@ -266,6 +266,10 @@ def panel_explorador(resultados: list | None = None, activo=None) -> Controles:
             st.markdown('<div class="mc-titulo-panel">Explorador</div>', unsafe_allow_html=True)
             st.button("Contraer", key="cerrar_explorador", icon=":material/chevron_left:", type="tertiary",
                       on_click=alternar_explorador)
+        st.button("Ver datos reales · modo jurado", key="visor_boton_muestra_real",
+                  icon=":material/satellite_alt:", type="primary", use_container_width=True,
+                  on_click=lambda: st.session_state.__setitem__("visor_modo_muestra_real", True),
+                  help="Abre GeoTIFF y tomas NISAR ya guardados, sin consultar ni descargar datos.")
     return barra_lateral.render(panel, titulo=False, resultados=resultados or [], centrar=centrar_en,
                                 activo=activo, ir_a=ir_a, abrir_zona=abrir_sar)
 

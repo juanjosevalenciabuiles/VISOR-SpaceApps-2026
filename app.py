@@ -21,6 +21,13 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# Muestra independiente sin acceso a la red ni modificación de los archivos SAR.
+# Es una vista seleccionada voluntariamente, nunca el arranque predeterminado.
+if st.session_state.get("visor_modo_muestra_real"):
+    from components import exhibicion_real
+    exhibicion_real.render()
+    st.stop()
+
 interfaz.inicializar_estado()
 
 # 1. Inventario de data/analisis/ (solo para el historial) y resultado autorizado para esta ejecución.
