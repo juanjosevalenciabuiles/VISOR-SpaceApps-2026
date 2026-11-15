@@ -20,6 +20,82 @@ from utils.v9_trabajo_mapa import iniciar
 
 MAX_HARMONY_MB = 384
 MARGEN_DIAS = 45
+INICIO_PROVISIONAL = date(2026, 6, 17)
+FIN_PROVISIONAL = date(2026, 10, 23)
+DISTANCIA_SUGERENCIAS_DIAS = 90
+
+
+def _madurez_del_periodo(inicio: date, fin: date) -> str:
+    """Elegir UNA colección compatible, sin mezclar procesamientos."""
+    if inicio > fin:
+        raise ValueError("El período debe estar ordenado.")
+    if inicio < cat.INICIO_VALIDATED and fin <= FIN_PROVISIONAL:
+        return "PROVISIONAL"
+    return "VALIDATED"
+
+
+def _limites_coleccion(madurez: str, inicio: date, fin: date,
+                       margen: int = MARGEN_DIAS) -> tuple[date, date]:
+    hoy = datetime.now(timezone.utc).date()
+    minimo = INICIO_PROVISIONAL if madurez == "PROVISIONAL" else cat.INICIO_VALIDATED
+    maximo = FIN_PROVISIONAL if madurez == "PROVISIONAL" else hoy
+    primero = max(minimo, inicio - timedelta(days=margen))
+    ultimo = min(maximo, hoy, fin + timedelta(days=margen))
+    if primero > ultimo:
+        raise ValueError("No hay adquisiciones públicas NISAR de esta madurez "
+                         "cerca del período seleccionado.")
+    return primero, ultimo
+
+
+def _distancia_fechas(par, inicio: date, fin: date) -> tuple[int, int, int]:
+    a = par.antes.nombre.inicio.date()
+    b = par.despues.nombre.inicio.date()
+    separacion = ((inicio - b).days if b < inicio else
+                  (a - fin).days if a > fin else 0)
+    return max(0, separacion), abs((a - inicio).days) + abs((b - fin).days), (b - a).days
+
+
+def _sugerencias_cercanas(pares, inicio: date, fin: date, limite: int = 3) -> list:
+    """Ordena PARES documentados por CMR, no inventa fechas ni valida píxeles."""
+    unicos = {}
+    for par in pares:
+        a = par.antes.nombre.inicio.date()
+        b = par.despues.nombre.inicio.date()
+        if a >= b:
+            continue
+        unicos.setdefault((a, b), par)
+    return sorted(unicos.values(), key=lambda par: _distancia_fechas(par, inicio, fin))[:limite]
+
+
+def _limpiar_v9(limpiar_fechas: bool = False) -> None:
+    for clave in ("v9_firma", "v9_preparacion", "v9_mapa_job", "v9_publicado",
+                  "v9_error", "v9_sugerencias", "v9_preflight_provisional",
+                  "nisar_auto_job"):
+        st.session_state.pop(clave, None)
+    if limpiar_fechas:
+        for clave in ("v9_inicio_periodo", "v9_fin_periodo"):
+            st.session_state.pop(clave, None)
+
+
+def _nuevo_analisis(nueva_zona: bool) -> None:
+    """Preparar otra exploración sin borrar archivos ni el historial."""
+    _limpiar_v9(limpiar_fechas=nueva_zona)
+    flujo.limpiar_resultado()
+    if nueva_zona:
+        flujo.quitar_zona()
+        st.session_state["lugar"] = None
+        st.session_state["ui_explorador"] = True
+        st.session_state["ui_sar"] = "minimizado"
+    else:
+        st.session_state["ui_sar"] = "abierto"
+        st.session_state["ui_explorador"] = False
+
+
+def _usar_fechas_sugeridas(inicio: date, fin: date) -> None:
+    _limpiar_v9()
+    st.session_state["v9_inicio_periodo"] = inicio
+    st.session_state["v9_fin_periodo"] = fin
+
 
 
 def _firma(zona, inicio: date, fin: date):
@@ -141,31 +217,86 @@ def _solicitar(zona, inicio: date, fin: date):
     hoy = datetime.now(timezone.utc).date()
     if inicio > fin or fin > hoy:
         raise ValueError("El intervalo debe estar ordenado y no incluir fechas futuras.")
-    if fin < cat.INICIO_VALIDATED:
-        raise ValueError(
-            "NISAR VALIDATED solo ofrece adquisiciones a partir del 21/10/2026. "
-            "Este rango es anterior; el flujo PROVISIONAL necesita validación separada."
-        )
-    if not os.environ.get(nisar_descarga.VARIABLE_TOKEN, "").strip():
-        raise ValueError("Configura EARTHDATA_TOKEN en los Secrets de Replit; no lo pegues en el chat.")
-    desde = max(cat.INICIO_VALIDATED, inicio - timedelta(days=MARGEN_DIAS))
-    hasta = min(hoy, fin + timedelta(days=MARGEN_DIAS))
-    resultado = cat.buscar(*zona, desde, hasta, madurez="VALIDATED")
+    madurez = _madurez_del_periodo(inicio, fin)
+    desde, hasta = _limites_coleccion(madurez, inicio, fin)
+    resultado = cat.buscar(*zona, desde, hasta, madurez=madurez)
     candidatos = _pares_del_periodo(resultado.pares, inicio, fin)
     if not candidatos:
+        pares = resultado.pares
+        # Segunda consulta SOLO DE METADATOS si el plazo inicial no produjo
+        # ningún par. No constituye adquisición NISAR ni exige token NASA.
+        if not pares:
+            amplio_desde, amplio_hasta = _limites_coleccion(
+                madurez, inicio, fin, margen=DISTANCIA_SUGERENCIAS_DIAS)
+            if (amplio_desde, amplio_hasta) != (desde, hasta):
+                mas = cat.buscar(*zona, amplio_desde, amplio_hasta, madurez=madurez)
+                pares = mas.pares
+        st.session_state["v9_sugerencias"] = {
+            "firma": _firma(zona, inicio, fin), "madurez": madurez,
+            "pares": _sugerencias_cercanas(pares, inicio, fin),
+        }
         raise ValueError(
-            "No hay dos adquisiciones NISAR compatibles dentro del rango ni antes/después de él. "
-            "No se fabricará un GeoTIFF: amplía el periodo o reduce la zona."
+            "No se encontró un par NISAR compatible para estas fechas. "
+            "Consulta los intervalos reales más cercanos sugeridos abajo."
         )
+    if not os.environ.get(nisar_descarga.VARIABLE_TOKEN, "").strip():
+        raise ValueError("Para adquirir nuevos recortes NISAR configura EARTHDATA_TOKEN "
+                         "en los Secrets de Replit; no lo pegues en el chat.")
     plan = nisar_auto.planear(
         replace(resultado, pares=candidatos), max_gb=15.0, aceptar_escena_unica=False,
     )
-    # Un clic autoriza recortes de hasta 384 MiB; nunca HDF5 completos.
+    # Un clic autoriza recortes auténticos de hasta 384 MiB, nunca HDF5 completos.
     from components import nisar_auto_ui
     preparado = nisar_auto_ui._ejecutar_en_cola(
         resultado, plan, nisar_auto_ui.METODOS[0], MAX_HARMONY_MB,
     )
     return preparado["job_id"]
+
+
+def _mostrar_sugerencias(firma) -> None:
+    estado = st.session_state.get("v9_sugerencias") or {}
+    if estado.get("firma") != firma:
+        return
+    pares = estado.get("pares") or []
+    if not pares:
+        st.info("NASA CMR no encontró pares comparables cercanos para esta zona y "
+                "madurez. Prueba una AOI diferente o fechas más amplias.")
+        return
+    st.markdown("**Fechas NISAR más cercanas disponibles en el catálogo**")
+    st.caption("Recomendaciones basadas en huellas y metadatos reales de NASA; "
+               "la cobertura de píxeles y máscaras todavía debe verificarse.")
+    for i, par in enumerate(pares):
+        a, b = par.antes.nombre.inicio.date(), par.despues.nombre.inicio.date()
+        st.button(
+            f"Usar {a:%d/%m/%Y} → {b:%d/%m/%Y} · {estado['madurez']}",
+            key=f"v9_usar_sugerencia_{i}",
+            on_click=_usar_fechas_sugeridas,
+            args=(a, b),
+            use_container_width=True,
+        )
+
+
+def _mostrar_progreso(trabajo: dict, fase: str) -> None:
+    """Porcentaje de ETAPAS completadas, nunca ETA o bytes inventados."""
+    claves = (("zona", "escenas", "datos", "preparacion", "verificacion")
+              if fase == "preparacion" else ("calculo", "verificacion"))
+    por_clave = {f["clave"]: f for f in trabajo.get("fases") or []}
+    hechos = sum(por_clave.get(c, {}).get("estado") == trabajos.APTO for c in claves)
+    activo = next((por_clave.get(c) for c in claves
+                   if por_clave.get(c, {}).get("estado") == trabajos.EN_CURSO), None)
+    if fase == "preparacion":
+        porcentaje = int(5 + 65 * hechos / len(claves))
+    else:
+        porcentaje = int(72 + 26 * hechos / len(claves))
+    porcentaje = 100 if trabajo.get("estado") == trabajos.APTO and fase == "calculo" else porcentaje
+    detalle = (activo.get("detalle") or activo["nombre"]) if activo else (
+        "En cola para iniciar" if trabajo.get("estado") in trabajos.ACTIVOS else
+        "Etapas completadas" if trabajo.get("estado") == trabajos.APTO else
+        "Trabajo detenido")
+    st.progress(min(100, max(0, porcentaje)), text=f"{porcentaje}% de etapas · {detalle}")
+    st.caption("El porcentaje indica fases terminadas, no el tiempo restante. "
+               f"Estado del trabajo: {trabajo['estado']}.")
+
 
 @st.fragment(run_every=2.0)
 def _seguimiento(firma):
@@ -179,10 +310,8 @@ def _seguimiento(firma):
         st.warning("No se pudo recuperar el trabajo NISAR de esta sesión.")
         return
     if preparacion["estado"] in trabajos.ACTIVOS:
-        en_curso = next((f for f in preparacion.get("fases", [])
-                         if f["estado"] == trabajos.EN_CURSO), None)
-        st.info("Preparando imágenes NISAR reales: " +
-                (en_curso.get("detalle") if en_curso else "trabajo en cola"))
+        st.info("Preparando observaciones NISAR reales…")
+        _mostrar_progreso(preparacion, "preparacion")
         return
     if preparacion["estado"] != trabajos.APTO:
         st.warning("La preparación NISAR no terminó: " +
@@ -206,7 +335,8 @@ def _seguimiento(firma):
         st.warning("El trabajo de comparación todavía no está disponible.")
         return
     if cambio["estado"] in trabajos.ACTIVOS:
-        st.info("Analizando cambios entre dos fechas NISAR. No se está clasificando inundación.")
+        st.info("Calculando el cambio SAR real de las dos fechas…")
+        _mostrar_progreso(cambio, "calculo")
         return
     if cambio["estado"] != trabajos.APTO:
         st.warning("No se pudo construir el mapa de cambios: " +
@@ -224,7 +354,10 @@ def _seguimiento(firma):
     if not res.dibujable or not res.capa or not res.capa.procedencia.es_real:
         st.warning("El mapa todavía no supera los controles de procedencia y QA.")
         return
-    st.success("Mapa de cambio NISAR preparado. Muestra diferencias de señal, no inundaciones confirmadas.")
+    _mostrar_progreso(cambio, "calculo")
+    st.success("Mapa de cambio NISAR preparado. Son diferencias de señal, no inundaciones confirmadas.")
+    st.caption("Fuente de las tomas: " + str((leer_preparacion(prep_id).get("madurez") or "VALIDATED"))
+               + " · fecha real y procedencia disponibles en la ficha científica.")
     if st.session_state.get("v9_publicado") != mapa_job:
         flujo.activar(id_resultado(ruta), sesion.ANALISIS, cambio["run_id"])
         st.session_state["v9_publicado"] = mapa_job
@@ -240,8 +373,15 @@ def render() -> None:
                "El resultado NISAR disponible es exploratorio, no una inundación confirmada.")
     zona = flujo.zona_confirmada()
     if zona is None:
-        st.info("Primero dibuja o confirma una zona en «1 · Zona».")
+        st.info("Elige otro lugar en el buscador y confirma su zona para empezar un nuevo análisis.")
         return
+    if (st.session_state.get("v9_preparacion") or st.session_state.get("resultado_activo")):
+        c1, c2 = st.columns(2)
+        c1.button("Nueva zona", key="v9_nueva_zona", type="primary",
+                  on_click=_nuevo_analisis, args=(True,), use_container_width=True)
+        c2.button("Otro período", key="v9_otro_periodo",
+                  on_click=_nuevo_analisis, args=(False,), use_container_width=True)
+        st.caption("El historial se conserva. Puedes volver a abrir cualquier GeoTIFF anterior.")
     st.caption("Área confirmada en el mapa; no necesitas copiar coordenadas.")
     hoy = datetime.now(timezone.utc).date()
     inicio_def = hoy - timedelta(days=23)
@@ -258,48 +398,20 @@ def render() -> None:
     if preparado_prev:
         st.caption("Ya hay un par NISAR preparado para esta zona y periodo. "
                    "Se reutilizará sin repetir descargas de NASA Harmony.")
-    anterior_validated = fin < cat.INICIO_VALIDATED
-    if anterior_validated and not preparado_prev:
-        st.warning(
-            "El periodo elegido es anterior al 21/10/2026. La colección NISAR "
-            "VALIDATED no contiene adquisiciones de esos días. PROVISIONAL "
-            "podría contenerlas, pero todavía no está habilitada para producir "
-            "automáticamente un GeoTIFF en este flujo."
-        )
-        if st.button(
-            "Comprobar cobertura PROVISIONAL (solo metadatos)",
-            key="v9_catalogo_provisional", type="secondary",
-            help="Consulta NASA CMR: no descarga escenas, no crea trabajos Harmony ni recalcula GeoTIFF.",
-        ):
-            with st.spinner("Consultando únicamente el catálogo NASA CMR…"):
-                try:
-                    catalogo, pares = _explorar_provisional(zona, inicio, fin)
-                    st.session_state["v9_preflight_provisional"] = {
-                        "firma": firma, "resultado": catalogo, "pares": pares,
-                    }
-                except (ValueError, cat.ErrorServicio, cat.ErrorConexion) as exc:
-                    st.session_state["v9_preflight_provisional"] = {
-                        "firma": firma, "error": str(exc),
-                    }
-        _mostrar_preflight(st.session_state.get("v9_preflight_provisional"), firma)
-    if st.button(
-        "Ver los GeoTIFF NISAR reales ya guardados · sin descargas",
-        key="v9_ver_guardados",
-        on_click=_abrir_modo_jurado,
-        help="Abre la exhibición de imágenes existentes: no implica que correspondan al periodo seleccionado.",
-    ):
-        st.rerun(scope="app")
+    madurez = _madurez_del_periodo(inicio, fin)
+    if madurez == "PROVISIONAL":
+        st.caption("Fuente seleccionada automáticamente: **NISAR PROVISIONAL** "
+                   "(calibración parcial; visible en la ficha, no es inundación confirmada).")
+    else:
+        st.caption("Fuente seleccionada automáticamente: **NISAR VALIDATED**.")
     if st.button("Buscar y analizar cambios", key="v9_analizar", type="primary",
-                 disabled=anterior_validated and not preparado_prev,
-                 help="VALIDATED requiere fechas desde 21/10/2026; para fechas anteriores usa primero la comprobación de metadatos."):
-        st.session_state["v9_error"] = None
-        st.session_state.update(v9_firma=None, v9_preparacion=None,
-                                v9_mapa_job=None, v9_publicado=None)
+                 use_container_width=True):
+        _limpiar_v9()
         if preparado_prev:
             st.session_state.update(v9_firma=firma, v9_preparacion=preparado_prev["job_id"],
                                     nisar_auto_job=preparado_prev["job_id"])
         else:
-            with st.spinner("Buscando escenas NISAR comparables en NASA/ASF…"):
+            with st.spinner("Consultando NASA CMR para elegir un par comparable…"):
                 try:
                     job_id = _solicitar(zona, inicio, fin)
                     st.session_state.update(v9_firma=firma, v9_preparacion=job_id,
@@ -307,10 +419,19 @@ def render() -> None:
                 except (ValueError, nisar_auto.ErrorAutoNISAR) as exc:
                     st.session_state["v9_error"] = str(exc)
                 except Exception:
-                    st.session_state["v9_error"] = ("No se pudo iniciar la consulta NASA/ASF. "
-                                                     "Verifica conectividad y credenciales.")
+                    st.session_state["v9_error"] = (
+                        "No se pudo consultar el catálogo o preparar imágenes; "
+                        "revisa conectividad o disponibilidad Harmony.")
     if st.session_state.get("v9_error"):
         st.warning(st.session_state["v9_error"])
+    _mostrar_sugerencias(firma)
     _seguimiento(firma)
+    if st.button(
+        "Ver GeoTIFF anteriores (sin volver a descargar)",
+        key="v9_ver_guardados",
+        on_click=_abrir_modo_jurado,
+        help="Archivos reales del historial; podrían ser de fechas distintas a las seleccionadas.",
+    ):
+        st.rerun(scope="app")
     st.caption("El producto inicial será ΔdB (cambio SAR real). No genera probabilidades, "
                "clases de inundación ni predicciones de Machine Learning.")
