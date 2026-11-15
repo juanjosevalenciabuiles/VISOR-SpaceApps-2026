@@ -27,7 +27,7 @@ from streamlit_folium import st_folium
 
 from components import flujo
 from components.barra_lateral import Controles
-from utils import geo
+from utils import geo, sesion
 from utils.capas_contexto import CAPAS_CONTEXTO, recortar
 from utils import alcance_geografico
 from utils.config import MAPA_CENTRO, MAPA_ZOOM, Fenomeno
@@ -72,12 +72,22 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #06121e; }
 /* Acción directa para dibujar una zona arrastrando desde una esquina a la otra. */
 .visor-zona-drag a, .visor-zona-drag a:hover {
   display: flex !important; align-items: center; justify-content: center; gap: 6px;
-  width: 121px !important; min-height: 35px; line-height: 1.2 !important;
+  width: 153px !important; min-height: 38px; line-height: 1.2 !important;
   color: #06121e !important; font: 700 12px/1.1 system-ui, sans-serif !important;
   background: #45e4f4 !important; border-radius: 9px; text-decoration: none;
 }
 .visor-zona-drag a:focus-visible { outline: 2px solid #ffd60a; outline-offset: 2px; }
-.visor-zona-drag { margin-right: 7px !important; }
+/* Botón arriba a la izquierda, junto al panel SAR; NO debajo del asistente ECO. */
+.visor-zona-drag {
+  position: fixed !important; top: 94px; left: 388px; right: auto; bottom: auto;
+  z-index: 800 !important; margin: 0 !important; pointer-events: auto;
+}
+@media (max-width: 980px) {
+  .visor-zona-drag { top: 90px; left: 12px; }
+}
+@media (max-width: 720px) {
+  .visor-zona-drag { top: 140px; left: 12px; }
+}
 .leaflet-bar { border: 1px solid rgba(255,255,255,.16) !important; border-radius: 12px !important; overflow: hidden;
                box-shadow: 0 8px 24px rgba(0,0,0,.35) !important; }
 .leaflet-bar a, .leaflet-bar a:hover { background: rgba(8,22,36,.78); color: #f5f5f7; border-bottom-color: rgba(255,255,255,.12);
@@ -196,7 +206,7 @@ class SelectorZonaUnica(MacroElement):
             boton.setAttribute('role', 'button');
             boton.setAttribute('aria-label', 'Dibujar zona rectangular arrastrando');
             boton.title = 'Clic, arrastra desde una esquina hasta la otra y suelta';
-            boton.textContent = '▭ Dibujar zona';
+            boton.textContent = '▭ Seleccionar zona';
             L.DomEvent.disableClickPropagation(contenedor);
             L.DomEvent.disableScrollPropagation(contenedor);
             L.DomEvent.on(boton, 'click', L.DomEvent.stop)
@@ -528,31 +538,36 @@ def _guardar_encuadre_usuario() -> None:
 
 
 def _sincronizar_zona_dibujada(dibujos: list | None) -> bool:
-    """El dibujo nuevo sustituye el área anterior, sin tocar GeoTIFF históricos.
+    """Al soltar el rectángulo, confirmar una sola AOI sin tocar ningún GeoTIFF.
 
-    Retorna True si cambió, para reconstruir los paneles una sola vez.
-    El front-end mantiene como máximo UN dibujo editable; aquí se mantiene
-    como máximo UNA selección candidata y ninguna AOI confirmada obsoleta.
+    El marcador de firma impide confirmar la misma figura de nuevo en un rerun.
+    Si el usuario borra la figura, la zona activa queda deseleccionada.
     """
     ultimo = dibujos[-1] if dibujos else None
     firma = json.dumps(ultimo, sort_keys=True) if ultimo is not None else None
-    anterior = st.session_state.get("mapa_firma_dibujo")
-    if firma == anterior:
+    if firma == st.session_state.get("mapa_firma_dibujo"):
         return False
     st.session_state["mapa_firma_dibujo"] = firma
+    # Retirar el AOI previo y el resultado ligado a él. Los archivos históricos
+    # siguen en disco y el panel del historial no pierde referencias.
     if st.session_state.get("zona") is not None:
         flujo.quitar_zona()
-    if st.session_state.get("resultado_activo") is not None:
+    elif st.session_state.get("resultado_activo") is not None:
         flujo.limpiar_resultado("Se eligió otra zona; el resultado anterior sigue en el historial.")
-    if ultimo is not None:
-        # No volver a mostrar los trabajos de la AOI anterior como si fueran
-        # de la nueva. Los archivos reales continúan intactos en disco.
-        for clave in ("v9_firma", "v9_preparacion", "v9_mapa_job",
-                      "v9_publicado", "v9_error", "v9_sugerencias"):
-            st.session_state.pop(clave, None)
-        st.session_state["ui_sar"] = "abierto"
-        st.session_state["ui_explorador"] = False
     st.session_state["mapa_dibujo"] = ultimo
+    if ultimo is None:
+        return True
+    for clave in ("v9_firma", "v9_preparacion", "v9_mapa_job",
+                  "v9_publicado", "v9_error", "v9_sugerencias"):
+        st.session_state.pop(clave, None)
+    st.session_state["ui_sar"] = "abierto"
+    st.session_state["ui_explorador"] = False
+    try:
+        limites, geometria = sesion.zona_de_geojson(ultimo)
+        flujo.confirmar_zona(limites, "rectángulo dibujado en el mapa", geometria)
+    except sesion.ErrorZona as exc:
+        # Nunca aceptar un AOI demasiado grande, fuera de Colombia o inválido.
+        st.session_state["error_zona"] = str(exc)
     return True
 
 
@@ -577,12 +592,16 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
         key="mapa",                   # clave persistente del componente
         on_change=_guardar_encuadre_usuario,
     ) or {}
-    dibujos = salida.get("all_drawings") or []
-    nueva_seleccion = _sincronizar_zona_dibujada(dibujos)
+    # El componente puede devolver una actualización parcial (zoom, capas).
+    # Ausencia de all_drawings NO significa que el usuario borró su AOI.
+    nueva_seleccion = (
+        _sincronizar_zona_dibujada(salida["all_drawings"])
+        if salida.get("all_drawings") is not None else False
+    )
     limites = limites_de_vista(salida.get("bounds"))
     st.session_state["mapa_limites"] = limites if limites is not None and limites[0] < limites[2] else None
     if nueva_seleccion:
-        st.rerun()  # El botón «Usar esta zona» aparece sin un segundo clic.
+        st.rerun()  # La AOI confirmada aparece sin ningún botón adicional.
 
 
 def limites_de_vista(bounds) -> tuple[float, float, float, float] | None:

@@ -157,19 +157,14 @@ def paso_area(centrar) -> None:
         _nota(st.session_state["error_zona"], "mc-aviso")
 
     st.caption("DIBUJAR SOBRE EL MAPA")
-    _nota("1. Pulsa «▭ Dibujar zona» en el mapa. 2. Haz clic en una esquina, "
-          "arrastra hasta la esquina contraria y suelta. 3. Confirma con «Usar esta zona». "
-          "Si dibujas otra, sustituye la anterior sin borrar tus GeoTIFF históricos.")
-    dibujo = st.session_state.get("mapa_dibujo")
-    if dibujo:
-        try:
-            limites, geometria = sesion.zona_de_geojson(dibujo)
-        except sesion.ErrorZona as e:
-            _nota(str(e), "mc-aviso")
-        else:
-            _candidata(limites, geometria, "dibujo en el mapa", "zona_usar_dibujo", "Dibujo actual")
-    else:
-        _nota("Todavía no has dibujado nada.")
+    _nota("Pulsa «▭ Seleccionar zona» arriba a la izquierda del mapa, junto a "
+          "Herramientas SAR. Arrastra de esquina a esquina y suelta: la zona "
+          "quedará confirmada automáticamente. Si vuelves a dibujar, reemplaza "
+          "la anterior sin borrar los GeoTIFF del historial.")
+    if st.session_state.get("mapa_dibujo") and st.session_state.get("zona"):
+        _nota("Rectángulo seleccionado y confirmado. Ya puedes elegir las fechas y analizar.")
+    elif not st.session_state.get("mapa_dibujo"):
+        _nota("Todavía no has dibujado una zona.")
 
     st.caption("O USAR LO QUE SE VE")
     if st.toggle("Usar el área visible del mapa", value=False, key="zona_por_vista",

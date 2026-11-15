@@ -27,6 +27,7 @@ def test_control_hoja_leaflet_permite_arrastre_y_conserva_un_solo_rectangulo():
     assert script.count(identificador.group(1)) >= 5
     assert "window.drawnItems = dibujos" in script
     assert "visor-zona-drag" in script
+    assert "Seleccionar zona" in script
     assert "new L.Draw.Rectangle(mapa" in script
     assert "dibujos.clearLayers()" in script
     assert "draw:drawstart" in script and "draw:created" in script
@@ -50,7 +51,9 @@ def test_nueva_seleccion_anula_zona_confirmada_y_resultado_no_historial(monkeypa
     }
     monkeypatch.setattr(mapa.st, "session_state", estado)
     assert mapa._sincronizar_zona_dibujada([anterior, nueva])
-    assert estado["zona"] is None
+    assert estado["zona"] is not None
+    assert estado["zona"]["origen"] == "rectángulo dibujado en el mapa"
+    assert tuple(estado["zona"]["limites"]) == (-76.65, 7.62, -76.48, 7.79)
     assert estado["resultado_activo"] is None
     assert estado["mapa_dibujo"] == nueva
     assert "v9_preparacion" not in estado
