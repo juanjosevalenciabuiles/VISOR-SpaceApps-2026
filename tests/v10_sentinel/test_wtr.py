@@ -10,7 +10,9 @@ def test_agua_nueva_persistente_y_ambigua():
         [[True] * 4], [[True] * 4],
         codigos={"agua": 1, "no_agua": 0}, version_verificada=True,
     )
-    assert resultado["clases"] == [[2, 1, 0, 255]]
+    assert resultado["estado"] == "NO_APTA"
+    assert resultado["clases"] is None
+    assert resultado["cobertura_qa_completa"] is False
     assert resultado["pixeles_validos"] == 3
 
 
@@ -34,3 +36,24 @@ def test_codigo_ambiguo_no_se_declara_agua():
         comparar_wtr([[0]], [[1]], [[True]], [[True]],
                      codigos={"agua": 1, "no_agua": 0, "sombra": 9},
                      version_verificada=True)
+
+
+def test_cobertura_completa_permite_salida_exploratoria():
+    resultado = comparar_wtr(
+        [[0, 1, 0]], [[1, 1, 0]],
+        [[True] * 3], [[True] * 3],
+        codigos={"agua": 1, "no_agua": 0}, version_verificada=True,
+    )
+    assert resultado["estado"] == "APTA"
+    assert resultado["cobertura_qa_completa"] is True
+    assert resultado["clases"] == [[2, 1, 0]]
+
+
+def test_codigo_desconocido_en_post_impide_publicacion_parcial():
+    resultado = comparar_wtr(
+        [[0, 0]], [[1, 9]], [[True, True]], [[True, True]],
+        codigos={"agua": 1, "no_agua": 0}, version_verificada=True,
+    )
+    assert resultado["estado"] == "NO_APTA"
+    assert resultado["clases"] is None
+    assert resultado["pixeles_validos"] == 1
