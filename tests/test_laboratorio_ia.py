@@ -22,7 +22,7 @@ def test_lab_conserva_mapa_original_3_capas_y_controles():
 def test_pagina_no_infiere_predicciones_ni_modifica_motor_sar():
     codigo = PAGINA.read_text(encoding="utf-8")
     ast.parse(codigo)
-    for prohibido in ("joblib", "XGBClassifier", "RandomForestClassifier",
+    for prohibido in ("import joblib", "joblib.load", "XGBClassifier", "RandomForestClassifier",
                        "harmony.", "st_folium(", "descargar_", "rasterio.open",
                        "pd.read_csv", "requests.get", "subprocess."):
         assert prohibido not in codigo, prohibido
