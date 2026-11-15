@@ -112,6 +112,10 @@ def capas_visibles(resultados: list, zona, inicio: date, fin: date, modo: str,
     """Activa un máximo de dos GeoTIFF reales, uno por sensor, sin crear una capa sintética."""
     if modo not in ("Ambos", "NISAR", "Sentinel-1"):
         return {}
+    # Un periodo inválido nunca debe reactivar capas de una consulta anterior.
+    if (not isinstance(inicio, date) or not isinstance(fin, date)
+            or inicio > fin):
+        return {}
     productos = productos_disponibles(resultados, zona, inicio, fin)
     preferidos = seleccion or {}
     salida = {}
