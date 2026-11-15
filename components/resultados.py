@@ -55,12 +55,19 @@ def datos_declarados(res: ResultadoSAR) -> dict[str, tuple[str, str | None]]:
     pols_tags = tags.get("POLARIZACION") or ("VV y VH" if "VV" in clases and "VH" in clases else "")
     # Un umbral por polarización: el producto reproducible usa VV −7,5 dB y VH −3 dB.
     umbrales = umbrales_por_polarizacion(res.ficha) if real else {}
+    madureces = {
+        str(e["madurez"]).upper()
+        for e in (bloque.get("entradas") or [])
+        if isinstance(e, dict) and e.get("madurez")
+    }
+    madurez = next(iter(madureces)) if len(madureces) == 1 else None
     umbral = (" · ".join(f"{pol} −{u:g} dB".replace(".", ",") for pol, u in umbrales.items())
               + " (disminución)") if umbrales else None
     return {
         "producto": elegir((res.ficha or {}).get("producto") if real else None,
                            tags.get("PRODUCTO") or tags.get("DESCRIPCION")),
         "sensor": elegir(bloque.get("sensor"), None),
+        "madurez": elegir(madurez, None),
         "fechas": elegir(" → ".join(bloque.get("fechas") or []), tags.get("FECHA")),
         "polarizaciones": elegir(" y ".join(bloque.get("polarizaciones") or []), pols_tags),
         "metodo": elegir(bloque.get("metodo"), None),
@@ -78,10 +85,19 @@ def ficha_html(res: ResultadoSAR) -> str:
     detalle = escape(estado.motivo) + (" Falta: " + escape(", ".join(estado.faltantes)) + "."
                                        if estado.faltantes else "")
     alto, ancho = capa.forma_original
+    madurez = d["madurez"][0]
+    aviso_madurez = (
+        '<div class="visor-aviso">Fuente: NISAR PROVISIONAL. Datos calibrados, '
+        'con validación científica parcial; no equivalen a una inundación confirmada.</div>'
+        if madurez == "PROVISIONAL" else
+        '<div class="visor-leyenda-nota">Fuente: NISAR VALIDATED.</div>'
+        if madurez == "VALIDATED" else ""
+    )
     partes = [
         f'<div class="mc-res-titulo">{escape(perfil.nombre)}</div>',
         f'<div class="visor-procedencia">{insignia(estado)}'
         f'<p class="visor-nota-procedencia">{detalle}</p></div>',
+        aviso_madurez,
         f'<p class="visor-texto">{escape(perfil.descripcion)}</p>',
         leyenda_html(res),                       # qué significa cada color, antes que lo técnico
         f'<div class="visor-aviso visor-aviso-general">{escape(AVISO)}</div>',
@@ -90,6 +106,7 @@ def ficha_html(res: ResultadoSAR) -> str:
         '<div class="visor-seccion">Datos de origen</div>',
         _fila("Producto", *d["producto"]),
         _fila("Sensor", *d["sensor"]),
+        _fila("Madurez NISAR", *d["madurez"]),
         _fila("Fechas", *d["fechas"]),
         _fila("Polarizaciones", *d["polarizaciones"]),
         _fila("Umbral", "No aplica: dato continuo sin umbral") if perfil.continuo else _fila("Umbral", *d["umbral"]),
@@ -199,6 +216,8 @@ def _detalle_procedencia(res: ResultadoSAR) -> str:
                 etiqueta = f"Entrada {entrada.get('polarizacion') or ''}".strip()
                 nombre_entrada = entrada.get("archivo") or entrada.get("granule") or NO_DECLARADO
                 filas.append(_fila(etiqueta, str(nombre_entrada)))
+                if entrada.get("madurez") in ("PROVISIONAL", "VALIDATED"):
+                    filas.append(_fila("Madurez de entrada", entrada["madurez"]))
     else:
         filas.append(_fila("Generación", "No documentada: el archivo no trae una ficha válida"))
         tags = res.capa.metadatos

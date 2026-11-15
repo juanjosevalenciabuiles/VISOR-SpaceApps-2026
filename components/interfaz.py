@@ -247,6 +247,12 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple 
                   type="primary" if st.session_state["ui_explorador"] else "secondary")
         st.button("Información", key="btn_info", help="Información científica de las capas activas", icon=":material/info:", on_click=alternar_info,
                   type="primary" if st.session_state["ui_info"] else "secondary")
+        if activos:
+            st.button("Nuevo análisis", key="btn_nuevo_analisis",
+                      help="Elegir otra zona sin borrar los GeoTIFF del historial",
+                      icon=":material/add_location_alt:",
+                      on_click=v9_experiencia._nuevo_analisis, args=(True,),
+                      type="primary")
         st.button("Herramientas SAR", key="btn_sar", help="Herramientas SAR: área, escenas, análisis y resultados", icon=":material/satellite_alt:", on_click=abrir_sar,
                   type="primary" if st.session_state["ui_sar"] == "abierto" else "secondary")
         if st.button("Ayuda", key="btn_ayuda", help="Ayuda y estados de procedencia", icon=":material/help:"):
@@ -299,6 +305,11 @@ def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, 
             st.markdown('<div class="mc-titulo-panel">Información</div>', unsafe_allow_html=True)
             st.button("Cerrar", key="cerrar_info", icon=":material/close:", type="tertiary",
                       on_click=alternar_info)
+        if activos:
+            st.button("Analizar otra zona · conservar este resultado en historial",
+                      key="v9_nueva_zona_desde_info",
+                      on_click=v9_experiencia._nuevo_analisis, args=(True,),
+                      use_container_width=True)
         for res in activos:
             if flujo.es_historico():
                 abierto = str((st.session_state.get("resultado_activo") or {}).get("abierto", ""))[:16]

@@ -20,10 +20,11 @@ from utils.config import DATA_DIR
 METODOS = ("Recorte optimizado · NASA Harmony", "HDF5 completo · alternativa")
 
 
-def _huella(plan, metodo, max_mb):
+def _huella(plan, metodo, max_mb, madurez="VALIDATED"):
     contenido = json.dumps({
         "granules": plan.granules, "aoi": list(plan.aoi), "termino": plan.termino,
-        "metodo": metodo, "presupuesto_mb": max_mb, "motor": "NISAR GCOV insumos",
+        "metodo": metodo, "madurez": madurez,
+        "presupuesto_mb": max_mb, "motor": "NISAR GCOV insumos",
     }, sort_keys=True)
     return hashlib.sha256(contenido.encode()).hexdigest()
 
@@ -35,7 +36,7 @@ def _ejecutar_en_cola(resultado, plan, metodo, max_mb):
     ruta = carpeta / f"auto_{uuid.uuid4().hex}.json"
     with ruta.open("x", encoding="utf-8") as archivo:
         json.dump(registro, archivo, indent=2, ensure_ascii=False)
-    identificador = _huella(plan, metodo, max_mb)
+    identificador = _huella(plan, metodo, max_mb, madurez=resultado.madurez)
 
     def tarea(ctx: trabajos.Contexto):
         ctx.fase("zona", trabajos.APTO, "AOI admitida por la política Colombia")
@@ -51,7 +52,14 @@ def _ejecutar_en_cola(resultado, plan, metodo, max_mb):
                     ctx.fase("datos", trabajos.EN_CURSO,
                              f"Descarga HDF5: {hecho / 1e9:.2f} de {total / 1e9:.2f} GB")
             elif etapa == "Harmony: preparando recorte":
-                ctx.fase("preparacion", trabajos.EN_CURSO, "NASA Harmony está preparando los COG")
+                # Mostrar únicamente el progreso comunicado por NASA Harmony;
+                # no inferir una estimación de tiempo de descarga.
+                try:
+                    progreso = float(detalle)
+                except (TypeError, ValueError):
+                    progreso = -1
+                sufijo = f" ({progreso:.0f}% indicado por NASA)" if 0 <= progreso <= 100 else ""
+                ctx.fase("preparacion", trabajos.EN_CURSO, "NASA Harmony prepara los COG" + sufijo)
             else:
                 ctx.fase("datos", trabajos.EN_CURSO, str(etapa))
 
@@ -69,7 +77,9 @@ def _ejecutar_en_cola(resultado, plan, metodo, max_mb):
             salida = nisar_auto.preparar(plan, ruta, notificar=notificar)
             geotiffs = [nisar_gcov.CARPETA_NISAR / x["geotiff"] for x in salida["escenas"]]
             detalle = "HDF5 íntegros y recortes GCOV"
-        salida["madurez"] = resultado.madurez  # Procedencia explícita del catálogo validado
+        if metodo == METODOS[0] and salida.get("madurez") != resultado.madurez:
+            raise nisar_auto.ErrorAutoNISAR("La colección obtenida no coincide con la madurez solicitada.")
+        salida["madurez"] = resultado.madurez  # Etiqueta de origen confirmada por Harmony
         ctx.fase("datos", trabajos.APTO, "Descarga auténtica finalizada")
         ctx.fase("preparacion", trabajos.APTO, detalle)
         ctx.comprobar("verificación")
