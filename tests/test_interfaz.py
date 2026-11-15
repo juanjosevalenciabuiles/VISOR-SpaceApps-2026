@@ -213,7 +213,7 @@ def test_herramientas_sar_no_simulan_resultados():
     texto = inspect.getsource(herramientas_sar) + inspect.getsource(interfaz.herramientas_sar)
     for falso in ("DEMO-S1", "Coherencia InSAR", "Cambio de cobertura", "st.progress", "time.sleep"):
         assert falso not in texto
-    assert "sin porcentaje" in texto and "Sentinel-1 aún requiere RTC locales" in texto
+    assert "sin porcentaje" in texto and "Sentinel-1 requiere RTC locales" in texto
     assert "nisar_auto_ui.render" in texto, "NISAR busca y prepara GCOV en su propio flujo"
     # «Analizar» es el único disparador: el cálculo solo corre si se pulsó en esta misma ejecución.
     assert texto.count("trabajos.crear_o_reutilizar(") == 1 and 'st.session_state.pop("sar_lanzar"' in texto
