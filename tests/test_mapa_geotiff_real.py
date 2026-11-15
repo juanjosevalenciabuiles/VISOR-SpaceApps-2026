@@ -43,20 +43,34 @@ def test_capa_sin_pixeles_colombianos_o_demostrativa_se_oculta(monkeypatch):
     assert visibles == [] and ocultos == 2
 
 
-def test_areas_sin_cambio_transparentes_y_cambios_visibles_sin_tocar_datos():
-    # Valores medidos de prueba: 0 y ±2 dB se ocultan SOLO en visualización.
-    datos = np.ma.array([[-9999.0, -1.5, 0.0, 2.0, -3.0, 5.0]],
-                        mask=[[True, False, False, False, False, False]])
+def test_areas_sin_cambio_y_ruido_aislado_transparentes_sin_tocar_datos():
+    # Prueba sintética SOLO del renderizador: tres píxeles negativos vecinos
+    # se resaltan; señales aisladas, cambio ≤ 2 y NoData son transparentes.
+    datos = np.ma.array(np.zeros((6, 9), dtype="float32"))
+    datos[1, 1] = -3.1
+    datos[1, 2] = -5.4
+    datos[2, 2] = -2.6
+    datos[4, 7] = -6.0
+    datos[0, 6] = 5.0
+    datos[0, 7] = 3.0
+    datos[1, 7] = 4.0
+    datos[2, 5] = 1.5
+    datos[3, 3] = -9999
+    datos.mask = np.zeros(datos.shape, dtype=bool)
+    datos.mask[3, 3] = True
+    original = np.full((6, 9, 4), 120, dtype="uint8")
     copia = datos.copy()
-    original = np.array([[[0, 0, 0, 0], [199, 199, 204, 40],
-                          [199, 199, 204, 38], [210, 200, 180, 55],
-                          [50, 110, 230, 44], [200, 100, 70, 255]]],
-                        dtype=np.uint8)
-    mostrado = mapa.realzar_alpha_delta(original, datos)
-    assert mostrado[0, :4, 3].tolist() == [0, 0, 0, 0]
-    assert mostrado[0, 4:, 3].tolist() == [192, 255]
-    np.testing.assert_array_equal(mostrado[..., :3], original[..., :3])
-    np.testing.assert_array_equal(original[0, :, 3], [0, 40, 38, 55, 44, 255])
+    rgba = mapa.realzar_alpha_delta(original, datos)
+
+    assert tuple(rgba[1, 1]) == (0, 227, 255, 238)
+    assert tuple(rgba[1, 2]) == (24, 113, 255, 248)
+    assert tuple(rgba[2, 2]) == (76, 190, 255, 115)
+    assert tuple(rgba[0, 6]) == (255, 145, 64, 82)
+    assert rgba[4, 7, 3] == 0  # disminución aislada
+    assert rgba[2, 5, 3] == 0  # variación menor a 2 dB
+    assert rgba[3, 3, 3] == 0  # NoData
+    assert rgba[0, 0, 3] == 0  # sin cambios
+    np.testing.assert_array_equal(original, np.full((6, 9, 4), 120, dtype="uint8"))
     np.testing.assert_array_equal(datos.data, copia.data)
     np.testing.assert_array_equal(np.ma.getmaskarray(datos), np.ma.getmaskarray(copia))
 
@@ -69,6 +83,7 @@ def test_leyenda_declara_transparencia_visual():
     texto = ui.leyenda_html(res)
     assert "|Δ| ≤ 2 dB" in texto
     assert "transparente en el mapa" in texto
+    assert "disminuciones agrupadas" in texto
     assert "Sin dato (NoData)" in texto
 
 

@@ -216,21 +216,48 @@ def grupo_sar(fenomeno: Fenomeno, capa: Capa, opacidad: float) -> folium.Feature
     return grupo
 
 
-def realzar_alpha_delta(rgba: np.ndarray, datos: np.ma.MaskedArray) -> np.ndarray:
-    """Deja ver el mapa base donde |ΔdB| ≤ 2; resalta cambios mayores.
+def _soporte_local(mascara: np.ndarray) -> np.ndarray:
+    """Vecinos de la misma señal en 3×3, sin filtros sobre el dato SAR original."""
+    altura, ancho = mascara.shape
+    extendida = np.pad(mascara.astype(np.uint8), 1, mode="constant")
+    soporte = np.zeros((altura, ancho), dtype=np.uint8)
+    for fila in range(3):
+        for columna in range(3):
+            soporte += extendida[fila:fila + altura, columna:columna + ancho]
+    return soporte
 
-    Esto NO clasifica, elimina ni modifica píxeles del GeoTIFF. Es únicamente
-    transparencia RGBA de la capa dibujada. NoData sigue siempre invisible.
-    El umbral visual fijo consta expresamente en la leyenda del panel.
+
+def realzar_alpha_delta(rgba: np.ndarray, datos: np.ma.MaskedArray) -> np.ndarray:
+    """Mapa exploratorio con disminuciones agrupadas en cian y fondo transparente.
+
+    Reglas SOLO VISUALES: |Δ| ≤ 2 dB invisible, disminuciones ≤ -3 dB
+    destacadas cuando hay al menos 3 píxeles negativos en 3×3; incrementos
+    igualmente agrupados, en segundo plano. No constituye mapa de inundación.
+    No interpola, no altera valores, QA, NoData ni la ficha del GeoTIFF.
     """
     imagen = rgba.copy()
     valores = np.ma.getdata(datos)
     mascara = np.ma.getmaskarray(datos)
-    sin_cambio_apreciable = (~mascara & np.isfinite(valores)
-                             & (np.abs(valores) <= UMBRAL_TRANSPARENCIA_VISUAL_DB))
-    imagen[..., 3][sin_cambio_apreciable] = 0
-    visibles = (imagen[..., 3] > 0) & ~mascara & np.isfinite(valores)
-    imagen[..., 3][visibles] = np.maximum(imagen[..., 3][visibles], 192)
+    validos = (~mascara) & np.isfinite(valores)
+    negativos = validos & (valores < -UMBRAL_TRANSPARENCIA_VISUAL_DB)
+    positivos = validos & (valores > UMBRAL_TRANSPARENCIA_VISUAL_DB)
+    coherentes_neg = negativos & (_soporte_local(negativos) >= 3)
+    coherentes_pos = positivos & (_soporte_local(positivos) >= 3)
+    moderados = coherentes_neg & (valores > -3.0)
+    fuertes = coherentes_neg & (valores <= -3.0)
+    intensos = fuertes & (valores <= -5.0)
+
+    # Todo lo no representado queda transparente, incluidos los píxeles QA
+    # inválidos y los cambios aislados (ruido visual).
+    imagen[..., 3] = 0
+    imagen[moderados, :3] = (76, 190, 255)
+    imagen[moderados, 3] = 115
+    imagen[fuertes, :3] = (0, 227, 255)
+    imagen[fuertes, 3] = 238
+    imagen[intensos, :3] = (24, 113, 255)
+    imagen[intensos, 3] = 248
+    imagen[coherentes_pos, :3] = (255, 145, 64)
+    imagen[coherentes_pos, 3] = 82
     return imagen
 
 

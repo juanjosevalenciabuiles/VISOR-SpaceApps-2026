@@ -221,6 +221,10 @@ def leyenda_html(res: ResultadoSAR) -> str:
                 '<div class="visor-leyenda-clase"><i class="mc-transparente"></i>Sin dato (NoData) (transparente)</div>'
                 f'<div class="visor-leyenda-clase"><i class="mc-transparente"></i>'
                 f'|Δ| ≤ {UMBRAL_TRANSPARENCIA_VISUAL_DB:g} dB: transparente en el mapa (solo visualización)</div>'
+                '<div class="visor-leyenda-clase">Cian / azul: disminuciones agrupadas (Δ ≤ −3 dB), '
+                'posibles indicios; no son inundaciones confirmadas</div>'
+                '<div class="visor-leyenda-clase">Naranja tenue: aumentos agrupados de la señal (Δ &gt; 2 dB)</div>'
+                '<div class="visor-leyenda-clase">Píxeles aislados: ocultos solo para reducir ruido visual</div>'
                 f'<div class="visor-leyenda-nota">{escape(res.perfil.nota)}</div></div>')
     filas = []
     for valor, etiqueta, color in res.perfil.clases:
