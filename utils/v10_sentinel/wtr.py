@@ -54,9 +54,10 @@ def comparar_wtr(
             fila.append(valor)
         salida.append(fila)
     return {
-        "estado": "APTA" if validos else "NO_APTA",
-        "clases": salida if validos else None,
+        "estado": "APTA" if validos == alto * ancho else "NO_APTA",
+        "clases": salida if validos == alto * ancho else None,
         "pixeles_validos": validos,
         "pixeles_totales": alto * ancho,
+        "cobertura_qa_completa": validos == alto * ancho,
         "advertencia": "Cambio exploratorio de agua observada; NO inundación confirmada.",
     }
