@@ -244,7 +244,7 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple 
                f'<span class="mc-insignia-larga">{escape(alcance_geografico.INSIGNIA)}</span>'
                '<span class="mc-insignia-corta">COLOMBIA</span></span>' if alcance_geografico.restringido()
                else '<span class="mc-marca-sub">Mission Control · Earth Explorer</span>')
-        st.markdown(f'<div class="mc-marca"><span class="mc-marca-linea">'
+        st.markdown('<div class="mc-marca"><span class="mc-marca-linea">'
                     '<span class="mc-marca-nombre">V.I.S.O.R.</span>'
                     '<span class="mc-marca-olas" role="img" aria-label="Agua e inundaciones" '
                     'title="Observación de agua e inundaciones">'
