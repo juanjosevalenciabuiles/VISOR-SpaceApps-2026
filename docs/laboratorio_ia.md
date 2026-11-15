@@ -4,7 +4,10 @@ Fecha: 15 de noviembre de 2026. Rama aislada basada en el respaldo `157c129`.
 
 ## Entrada
 
-En Streamlit, abrir la página **🧪 Laboratorio IA** desde el menú de páginas.
+En el visor principal pulsar **Laboratorio IA** en la barra superior.
+La navegación usa Streamlit `st.switch_page`, dado que Mission Control oculta
+el menú lateral nativo. Para volver usar el enlace **Volver al visor SAR
+principal** en el pie del laboratorio.
 El fichero `pages/3_Laboratorio_IA.py` es autónomo y **no modifica el
 sistema SAR V9**. El HTML original del equipo está copiado sin cambios en
 `data/ia_lab/demo_visor_E6.html`.

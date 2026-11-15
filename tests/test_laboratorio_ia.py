@@ -36,3 +36,11 @@ def test_no_tocar_app_ni_geoTIFF_en_este_modulo():
     assert "from components import mapa" not in codigo
     assert "st.session_state" not in codigo
     assert "data/analisis" not in codigo
+
+
+def test_acceso_visible_en_barra_superior_a_pagina_independiente():
+    from components import interfaz
+    import inspect
+    codigo = inspect.getsource(interfaz.barra_superior)
+    assert 'key="btn_laboratorio_ia"' in codigo
+    assert 'st.switch_page("pages/3_Laboratorio_IA.py")' in codigo
