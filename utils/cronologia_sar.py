@@ -123,8 +123,10 @@ def capas_visibles(resultados: list, zona, inicio: date, fin: date, modo: str,
         if modo not in ("Ambos", sensor):
             continue
         elegidos = [p for p in productos if p.sensor == sensor]
-        p = next((v for v in elegidos if v.identificador == preferidos.get(sensor)), None)
-        if p is None:
+        if sensor in preferidos:
+            # Una selección explícita ausente no autoriza mostrar otro raster.
+            p = next((v for v in elegidos if v.identificador == preferidos[sensor]), None)
+        else:
             p = elegidos[0] if elegidos else None
         if p is not None:
             salida[p.identificador] = 0.70 if modo == "Ambos" else 0.85
