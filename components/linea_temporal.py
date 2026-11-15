@@ -11,6 +11,7 @@ from html import escape
 import streamlit as st
 
 from components import flujo
+from components import resultados as ui_resultados
 from utils import cronologia_sar
 
 MODOS = ("Resultado actual", "NISAR", "Sentinel-1", "Ambos")
@@ -41,28 +42,69 @@ def _seleccionar_producto(productos) -> None:
         st.session_state["visor_modo_comparacion"] = producto.sensor
 
 
+def _fechas_periodo() -> None:
+    """El intervalo existe siempre; la cronología solo aparece con evidencia real."""
+    with st.container(horizontal=True, vertical_alignment="bottom", gap="small"):
+        st.date_input("Desde", key="v9_inicio_periodo", format="YYYY-MM-DD",
+                      min_value=date(2014, 4, 3),
+                      max_value=datetime.now(timezone.utc).date(), on_change=_periodo_cambiado)
+        st.date_input("Hasta", key="v9_fin_periodo", format="YYYY-MM-DD",
+                      min_value=date(2014, 4, 3),
+                      max_value=datetime.now(timezone.utc).date(), on_change=_periodo_cambiado)
+
+
 def render(resultados: list | tuple) -> None:
     inicializar()
     zona = flujo.zona_confirmada()
     hoy = datetime.now(timezone.utc).date()
-    # El intervalo es un control público permanente, no una línea temporal ficticia.
-    with st.container(horizontal=True, vertical_alignment="bottom", gap="small"):
-        st.date_input("Desde", key="v9_inicio_periodo", format="YYYY-MM-DD",
-                      min_value=date(2014, 4, 3), max_value=hoy, on_change=_periodo_cambiado)
-        st.date_input("Hasta", key="v9_fin_periodo", format="YYYY-MM-DD",
-                      min_value=date(2014, 4, 3), max_value=hoy, on_change=_periodo_cambiado)
-    inicio, fin = st.session_state["v9_inicio_periodo"], st.session_state["v9_fin_periodo"]
-    if inicio > fin or fin >= hoy:
-        st.caption("El periodo debe terminar antes de hoy para comparar con datos posteriores.")
+    inicio = st.session_state["v9_inicio_periodo"]
+    fin = st.session_state["v9_fin_periodo"]
+
+    abierto = (st.session_state.get("resultado_activo") or {}).get("id")
+    fechas_activas = (ui_resultados.fechas_activas(list(resultados), {abierto: 1.0})
+                      if abierto else None)
+    periodo_valido = isinstance(inicio, date) and isinstance(fin, date) and inicio <= fin < hoy
+    productos = (cronologia_sar.productos_disponibles(resultados, zona, inicio, fin)
+                 if zona is not None and periodo_valido else [])
+    expandido = bool(st.session_state.get("visor_cronologia_expandida"))
+    mostrar = bool(fechas_activas) or (bool(productos) and expandido)
+
+    if not mostrar:
+        # Barra compacta de fechas: no ocupar espacio de una cronología sin resultados.
+        with st.container(key="visor_periodo_compacto"):
+            _fechas_periodo()
+            if productos:
+                st.toggle("Explorar las observaciones disponibles",
+                          key="visor_cronologia_expandida",
+                          help="Solo abre capas que ya existen y tienen fechas verificadas.")
+            elif not periodo_valido:
+                st.caption("Selecciona fechas ordenadas y anteriores a hoy.")
         return
-    if zona is None:
-        return
-    productos = cronologia_sar.productos_disponibles(resultados, zona, inicio, fin)
-    if not productos:
-        return
+
     with st.container(key="linea_temporal"):
         st.markdown('<div class="mc-linea-titulo">LÍNEA DE TIEMPO · OBSERVACIONES REALES</div>',
                     unsafe_allow_html=True)
+        _fechas_periodo()
+        if fechas_activas:
+            st.markdown(
+                '<div class="mc-linea-pista"><span class="mc-linea-punto">T₁ · '
+                + escape(str(fechas_activas[0])[:10])
+                + '</span><span class="mc-linea-barra"></span>'
+                + '<span class="mc-linea-punto">T₂ · '
+                + escape(str(fechas_activas[1])[:10]) + '</span></div>',
+                unsafe_allow_html=True,
+            )
+        if not periodo_valido:
+            st.caption("El periodo debe terminar antes de hoy para comparar con datos posteriores.")
+            return
+        if zona is None:
+            st.caption("No hay un área confirmada. Las fechas del resultado anterior son informativas.")
+            return
+        if not productos:
+            st.caption("Todavía no existen mapas comparables verificables para esta zona y periodo.")
+            return
+        st.toggle("Explorar las observaciones disponibles", key="visor_cronologia_expandida",
+                  help="Solo abre capas que ya existen y tienen fechas verificadas.")
         puntos = cronologia_sar.puntos_observados(productos)
         riel = "".join(
             '<span class="visor-marca-tiempo" title="Adquisición real; no fecha interpolada">'
