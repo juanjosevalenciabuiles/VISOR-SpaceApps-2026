@@ -106,7 +106,7 @@ def ficha_html(res: ResultadoSAR) -> str:
         '<div class="visor-seccion">Datos de origen</div>',
         _fila("Producto", *d["producto"]),
         _fila("Sensor", *d["sensor"]),
-        _fila("Madurez NISAR", *d["madurez"]),
+        (_fila("Madurez NISAR", *d["madurez"]) if d["sensor"][0] == "NISAR" else ""),
         _fila("Fechas", *d["fechas"]),
         _fila("Polarizaciones", *d["polarizaciones"]),
         _fila("Umbral", "No aplica: dato continuo sin umbral") if perfil.continuo else _fila("Umbral", *d["umbral"]),
