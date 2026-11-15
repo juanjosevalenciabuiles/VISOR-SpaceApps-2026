@@ -289,7 +289,7 @@ class Pagina:
         """Texto del bloque, incluido lo plegado en «Detalles técnicos» y similares (se despliega para leerlo)."""
         bloque = self.page.locator(f".st-key-{clave}").first
         bloque.evaluate("e=>e.querySelectorAll('details.mc-detalles').forEach(d=>{d.open=true})")
-        texto = bloque.inner_text() if bloque.is_visible() else ""
+        texto = bloque.inner_text()
         if clave == "panel_explorador":       # el buscador flota fuera del panel: sus avisos cuentan aquí
             texto += "\n" + self.page.locator(".st-key-buscador_flotante").first.inner_text()
         return texto

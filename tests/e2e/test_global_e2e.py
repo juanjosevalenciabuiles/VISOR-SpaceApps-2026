@@ -20,6 +20,7 @@ import re
 import pytest
 
 from conftest import Servidor, preparar_datos
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 RIOS, VIAS = "#4FC3F7", "#FFD60A"
 CIUDADES = {   # consulta → (etiqueta esperada, zoom, lat, lon) del catálogo local
@@ -65,9 +66,18 @@ def buscar(p, consulta: str):
 def elegir_fondo(p, nombre: str):
     caja = p.page.locator(".st-key-mapa_base [role=combobox]").first
     caja.scroll_into_view_if_needed()
-    caja.click()
-    p.page.locator("[role=option]").filter(has_text=nombre).first.click()
-    p.esperar()
+    # Streamlit puede reconstruir el desplegable mientras Playwright elige el fondo.
+    for intento in range(4):
+        try:
+            caja.click(timeout=8_000)
+            p.page.locator("[role=option]").filter(has_text=nombre).first.click(timeout=8_000)
+            p.esperar()
+            return
+        except PlaywrightTimeoutError:
+            if intento == 3:
+                raise
+            p.page.keyboard.press("Escape")
+            p.esperar(450)
 
 
 def capa_contexto(p, clave: str):

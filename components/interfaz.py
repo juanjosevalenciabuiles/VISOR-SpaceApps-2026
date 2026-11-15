@@ -330,7 +330,14 @@ def guia_eco(activos: list) -> None:
             trabajo = trabajos.leer(st.session_state["trabajo_activo"])
         except Exception:  # noqa: BLE001 — ECO nunca rompe la app
             trabajo = None
-    eco.render(eco.decidir(lugar, zona is not None, ocupado, trabajo, bool(activos), flujo.es_historico()))
+    trabajo_nisar = None
+    if st.session_state.get("nisar_auto_job"):
+        try:
+            trabajo_nisar = trabajos.leer(st.session_state["nisar_auto_job"])
+        except Exception:  # noqa: BLE001 — ECO nunca bloquea la app
+            trabajo_nisar = None
+    eco.render(eco.decidir(lugar, zona is not None, ocupado, trabajo, bool(activos), flujo.es_historico(),
+                          trabajo_nisar=trabajo_nisar))
 
 
 SUBIR_AL_CAMBIAR_DE_PASO = """<script>

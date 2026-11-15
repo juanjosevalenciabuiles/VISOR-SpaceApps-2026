@@ -25,7 +25,7 @@ def velo(p) -> dict:
 
 
 def buscar(p, consulta):
-    if not p.page.locator(".st-key-lugar_texto input").first.is_visible():
+    if not p.visible("panel_explorador"):       # el buscador flota aparte: se mira el panel
         p.clic("btn_explorador")
     p.escribir("lugar_texto", consulta)
     p.clic("lugar_buscar")

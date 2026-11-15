@@ -31,6 +31,20 @@ def test_eco_enfoca_la_zona_y_dice_donde_esta():
 
 
 @pytest.mark.parametrize("estado", trabajos.ACTIVOS)
+def test_eco_escanea_preparacion_nisar_sin_afirmar_inundacion(estado):
+    e = eco.decidir("Chigorodó", True, False, None, False, False,
+                    trabajo_nisar={"estado": estado})
+    assert e.clip == "escaneo" and e.animado
+    assert "NISAR" in e.mensaje and "Todavía no" in e.mensaje
+
+
+def test_eco_no_confunde_insumos_nisar_con_mapa():
+    e = eco.decidir("Chigorodó", True, False, None, False, False,
+                    trabajo_nisar={"estado": trabajos.APTO})
+    assert e.clip == "enfoque" and "no hay un mapa de inundación" in e.mensaje
+
+
+@pytest.mark.parametrize("estado", trabajos.ACTIVOS)
 def test_eco_escanea_mientras_hay_un_trabajo(estado):
     e = eco.decidir("X", True, False, {"estado": estado}, False, False)
     assert e.clip == "escaneo" and e.animado

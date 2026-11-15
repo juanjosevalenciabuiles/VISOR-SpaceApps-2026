@@ -32,8 +32,20 @@ class EstadoEco:
 
 
 def decidir(zona_lugar: str | None, hay_zona: bool, consultando: bool, trabajo: dict | None,
-            hay_resultado: bool, historico: bool) -> EstadoEco:
+            hay_resultado: bool, historico: bool, trabajo_nisar: dict | None = None) -> EstadoEco:
     """Estado de ECO a partir del estado real de la app (función pura, probada aparte)."""
+    # NISAR prepara insumos: un trabajo APTO no representa inundación detectada.
+    estado_nisar = (trabajo_nisar or {}).get("estado")
+    if estado_nisar in trabajos.ACTIVOS:
+        return EstadoEco("escaneo", "Estoy preparando datos NISAR con NASA Harmony. "
+                                    "Todavía no es un análisis de inundación.")
+    if estado_nisar in (trabajos.ERROR, trabajos.BLOQUEADO) and not hay_resultado:
+        motivo = str((trabajo_nisar or {}).get("error") or "revisa la preparación NISAR")
+        return EstadoEco("enfoque", f"No se pudieron preparar los datos NISAR: {motivo[:160]}",
+                         animado=False, tono="alerta")
+    if estado_nisar == trabajos.APTO and not hay_resultado:
+        return EstadoEco("enfoque", "Los datos NISAR están preparados. Todavía no hay un mapa de inundación; "
+                                    "verifica la calidad antes de interpretar cambios.")
     estado_trabajo = (trabajo or {}).get("estado")
     if estado_trabajo in trabajos.ACTIVOS:
         return EstadoEco("escaneo", "Estoy escuchando el radar: el análisis está en curso. Puedes seguir "
@@ -54,7 +66,7 @@ def decidir(zona_lugar: str | None, hay_zona: bool, consultando: bool, trabajo: 
         donde = f" en {zona_lugar}" if zona_lugar else ""
         if consultando:
             return EstadoEco("enfoque", f"Tengo tu zona{donde}. Estoy revisando alertas y contexto…")
-        return EstadoEco("enfoque", f"Tengo tu zona{donde}. Cuando quieras, pulsa «Analizar» en la ficha.")
+        return EstadoEco("enfoque", f"Tengo tu zona{donde}. Abre Herramientas SAR: prepara imágenes y pulsa «Analizar» solo si hay un par válido.")
     return EstadoEco("saludo", "Hola, soy ECO. Busca un lugar de Colombia o dibuja una zona en el mapa para "
                                "empezar.")
 
