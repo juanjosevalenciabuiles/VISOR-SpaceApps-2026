@@ -93,6 +93,69 @@ def _ejecutar_en_cola(resultado, plan, metodo, max_mb):
     return t
 
 
+def _cambio_automatico(preparacion: dict) -> None:
+    """Completar el camino antiguo de preparación Harmony hasta GeoTIFF ΔdB.
+
+    El flujo público V9 ya calcula y publica mediante su propio seguimiento;
+    no iniciar un segundo trabajo en paralelo para la misma preparación.
+    """
+    job_id = preparacion["job_id"]
+    if st.session_state.get("v9_preparacion") == job_id:
+        return
+    if preparacion.get("procesador") != "harmony_cog":
+        st.caption("Los recortes HDF5 de este flujo no se convierten automáticamente al "
+                   "GeoTIFF de cambio V9. Usa el flujo público Harmony con área y periodo.")
+        return
+    from components import flujo
+    from utils import sesion
+    from utils.resultados import id_resultado, leer_resultado
+    from utils.v9_datos.cambio_cog import QAInsuficiente
+    from utils.v9_trabajo_mapa import iniciar
+
+    zona = flujo.zona_confirmada()
+    limites = (preparacion.get("aoi") or {}).get("limites") or []
+    if zona is None or tuple(zona) != tuple(limites):
+        st.caption("La zona ha cambiado; estos insumos NISAR no corresponden a la zona activa.")
+        return
+    if st.session_state.get("nisar_auto_cambio_origen") != job_id:
+        try:
+            trabajo = iniciar(preparacion)
+        except (ValueError, OSError, QAInsuficiente) as exc:
+            st.warning("No se puede generar un cambio a partir de estos insumos: " + str(exc))
+            return
+        st.session_state["nisar_auto_cambio_origen"] = job_id
+        st.session_state["nisar_auto_cambio_job"] = trabajo["job_id"]
+        st.session_state["nisar_auto_cambio_publicado"] = None
+        flujo.limpiar_resultado()
+    cambio_id = st.session_state.get("nisar_auto_cambio_job")
+    cambio = trabajos.leer(cambio_id) if cambio_id else None
+    if not cambio:
+        st.warning("No se puede recuperar el trabajo de cálculo NISAR.")
+        return
+    if cambio["estado"] in trabajos.ACTIVOS:
+        st.info("Calculando GeoTIFF NISAR de diferencia de retrodispersión con QA real…")
+        return
+    if cambio["estado"] != trabajos.APTO:
+        st.warning("No se generó el GeoTIFF: " + str(cambio.get("error") or cambio["estado"]))
+        st.caption("No se publican capas cuando faltan datos válidos, QA o alineación de cuadrículas.")
+        return
+    ruta = DATA_DIR / "analisis" / str(cambio.get("principal") or "")
+    if not ruta.is_file():
+        st.warning("El trabajo terminó, pero falta el GeoTIFF en data/analisis/.")
+        return
+    resultado = leer_resultado(ruta)
+    if not resultado.dibujable or not resultado.capa or not resultado.capa.procedencia.es_real:
+        st.warning("El GeoTIFF no superó la validación de procedencia y QA; no se publica.")
+        return
+    st.success("GeoTIFF de cambio NISAR preparado y verificado: " + ruta.name)
+    st.caption("Cambio real de señal SAR en dB. NO confirma inundación.")
+    if st.session_state.get("nisar_auto_cambio_publicado") != cambio_id:
+        flujo.activar(id_resultado(ruta), sesion.ANALISIS, cambio["run_id"])
+        st.session_state["nisar_auto_cambio_publicado"] = cambio_id
+        st.session_state["ui_explorador"] = True
+        st.rerun(scope="app")
+
+
 @st.fragment(run_every=2.0)
 def _mostrar_trabajo(job_id: str):
     t = trabajos.leer(job_id)
@@ -115,6 +178,7 @@ def _mostrar_trabajo(job_id: str):
     elif t["estado"] == trabajos.APTO:
         st.success("Los insumos NISAR están preparados. Todavía no son un mapa de inundación.")
         st.caption("Datos y manifiestos en data/nisar/; se conserva resolución nativa y procedencia.")
+        _cambio_automatico(t)
     else:
         st.warning(f"El trabajo no se completó: {t.get('error') or t['estado']}")
 
