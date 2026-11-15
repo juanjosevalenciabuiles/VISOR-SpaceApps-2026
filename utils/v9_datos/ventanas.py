@@ -34,10 +34,8 @@ def planificar_periodo(escenas, aoi, inicio, fin=None, *,
             continue  # Una toma durante el evento no es baseline pre ni post.
         if fecha < principio:
             distancia = (principio - fecha).days
-            objetivo = principio
         else:
             distancia = (fecha - cierre).days
-            objetivo = cierre
         if distancia > margen_dias:
             fuera += 1
             continue
