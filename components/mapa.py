@@ -484,6 +484,49 @@ def destino_vista(vista: dict | None) -> tuple[list[float] | None, float | None]
     return [float(lat) + n * 1e-9, float(lon)], float(vista["zoom"]) + n * 1e-6
 
 
+def _centro_y_zoom_guardados(vista: dict | None):
+    """Navegación explícita o último encuadre real; nunca volver a zoom_start."""
+    anterior = st.session_state.get("mapa_encuadre_usuario")
+    secuencia = vista.get("n") if vista else None
+    if vista is not None and secuencia != st.session_state.get("mapa_ultimo_destino"):
+        centro, zoom = destino_vista(vista)
+        st.session_state["mapa_ultimo_destino"] = secuencia
+        st.session_state["mapa_encuadre_usuario"] = {"centro": centro, "zoom": zoom}
+        return centro, zoom
+    if isinstance(anterior, dict):
+        return anterior.get("centro"), anterior.get("zoom")
+    return None, None
+
+
+def _guardar_encuadre_usuario() -> None:
+    """Captura el viewport desde el widget ANTES de reconstruir el mapa."""
+    datos = st.session_state.get("mapa")
+    if not isinstance(datos, dict):
+        return
+    zoom = datos.get("zoom")
+    if not isinstance(zoom, (int, float)) or not np.isfinite(zoom) or not (2 <= zoom <= 22):
+        return
+    centro = datos.get("center")
+    if isinstance(centro, dict):
+        lat, lon = centro.get("lat"), centro.get("lng")
+        centro = [lat, lon] if all(isinstance(v, (int, float)) for v in (lat, lon)) else None
+    if not isinstance(centro, (list, tuple)) or len(centro) != 2:
+        limites = limites_de_vista(datos.get("bounds"))
+        if limites is None:
+            return
+        oeste, sur, este, norte = limites
+        centro = [(sur + norte) / 2, (oeste + este) / 2]
+    try:
+        lat, lon = float(centro[0]), float(centro[1])
+    except (TypeError, ValueError):
+        return
+    if not np.isfinite(lat) or not np.isfinite(lon):
+        return
+    st.session_state["mapa_encuadre_usuario"] = {
+        "centro": [lat, lon], "zoom": float(zoom),
+    }
+
+
 def _sincronizar_zona_dibujada(dibujos: list | None) -> bool:
     """El dibujo nuevo sustituye el área anterior, sin tocar GeoTIFF históricos.
 
@@ -520,7 +563,7 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
 
     El mapa devuelve el borrador de zona dibujado y su encuadre (para recortar ríos y carreteras a lo
     que se ve y para «usar el área visible»). Nada de lo que devuelve el mapa lanza un análisis."""
-    centro, zoom = destino_vista(vista)
+    centro, zoom = _centro_y_zoom_guardados(vista)
     salida = st_folium(
         mapa_fijo(),
         feature_group_to_add=[*construir_capas(fenomeno, capa, c, resultados), *extras],
@@ -528,10 +571,11 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
         use_container_width=True,
         # streamlit-folium fija esta lista al montar el mapa y no la vuelve a leer: tiene que ser
         # constante. Mover el mapa provoca una recarga ligera (sin recálculo) para conocer el encuadre.
-        returned_objects=["all_drawings", "bounds", "zoom"],
+        returned_objects=["all_drawings", "bounds", "zoom", "center"],
         center=centro,
         zoom=zoom,
-        key="mapa",                   # misma clave siempre: se conserva ubicación y zoom
+        key="mapa",                   # clave persistente del componente
+        on_change=_guardar_encuadre_usuario,
     ) or {}
     dibujos = salida.get("all_drawings") or []
     nueva_seleccion = _sincronizar_zona_dibujada(dibujos)
