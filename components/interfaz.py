@@ -283,6 +283,17 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple 
             mostrar_ayuda()
 
 
+def acceso_laboratorio_ia() -> None:
+    """Acceso permanente y legible aunque la barra superior recorte botones."""
+    with st.container(key="acceso_laboratorio_ia"):
+        if st.button(
+            "🧪 Laboratorio IA", key="btn_ia_flotante", type="primary",
+            help="Abrir la demostración histórica del Atrato, independiente del SAR.",
+            use_container_width=True,
+        ):
+            st.switch_page("pages/3_Laboratorio_IA.py")
+
+
 def buscador() -> None:
     """Buscador flotante, siempre visible sobre el mapa (aunque el Explorador esté cerrado)."""
     with st.container(key="buscador_flotante"):
@@ -296,6 +307,11 @@ def panel_explorador(resultados: list | None = None, activo=None) -> Controles:
             st.markdown('<div class="mc-titulo-panel">Explorador</div>', unsafe_allow_html=True)
             st.button("Contraer", key="cerrar_explorador", icon=":material/chevron_left:", type="tertiary",
                       on_click=alternar_explorador)
+        st.page_link(
+            "pages/3_Laboratorio_IA.py", label="🧪 Abrir Laboratorio IA",
+            help="Resultados históricos del Atrato y modelos A y B; no es una alerta actual.",
+            use_container_width=True,
+        )
         st.button("Ver datos reales · modo jurado", key="visor_boton_muestra_real",
                   icon=":material/satellite_alt:", type="primary", use_container_width=True,
                   on_click=lambda: st.session_state.__setitem__("visor_modo_muestra_real", True),
