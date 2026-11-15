@@ -25,7 +25,7 @@ import streamlit as st
 
 from components import flujo
 from utils import contexto_ambiental as externo
-from utils import contexto_local, wikipedia_lugar
+from utils import contexto_local, wikipedia_lugar, verificacion_multifuente
 
 NIVEL_COLOR = {3: "roja", 2: "naranja", 1: "amarilla", 0: "otra"}
 NO_CONFIRMA = ("Las alertas y los eventos son contexto: no confirman lo que muestre el radar, ni el radar los "
@@ -358,6 +358,39 @@ def alerta_principal(datos: dict) -> str:
             "una medición en esta zona</div></div></div>")
 
 
+
+def _seccion_evidencias(local: contexto_local.ContextoLocal, inicio: date, fin: date) -> str:
+    """Caso municipal documentado, separado de observaciones satelitales y de alertas actuales."""
+    casos = verificacion_multifuente.casos_documentados(local.municipios, inicio, fin)
+    if not casos:
+        return ('<div class="mc-ctx-seccion" id="ctx-multifuente"><div class="visor-seccion">'
+                'Verificación multifuente</div><div class="visor-leyenda-nota">'
+                'No hay un caso histórico incorporado para estas fechas y municipios. '
+                'No equivale a ausencia de inundación. La consulta de agua satelital histórica '
+                'y lluvia acumulada sigue pendiente de validación.</div></div>')
+    bloques = []
+    for caso in casos:
+        enlaces = "".join(
+            f'<li><a href="{escape(f["url"], quote=True)}" target="_blank" rel="noopener noreferrer">'
+            f'{escape(f["organismo"])} · {escape(f["publicado"])}</a></li>'
+            for f in caso["fuentes"]
+        )
+        bloques.append(
+            '<div class="mc-ctx-tarjeta">'
+            '<b>Inundación documentada por autoridad</b>'
+            f'<p>{escape(caso["resumen"])}</p>'
+            f'<p class="visor-leyenda-nota">{escape(caso["alcance"])}</p>'
+            f'<ul>{enlaces}</ul>'
+            '<div class="visor-leyenda-nota">Observación satelital: pendiente de verificar '
+            'cobertura y clases de agua para estas fechas. Lluvia histórica: no consultada '
+            'todavía. Este registro NO delimita píxeles inundados.</div>'
+            '</div>'
+        )
+    return ('<div class="mc-ctx-seccion" id="ctx-multifuente">'
+            '<div class="visor-seccion">Verificación multifuente</div>'
+            + "".join(bloques) + '</div>')
+
+
 def _contenido(zona: dict, activos: list) -> bool:
     """Dibuja el cuerpo de la ficha; devuelve True si alguna fuente sigue consultándose."""
     inicio, fin, origen = periodo_actual()
@@ -369,7 +402,7 @@ def _contenido(zona: dict, activos: list) -> bool:
         f"{alerta_principal(fuentes['ideam'])}{_radar(activos)}"
         f'<div class="mc-ctx-seccion" id="ctx-principal"><div class="visor-seccion">Lo principal</div>'
         f'<ul class="mc-ctx-lista">{frases}</ul></div>'
-        f"{barra_municipios(local)}{_seccion_territorio(local)}{_seccion_ideam(fuentes['ideam'])}"
+        f"{_seccion_evidencias(local, inicio, fin)}{barra_municipios(local)}{_seccion_territorio(local)}{_seccion_ideam(fuentes['ideam'])}"
         f"{_seccion_eonet(fuentes['eonet'])}"
         f'<div class="mc-aviso" id="ctx-no-confirma">{escape(NO_CONFIRMA)}</div>'
         f'<div class="visor-leyenda-nota" id="ctx-fuentes">Descripción del lugar: {escape(wikipedia_lugar.ATRIBUCION)}. '
