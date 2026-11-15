@@ -95,7 +95,7 @@ def productos_disponibles(resultados: list, zona=None, inicio: date | None = Non
                           fin: date | None = None) -> list[ProductoTemporal]:
     """Comparar por zona y rango de interés, sin asumir fechas idénticas entre sensores."""
     # La lista temporal también debe rechazar periodos inválidos; no solo el mapa.
-    if (inicio is not None and not isinstance(inicio, date)) or (fin is not None and not isinstance(fin, date)):
+    if (inicio is not None and type(inicio) is not date) or (fin is not None and type(fin) is not date):
         return []
     if inicio is not None and fin is not None and inicio > fin:
         return []
@@ -118,7 +118,7 @@ def capas_visibles(resultados: list, zona, inicio: date, fin: date, modo: str,
     if modo not in ("Ambos", "NISAR", "Sentinel-1"):
         return {}
     # Un periodo inválido nunca debe reactivar capas de una consulta anterior.
-    if (not isinstance(inicio, date) or not isinstance(fin, date)
+    if (type(inicio) is not date or type(fin) is not date
             or inicio > fin):
         return {}
     productos = productos_disponibles(resultados, zona, inicio, fin)
