@@ -47,3 +47,7 @@ Se añadieron cinco casos sintéticos sin red en `tests/v10_sentinel/test_wtr_ao
 ## CMR — metadatos únicamente
 
 `cmr.consultar_cmr(bbox, inicio_utc, fin_utc)` se invoca solo tras «Buscar y analizar cambios» y devuelve `METADATOS_SIN_QA` o `SIN_DATOS`. Los enlaces de CMR son **candidatos**, no WTR/CONF autenticados ni píxeles QA. No alimentar directamente `planificar()` con estos registros: primero verificar assets, cobertura, linaje y presupuesto de ventanas. No hay mapa real generado. Pruebas sintéticas: `tests/v10_sentinel/test_cmr.py` (ejecución pendiente CI).
+
+## CMR: límite conservador de paginación
+
+La búsqueda actual consulta una sola página de 100 granules. Una respuesta de 100 registros se considera **incompleta**, y `consultar_cmr` devuelve `SIN_DATOS` / `CMR_NO_VERIFICABLE` en vez de escoger un par sesgado. Falta paginación CMR verificable para periodos extensos; ningún enlace candidato habilita WTR/CONF, QA o publicación de mapas. Pruebas sin red en `test_cmr.py`.
