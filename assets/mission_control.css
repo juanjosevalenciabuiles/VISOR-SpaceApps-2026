@@ -531,3 +531,19 @@ a.mc-ficha-credito:hover { text-decoration: underline; }
   box-shadow: 0 5px 18px rgba(0,0,0,.45);
 }
 .st-key-panel_sar .st-key-sar_analizar button { width: 100%; }
+
+/* V10 PC release freeze: el CTA debe estar dentro del viewport visible del panel.
+   Sticky no funciona aquí: el tab anidado tiene su propio contexto de scroll.
+   Anclar al viewport en escritorio evita que el inventario RTC lo desplace. */
+@media (min-width: 721px) {
+  .st-key-panel_sar .st-key-sar_analizar {
+    position: fixed !important;
+    left: calc(var(--mc-lateral) + 16px) !important;
+    bottom: calc(var(--mc-abajo) + 22px) !important;
+    top: auto !important;
+    width: 328px !important;
+    max-width: calc(100vw - 32px);
+    z-index: 35;
+  }
+  .st-key-panel_sar [role="tabpanel"] { padding-bottom: 72px; }
+}
