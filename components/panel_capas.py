@@ -17,6 +17,11 @@ def _inicializar() -> None:
     st.session_state.setdefault("ui_capas_abierto", True)
     st.session_state.setdefault("visor_capa_resultado_visible", True)
     st.session_state.setdefault("res_opacidad", 0.85)
+    # El widget tiene su PROPIA clave: "mapa_base" queda como valor compartido
+    # para el motor Folium, aunque exista un selector legacy de otra versión.
+    st.session_state.setdefault("dock_mapa_base",
+                                st.session_state.get("mapa_base")
+                                or mapas_base.predeterminado())
     st.session_state.setdefault("referencia", False)
     st.session_state.setdefault("ctx_hidrografia", False)
     st.session_state.setdefault("ctx_vias", False)
@@ -26,6 +31,17 @@ def _inicializar() -> None:
 
 def _alternar_dock() -> None:
     st.session_state["ui_capas_abierto"] = not st.session_state["ui_capas_abierto"]
+
+
+def _aplicar_fondo() -> None:
+    """Único callback del nuevo selector; el resto de la app lee mapa_base."""
+    elegido = st.session_state["dock_mapa_base"]
+    opciones = mapas_base.ofrecidos()
+    if elegido not in opciones:
+        elegido = mapas_base.predeterminado()
+        st.session_state["dock_mapa_base"] = elegido
+    st.session_state["mapa_base"] = elegido
+    st.session_state.pop("aviso_mapa_base", None)
 
 
 def _cambiar_resultado(resultados: list) -> None:
@@ -132,13 +148,18 @@ def render(resultados: list, activo=None) -> None:
 
             with st.expander("Cartografía y fondo", expanded=False):
                 opciones = mapas_base.ofrecidos()
+                if st.session_state.get("dock_mapa_base") not in opciones:
+                    st.session_state["dock_mapa_base"] = mapas_base.predeterminado()
+                # Si no hay fondo activo, usar el del dock; evitar dos widgets
+                # con la misma clave Streamlit en instancias legacy.
                 if st.session_state.get("mapa_base") not in opciones:
-                    st.session_state["mapa_base"] = mapas_base.predeterminado()
+                    st.session_state["mapa_base"] = st.session_state["dock_mapa_base"]
                 st.selectbox(
                     "Mapa base",
                     options=opciones,
                     format_func=lambda k: MAPAS_BASE[k].nombre,
-                    key="mapa_base",
+                    key="dock_mapa_base",
+                    on_change=_aplicar_fondo,
                     help="Cambia únicamente el fondo; conserva resultados, zona y encuadre.",
                 )
                 faltan = mapas_base.no_ofrecidos()

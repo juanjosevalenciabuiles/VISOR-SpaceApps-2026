@@ -29,6 +29,10 @@ if st.session_state.get("visor_modo_muestra_real"):
     st.stop()
 
 interfaz.inicializar_estado()
+# Inyectar el estilo ANTES de construir paneles. Si un widget falla,
+# la vista no queda sin la estética Mission Control.
+clave_tema = st.session_state.get("fenomeno", "inundacion")
+estilos.inyectar_tema(FENOMENOS.get(clave_tema, FENOMENOS["inundacion"]))
 
 # 1. Inventario de data/analisis/ (solo para el historial) y resultado autorizado para esta ejecución.
 #    Que un archivo exista NO lo pone en el mapa: solo se dibuja el resultado activo de la sesión,
@@ -43,7 +47,6 @@ diagnostico.comprobar_en_segundo_plano()
 panel_capas.render(resultados, activo)
 controles = interfaz.panel_explorador(resultados, activo)
 fenomeno = FENOMENOS[controles.clave]
-estilos.inyectar_tema(fenomeno)
 interfaz.aplicar_css_estado()
 
 # La capa DEMO solo se carga si se pidió a propósito.

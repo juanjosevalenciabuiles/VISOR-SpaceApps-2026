@@ -26,6 +26,8 @@ def test_dock_se_inicializa_con_capas_ambientales_reales(monkeypatch):
     assert estado["visor_mapa_municipios_dane"] is True
     assert estado["visor_mapa_eventos_eonet"] is False
     assert estado["ctx_hidrografia"] is False
+    assert estado["dock_mapa_base"] == estado.get("mapa_base", "osm_oscuro") or (
+        estado["dock_mapa_base"] == panel_capas.mapas_base.predeterminado())
     panel_capas._alternar_dock()
     assert estado["ui_capas_abierto"] is False
     panel_capas._alternar_dock()
@@ -76,3 +78,25 @@ def test_leyenda_de_historial_indica_procedencia_y_fechas():
     assert "NO VALIDADO" in panel_capas._etiqueta_resultado(
         "dos", {"dos": no_validado})
     assert panel_capas._etiqueta_resultado(None, {}) == "Ningún resultado seleccionado"
+
+
+def test_dock_mapa_base_usa_clave_unica_y_sincroniza_fondo(monkeypatch):
+    estado = {"dock_mapa_base": "calles", "mapa_base": "osm_oscuro"}
+    monkeypatch.setattr(panel_capas.st, "session_state", estado)
+    monkeypatch.setattr(panel_capas.mapas_base, "ofrecidos", lambda: ["osm_oscuro", "calles"])
+    panel_capas._aplicar_fondo()
+    assert estado["mapa_base"] == "calles"
+    assert estado["dock_mapa_base"] == "calles"
+    from pathlib import Path
+    codigo = Path(panel_capas.__file__).read_text(encoding="utf-8")
+    assert 'key="dock_mapa_base"' in codigo
+    assert 'key="mapa_base"' not in codigo
+
+
+def test_dock_no_permite_fondo_no_disponible(monkeypatch):
+    estado = {"dock_mapa_base": "carto_oscuro", "mapa_base": "calles"}
+    monkeypatch.setattr(panel_capas.st, "session_state", estado)
+    monkeypatch.setattr(panel_capas.mapas_base, "ofrecidos", lambda: ["calles"])
+    monkeypatch.setattr(panel_capas.mapas_base, "predeterminado", lambda: "calles")
+    panel_capas._aplicar_fondo()
+    assert estado["dock_mapa_base"] == estado["mapa_base"] == "calles"
