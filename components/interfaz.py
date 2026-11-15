@@ -225,8 +225,8 @@ corresponda exactamente al archivo (huella SHA-256).
 
 Un cambio de retrodispersión de radar **no confirma** una inundación ni ningún otro fenómeno.
 
-**Datos de radar.** Las capas reales provienen de Sentinel-1 (ESA/Copernicus, banda C).
-No deben confundirse con la misión NASA-ISRO NISAR (banda L).
+**Datos de radar.** NISAR (NASA-ISRO, banda L) es el sensor principal para estudiar inundaciones;
+Sentinel-1 (ESA/Copernicus, banda C) queda como respaldo. Un GCOV no confirma una inundación.
 
 **Uso de inteligencia artificial.** Parte del código y de la documentación de V.I.S.O.R. se
 desarrolló con asistencia de IA (Claude, de Anthropic), bajo revisión del equipo.
@@ -314,7 +314,7 @@ GUIA_INICIO = (
     "Explorador o dibuja un rectángulo en el mapa.</small></div></li>"
     '<li><span class="mc-paso-num">2</span><div><b>Confirma la zona</b><small>Aquí verás su foto, alertas del '
     "IDEAM y datos del territorio.</small></div></li>"
-    '<li><span class="mc-paso-num">3</span><div><b>Analiza con radar</b><small>Elige dos fechas y compara: '
+    '<li><span class="mc-paso-num">3</span><div><b>Analiza con radar</b><small>Busca NISAR primero; Sentinel-1 es respaldo. Compara dos fechas: '
     "solo entonces se calcula y se dibuja el resultado.</small></div></li></ol>"
     '<p class="visor-leyenda-nota">Todavía no hay ningún resultado en el mapa. V.I.S.O.R. solo muestra lo que tú '
     "analices en esta sesión o abras a propósito desde el historial.</p>"
@@ -384,8 +384,8 @@ def herramientas_sar() -> None:
                       on_click=cerrar_sar)
         st.markdown(
             '<div class="mc-aviso">Zona → imágenes → fechas → Analizar. Nada se calcula ni se dibuja hasta que '
-            "pulses «Analizar». Usa productos RTC ya presentes en <code>data/sar/</code>: no descarga ni procesa "
-            "en HyP3. Los resultados son indicios de cambio de radar, no inundaciones confirmadas.</div>",
+            "pulses «Analizar» en Sentinel-1. NISAR permite buscar y preparar GCOV con ASF y Harmony; "
+            "Sentinel-1 aún requiere RTC locales. Una variación de radar no confirma inundaciones.</div>",
             unsafe_allow_html=True,
         )
         herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)

@@ -685,7 +685,25 @@ def _trabajos_recientes() -> None:
                           type="tertiary", on_click=_abrir_trabajo, args=(t,))
 
 
+SENSORES = ("NISAR · principal (banda L)", "Sentinel-1 · respaldo (banda C)")
+
+
 def render(centrar, abrir_explorador, pasos) -> None:
+    # Solo inundaciones en la versión pública: NISAR es el sensor principal.
+    # Sentinel-1 conserva el motor RTC validado como alternativa científica.
+    preseleccionado = SENSORES[1] if os.environ.get("VISOR_SENSOR_DEFECTO") == "SENTINEL" else SENSORES[0]
+    sensor = st.segmented_control("Sensor para estudiar inundaciones", SENSORES,
+                                  default=preseleccionado, key="sar_sensor")
+    if sensor == SENSORES[0]:
+        from components import nisar_auto_ui
+        area, gcov = st.tabs(("01 · Área", "02 · Buscar y preparar NISAR"), key="nisar_paso")
+        with area:
+            paso_area(centrar)
+        with gcov:
+            zona, error = region_actual()
+            nisar_auto_ui.render(zona, error)
+        return
+    st.caption("Sentinel-1: respaldo. El catálogo GRD se consulta, pero el análisis requiere RTC disponibles.")
     area, escenas, analisis, resultados = st.tabs(list(pasos), key="sar_paso")
     with area:
         paso_area(centrar)

@@ -15,7 +15,7 @@ from utils.geotiff import ErrorCapa, cargar_capa
 from utils.resultados import cargar_resultados
 
 st.set_page_config(
-    page_title="V.I.S.O.R.",
+    page_title="V.I.S.O.R. · Inundaciones",
     page_icon="🛰️",
     layout="wide",
     initial_sidebar_state="collapsed",

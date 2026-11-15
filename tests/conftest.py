@@ -21,3 +21,6 @@ os.environ.setdefault("VISOR_REGION_MODE", "GLOBAL")
 # Contexto ambiental (panel derecho): sin red en las pruebas; las que lo necesitan simulan las fuentes.
 os.environ.setdefault("VISOR_CONTEXTO_EXTERNO", "desactivado")
 os.environ.setdefault("VISOR_CONTEXTO_SINCRONO", "1")
+
+os.environ.setdefault("VISOR_SENSOR_DEFECTO", "SENTINEL")
+os.environ.setdefault("VISOR_FENOMENOS_LEGACY", "1")

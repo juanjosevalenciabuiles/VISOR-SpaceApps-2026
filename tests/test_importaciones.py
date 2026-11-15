@@ -39,7 +39,7 @@ def test_dependencias_externas_declaradas():
     """Todo paquete externo que importa la app está en requirements.txt (o en requirements-dev.txt
     si solo lo usan las pruebas). Evita que Replit falle por una dependencia que aquí llegó de rebote."""
     import ast
-    distribucion = {"streamlit_folium": "streamlit-folium"}
+    distribucion = {"streamlit_folium": "streamlit-folium", "harmony": "harmony-py"}
     solo_desarrollo = {"playwright"}
     pedidos = {ln.split("~=")[0].split(">=")[0].split("<")[0].strip().lower()
                for ln in (RAIZ / "requirements.txt").read_text().splitlines() if ln.strip() and not ln.startswith("#")}

@@ -6,6 +6,7 @@ una clave estable para que su valor se conserve aunque el panel se oculte.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from html import escape
 
@@ -263,9 +264,12 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None,
                         "No son observaciones de satélite ni resultados de un análisis.</div>",
                         unsafe_allow_html=True)
             mostrar_capa = st.toggle("Mostrar capa DEMO", value=False, key="capa_sar")
+            solo_inundaciones = os.environ.get("VISOR_FENOMENOS_LEGACY") != "1"
+            if solo_inundaciones and st.session_state.get("fenomeno") not in (None, "inundacion"):
+                st.session_state["fenomeno"] = "inundacion"
             clave = st.radio(
                 "Fenómeno",
-                options=list(FENOMENOS),
+                options=["inundacion"] if solo_inundaciones else list(FENOMENOS),
                 format_func=lambda k: f"{FENOMENOS[k].icono}  {FENOMENOS[k].nombre}",
                 key="fenomeno",
             )
