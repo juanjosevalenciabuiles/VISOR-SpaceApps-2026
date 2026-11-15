@@ -34,3 +34,9 @@ Por bloques calcula `ΔdB=10log10(gamma0_post/gamma0_pre)` exclusivamente donde 
 **Contrato de escena**: `sensor,banda,orbita,stack,madurez,polarizacion,observed_at,granule,cog,qa_mask,looks`. Procesa una polarización por llamada; para HH y HV usar llamadas separadas con sus capas y productos propios. La selección de fechas, cobertura AOI y baseline temporal se resuelven antes con el planificador; este módulo no interpreta una lluvia como inundación. Pendiente conectar los COG reales de Harmony y verificar sus variables QA/looks. **No se ha producido un mapa con datos reales.**
 
 **Pruebas**: cuatro casos sintéticos (Δ=10 dB, SHA/ficha, QA=0, madurez incompatible, ausencia de looks y banda C). La ejecución aislada previa de cuatro pruebas equivalentes pasó con un sustituto local de procedencia; la CI del commit de GitHub debe confirmar compatibilidad con el módulo real. No hay validación satelital.
+
+## Incremento 4 — periodo de interés sin fechas SAR manuales
+
+`utils/v9_datos/ventanas.py::planificar_periodo(escenas, aoi, inicio, fin=None, margen_dias=30, presupuesto_bytes=200000000)` selecciona fechas automáticamente desde **área + periodo**. La escena pre debe preceder estrictamente el inicio y la post seguir estrictamente el final; observaciones durante el periodo no se utilizan como baseline pre/post. El filtro conserva fechas originales, exige compatibilidad y QA mediante `planificar_stack`, cuenta escenas excluidas por margen (`fuera_ventana`) y devuelve `periodo_interes`. Una fecha aproximada se expresa con `fin=None`. Si faltan QA/par/cobertura, no genera raster. Los resultados `PLAN_METADATOS` son planes, no detección de inundación.
+
+Pruebas sintéticas añadidas en `tests/v9_datos/test_ventanas.py`; consultar CI para ejecución verificada. Este adaptador no consulta directamente ASF, no descarga y no integra todavía COG reales. **Reconciliación requerida:** V8 PR #17 cambió a `e73d3de` y no se fusionó en IA1.
