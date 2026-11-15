@@ -33,3 +33,16 @@ def test_metadatos_no_se_convierten_en_qa_ni_wtr():
 def test_respuesta_invalida_rechazada():
     with pytest.raises(ValueError):
         extraer_granulos({"feed": {"entry": "invalid"}})
+
+
+def test_pagina_cmr_llena_rechazada_sin_paginacion():
+    entradas = [{"id": f"g-{i}", "time_start": "2026-10-01T00:00:00Z"} for i in range(100)]
+    with pytest.raises(ValueError, match="CMR_PAGINACION_PENDIENTE"):
+        extraer_granulos({"feed": {"entry": entradas}})
+
+
+def test_pagina_cmr_incompleta_permite_metadatos_sin_qa():
+    entradas = [{"id": f"g-{i}", "time_start": "2026-10-01T00:00:00Z"} for i in range(99)]
+    resultado = extraer_granulos({"feed": {"entry": entradas}})
+    assert len(resultado) == 99
+    assert all(g["qa_metadata"] == "NO_VERIFICADO" for g in resultado)
