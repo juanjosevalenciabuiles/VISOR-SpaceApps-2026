@@ -3,6 +3,9 @@ import pytest
 
 from utils.v10_sentinel.wtr import comparar_wtr
 
+GEO = {"crs": "EPSG:32618", "transform": (30.0, 0.0, 500000.0, 0.0, -30.0, 900000.0)}
+
+
 
 def _comparar(mask, qa_post=None):
     return comparar_wtr(
@@ -11,7 +14,7 @@ def _comparar(mask, qa_post=None):
         [[True, False], [True, False]],
         qa_post or [[True, False], [True, False]],
         codigos={"agua": 1, "no_agua": 0},
-        version_verificada=True,
+        version_verificada=True, georef_anterior=GEO, georef_posterior=GEO,
         mascara_aoi=mask,
     )
 

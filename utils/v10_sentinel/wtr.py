@@ -7,6 +7,40 @@ Este módulo no hace IO ni confirma inundaciones.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import math
+
+from rasterio.crs import CRS
+
+
+def _grilla_verificada(info: Mapping | None) -> tuple[CRS, tuple[float, ...]]:
+    """Exigir CRS real y geotransformación afín en el orden rasterio (a,b,c,d,e,f)."""
+    if not isinstance(info, Mapping):
+        raise ValueError("SIN_GEOREFERENCIA: falta CRS/transform real del GeoTIFF")
+    try:
+        crs = CRS.from_user_input(info.get("crs"))
+        transformacion = tuple(float(v) for v in info["transform"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("SIN_GEOREFERENCIA: CRS o transformación inválidos") from exc
+    if len(transformacion) == 9:
+        if transformacion[6:] != (0.0, 0.0, 1.0):
+            raise ValueError("Transformación afín homogénea inválida")
+        transformacion = transformacion[:6]
+    if (len(transformacion) != 6 or not all(math.isfinite(v) for v in transformacion)
+            or abs(transformacion[0] * transformacion[4]
+                   - transformacion[1] * transformacion[3]) < 1e-12):
+        raise ValueError("Transformación afín de GeoTIFF inválida o degenerada")
+    return crs, transformacion
+
+
+def _comprobar_alineacion(anterior: Mapping | None, posterior: Mapping | None) -> None:
+    """Bloqueo P1: mismas dimensiones NO implican los mismos píxeles geográficos."""
+    crs_a, af_a = _grilla_verificada(anterior)
+    crs_b, af_b = _grilla_verificada(posterior)
+    if crs_a != crs_b:
+        raise ValueError("CRS distintos: remuestreo explícito requerido antes de comparar WTR")
+    if not all(math.isclose(x, y, rel_tol=1e-12, abs_tol=1e-9)
+               for x, y in zip(af_a, af_b, strict=True)):
+        raise ValueError("Cuadrículas WTR desalineadas: no comparar píxeles desplazados")
 
 
 def comparar_wtr(
@@ -18,6 +52,8 @@ def comparar_wtr(
     codigos: Mapping[str, int],
     version_verificada: bool = False,
     mascara_aoi: Sequence[Sequence[bool]] | None = None,
+    georef_anterior: Mapping | None = None,
+    georef_posterior: Mapping | None = None,
 ) -> dict:
     """Devuelve clases exploratorias 0=no agua, 1=persistente, 2=nueva, 255=sin QA.
 
@@ -34,6 +70,8 @@ def comparar_wtr(
     grids = (anterior, posterior, qa_anterior, qa_posterior)
     if mascara_aoi is not None:
         grids += (mascara_aoi,)
+    # No clasificar ni un píxel sin demostrar su identidad espacial.
+    _comprobar_alineacion(georef_anterior, georef_posterior)
     if not anterior or not anterior[0]:
         raise ValueError("Raster vacío")
     alto, ancho = len(anterior), len(anterior[0])
