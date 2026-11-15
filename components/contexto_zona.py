@@ -505,6 +505,10 @@ def render(activos: list, acciones: dict | None = None) -> bool:
     referencia = municipio_de_busqueda(zona, local, st.session_state.get("lugar"))
     st.markdown(cabecera_html(zona, local, estados, referencia=referencia), unsafe_allow_html=True)
     _acciones(zona, acciones)
+    # Controles sobre las mismas geometrías del DANE/IDEAM/EONET que la ficha.
+    # Importación diferida para evitar acoplamiento entre panel y mapa.
+    from components import capas_ambientales
+    capas_ambientales.controles()
     if consultando(estados):
         _vigilar(zona["clave"], bool(activos))
     else:
