@@ -13,8 +13,7 @@ import streamlit as st
 
 from components.panel_info import insignia
 from utils.combinacion_sar import umbrales_por_polarizacion
-from utils.diferencia_db import RANGO_DB, TICKS, leyenda_css
-from components.mapa import UMBRAL_TRANSPARENCIA_VISUAL_DB
+from utils.diferencia_db import RANGO_DB, TICKS, UMBRAL_TRANSPARENCIA_VISUAL_DB, leyenda_css
 from utils import qgis
 from utils.resultados import ResultadoSAR, _firma
 

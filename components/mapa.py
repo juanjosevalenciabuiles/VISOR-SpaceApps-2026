@@ -30,7 +30,7 @@ from utils import alcance_geografico
 from utils.config import MAPA_CENTRO, MAPA_ZOOM, Fenomeno
 from utils.geotiff import Capa, a_web_mercator, colorizar_capa, colorizar_categorico
 from utils.mapas_base import MapaBase, obtener, url_teselas
-from utils.diferencia_db import colorizar_diferencia
+from utils.diferencia_db import UMBRAL_TRANSPARENCIA_VISUAL_DB, colorizar_diferencia
 from utils.resultados import ResultadoSAR, _firma
 
 
@@ -214,9 +214,6 @@ def grupo_sar(fenomeno: Fenomeno, capa: Capa, opacidad: float) -> folium.Feature
         name=fenomeno.nombre,
     ).add_to(grupo)
     return grupo
-
-
-UMBRAL_TRANSPARENCIA_VISUAL_DB = 2.0
 
 
 def realzar_alpha_delta(rgba: np.ndarray, datos: np.ma.MaskedArray) -> np.ndarray:
