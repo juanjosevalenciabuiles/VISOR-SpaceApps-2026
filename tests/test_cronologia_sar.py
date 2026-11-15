@@ -124,3 +124,13 @@ def test_datetime_no_se_acepta_como_fecha_de_usuario(valor):
     producto = _res("n", "NISAR", ["2026-10-22", "2026-11-03"])
     assert crono.productos_disponibles([producto], ZONA, valor, date(2026, 11, 4)) == []
     assert crono.capas_visibles([producto], ZONA, valor, date(2026, 11, 4), "NISAR") == {}
+
+
+def test_id_compartido_entre_sensores_no_activa_raster_ambiguo():
+    """Un ID de overlay no puede apuntar a dos productos distintos."""
+    n = _res("id_duplicado", "NISAR", ["2026-10-22", "2026-11-03"])
+    s = _res("id_duplicado", "Sentinel-1", ["2026-10-25", "2026-11-05"])
+    otro = _res("s1_unico", "Sentinel-1", ["2026-10-26", "2026-11-06"])
+    inicio, fin = date(2026, 10, 25), date(2026, 11, 5)
+    assert crono.capas_visibles([n, s], ZONA, inicio, fin, "Ambos") == {}
+    assert crono.capas_visibles([n, s, otro], ZONA, inicio, fin, "Ambos") == {"s1_unico": 0.7}
