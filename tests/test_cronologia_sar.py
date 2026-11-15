@@ -103,3 +103,13 @@ def test_seleccion_explicita_ausente_no_sustituye_producto():
     assert crono.capas_visibles([n], ZONA, inicio, fin, "NISAR",
                                 {"NISAR": ""}) == {}
     assert crono.capas_visibles([n], ZONA, inicio, fin, "NISAR") == {"nisar_actual": 0.85}
+
+
+@pytest.mark.parametrize("inicio,fin", [
+    (date(2026, 11, 4), date(2026, 10, 22)),
+    ("2026-10-22", date(2026, 11, 4)),
+    (date(2026, 10, 22), "2026-11-04"),
+])
+def test_catalogo_temporal_no_muestra_productos_con_periodo_invalido(inicio, fin):
+    producto = _res("n", "NISAR", ["2026-10-22", "2026-11-03"])
+    assert crono.productos_disponibles([producto], ZONA, inicio, fin) == []
