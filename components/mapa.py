@@ -15,6 +15,8 @@ que se inserta DENTRO del marco del mapa (ESTILO_LIENZO); el marco en sí se
 fija a pantalla completa desde assets/mission_control.css.
 """
 
+import json
+
 import folium
 import numpy as np
 import streamlit as st
@@ -23,6 +25,7 @@ from folium.plugins import Draw, Fullscreen
 from folium.template import Template
 from streamlit_folium import st_folium
 
+from components import flujo
 from components.barra_lateral import Controles
 from utils import geo
 from utils.capas_contexto import CAPAS_CONTEXTO, recortar
@@ -66,6 +69,15 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #06121e; }
 .leaflet-control-zoom-fullscreen { background: rgba(8,22,36,.78) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f5f5f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5'/%3E%3C/svg%3E") center/18px 18px no-repeat !important; width: 34px !important; height: 34px !important; }
 .leaflet-fullscreen-on .leaflet-control-zoom-fullscreen { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f5f5f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5'/%3E%3C/svg%3E") !important; }
 .leaflet-draw-actions a { background: rgba(8,22,36,.94); color: #f5f5f7; border-left-color: rgba(255,255,255,.2); }
+/* Acción directa para dibujar una zona arrastrando desde una esquina a la otra. */
+.visor-zona-drag a, .visor-zona-drag a:hover {
+  display: flex !important; align-items: center; justify-content: center; gap: 6px;
+  width: 121px !important; min-height: 35px; line-height: 1.2 !important;
+  color: #06121e !important; font: 700 12px/1.1 system-ui, sans-serif !important;
+  background: #45e4f4 !important; border-radius: 9px; text-decoration: none;
+}
+.visor-zona-drag a:focus-visible { outline: 2px solid #ffd60a; outline-offset: 2px; }
+.visor-zona-drag { margin-right: 7px !important; }
 .leaflet-bar { border: 1px solid rgba(255,255,255,.16) !important; border-radius: 12px !important; overflow: hidden;
                box-shadow: 0 8px 24px rgba(0,0,0,.35) !important; }
 .leaflet-bar a, .leaflet-bar a:hover { background: rgba(8,22,36,.78); color: #f5f5f7; border-bottom-color: rgba(255,255,255,.12);
@@ -151,6 +163,63 @@ def _modo_colombia(m: folium.Map) -> None:
         f"Fuera de Colombia: {alcance_geografico.FUERA.lower()}</div>"))
 
 
+class SelectorZonaUnica(MacroElement):
+    """Control nativo Leaflet: un clic activa arrastre y reemplaza el dibujo.
+
+    Hijo del objeto Draw para usar sus nombres estables también cuando
+    streamlit-folium normaliza los IDs de Folium entre reruns.
+    """
+
+    _template = Template("""{% macro script(this, kwargs) %}
+    (function(mapa, dibujos) {
+        // streamlit-folium observa exactamente esta colección de dibujos.
+        window.drawnItems = dibujos;
+
+        // Al iniciar otra selección, el dibujo antiguo deja de estar activo.
+        mapa.on('draw:drawstart', function(e) {
+            if (e.layerType === 'rectangle' || e.layerType === 'polygon') {
+                dibujos.clearLayers();
+            }
+        });
+        // En Leaflet Draw el evento llega después de insertar la capa.
+        // Conservar exclusivamente la última, aun si se usó la barra clásica.
+        mapa.on('draw:created', function(e) {
+            dibujos.clearLayers();
+            dibujos.addLayer(e.layer);
+        });
+
+        var selector = L.control({position: 'topleft'});
+        selector.onAdd = function() {
+            var contenedor = L.DomUtil.create('div', 'leaflet-control visor-zona-drag');
+            var boton = L.DomUtil.create('a', 'leaflet-bar', contenedor);
+            boton.href = '#';
+            boton.setAttribute('role', 'button');
+            boton.setAttribute('aria-label', 'Dibujar zona rectangular arrastrando');
+            boton.title = 'Clic, arrastra desde una esquina hasta la otra y suelta';
+            boton.textContent = '▭ Dibujar zona';
+            L.DomEvent.disableClickPropagation(contenedor);
+            L.DomEvent.disableScrollPropagation(contenedor);
+            L.DomEvent.on(boton, 'click', L.DomEvent.stop)
+                .on(boton, 'click', function() {
+                    dibujos.clearLayers();
+                    new L.Draw.Rectangle(mapa, {
+                        shapeOptions: {color: '#ffd60a', weight: 2, fillOpacity: 0.05}
+                    }).enable();
+                });
+            return contenedor;
+        };
+        selector.addTo(mapa);
+    })(
+        {{ this._parent._parent.get_name() }},
+        drawnItems_{{ this._parent.get_name() }}
+    );
+    {% endmacro %}""")
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._name = "SelectorZonaUnica"
+
+
 def mapa_fijo() -> folium.Map:
     """Lienzo fijo. En Modo Colombia: centrado en el país, paneo limitado a su extensión con margen,
     velo exterior y contorno nacional. En GLOBAL: Antioquia y el mundo entero."""
@@ -176,12 +245,13 @@ def mapa_fijo() -> folium.Map:
     m.get_root().header.add_child(folium.Element(ESTILO_LIENZO), name="visor_lienzo")
     # Dibujo de la zona de análisis: solo rectángulo y polígono. Lo dibujado es un borrador;
     # no se convierte en zona hasta confirmarlo en Herramientas SAR («Usar esta zona»).
-    Draw(position="topleft", export=False,
+    control_dibujo = Draw(position="topleft", export=False, show_geometry_on_click=False,
          draw_options={"polyline": False, "circle": False, "marker": False, "circlemarker": False,
                        "rectangle": {"shapeOptions": {"color": "#ffd60a", "weight": 2, "fillOpacity": 0.05}},
                        "polygon": {"allowIntersection": False,
                                    "shapeOptions": {"color": "#ffd60a", "weight": 2, "fillOpacity": 0.05}}},
          edit_options={"edit": True, "remove": True}).add_to(m)
+    control_dibujo.add_child(SelectorZonaUnica())
     # Pantalla completa del mapa (API Fullscreen del navegador; el iframe de Streamlit la permite).
     Fullscreen(position="topleft", title="Pantalla completa", title_cancel="Salir de pantalla completa",
                force_separate_button=True).add_to(m)
@@ -414,6 +484,35 @@ def destino_vista(vista: dict | None) -> tuple[list[float] | None, float | None]
     return [float(lat) + n * 1e-9, float(lon)], float(vista["zoom"]) + n * 1e-6
 
 
+def _sincronizar_zona_dibujada(dibujos: list | None) -> bool:
+    """El dibujo nuevo sustituye el área anterior, sin tocar GeoTIFF históricos.
+
+    Retorna True si cambió, para reconstruir los paneles una sola vez.
+    El front-end mantiene como máximo UN dibujo editable; aquí se mantiene
+    como máximo UNA selección candidata y ninguna AOI confirmada obsoleta.
+    """
+    ultimo = dibujos[-1] if dibujos else None
+    firma = json.dumps(ultimo, sort_keys=True) if ultimo is not None else None
+    anterior = st.session_state.get("mapa_firma_dibujo")
+    if firma == anterior:
+        return False
+    st.session_state["mapa_firma_dibujo"] = firma
+    if st.session_state.get("zona") is not None:
+        flujo.quitar_zona()
+    if st.session_state.get("resultado_activo") is not None:
+        flujo.limpiar_resultado("Se eligió otra zona; el resultado anterior sigue en el historial.")
+    if ultimo is not None:
+        # No volver a mostrar los trabajos de la AOI anterior como si fueran
+        # de la nueva. Los archivos reales continúan intactos en disco.
+        for clave in ("v9_firma", "v9_preparacion", "v9_mapa_job",
+                      "v9_publicado", "v9_error", "v9_sugerencias"):
+            st.session_state.pop(clave, None)
+        st.session_state["ui_sar"] = "abierto"
+        st.session_state["ui_explorador"] = False
+    st.session_state["mapa_dibujo"] = ultimo
+    return True
+
+
 def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | None = None,
            resultados: list[ResultadoSAR] | tuple = (), extras: list[folium.FeatureGroup] | tuple = (),
            seguir_vista: bool = False) -> None:
@@ -435,9 +534,11 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
         key="mapa",                   # misma clave siempre: se conserva ubicación y zoom
     ) or {}
     dibujos = salida.get("all_drawings") or []
-    st.session_state["mapa_dibujo"] = dibujos[-1] if dibujos else None
+    nueva_seleccion = _sincronizar_zona_dibujada(dibujos)
     limites = limites_de_vista(salida.get("bounds"))
     st.session_state["mapa_limites"] = limites if limites is not None and limites[0] < limites[2] else None
+    if nueva_seleccion:
+        st.rerun()  # El botón «Usar esta zona» aparece sin un segundo clic.
 
 
 def limites_de_vista(bounds) -> tuple[float, float, float, float] | None:

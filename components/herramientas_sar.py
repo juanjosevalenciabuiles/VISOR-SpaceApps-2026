@@ -157,8 +157,9 @@ def paso_area(centrar) -> None:
         _nota(st.session_state["error_zona"], "mc-aviso")
 
     st.caption("DIBUJAR SOBRE EL MAPA")
-    _nota("Usa las herramientas ▭ (rectángulo) o ⬠ (polígono) del mapa, junto a los botones de zoom. "
-          "Puedes editar o borrar el dibujo; no es una zona hasta que pulses «Usar esta zona».")
+    _nota("1. Pulsa «▭ Dibujar zona» en el mapa. 2. Haz clic en una esquina, "
+          "arrastra hasta la esquina contraria y suelta. 3. Confirma con «Usar esta zona». "
+          "Si dibujas otra, sustituye la anterior sin borrar tus GeoTIFF históricos.")
     dibujo = st.session_state.get("mapa_dibujo")
     if dibujo:
         try:

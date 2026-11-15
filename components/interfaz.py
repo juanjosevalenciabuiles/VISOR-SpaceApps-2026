@@ -244,7 +244,19 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple 
                f'<span class="mc-insignia-larga">{escape(alcance_geografico.INSIGNIA)}</span>'
                '<span class="mc-insignia-corta">COLOMBIA</span></span>' if alcance_geografico.restringido()
                else '<span class="mc-marca-sub">Mission Control · Earth Explorer</span>')
-        st.markdown(f'<div class="mc-marca"><span class="mc-marca-nombre">V.I.S.O.R.</span>{sub}</div>',
+        st.markdown(f'<div class="mc-marca"><span class="mc-marca-linea">'
+                    '<span class="mc-marca-nombre">V.I.S.O.R.</span>'
+                    '<span class="mc-marca-olas" role="img" aria-label="Agua e inundaciones" '
+                    'title="Observación de agua e inundaciones">'
+                    '<svg viewBox="0 0 42 32" width="33" height="27" '
+                    'fill="none" xmlns="http://www.w3.org/2000/svg">'
+                    '<path d="M2 10 C8 4, 14 4, 20 10 S32 16,40 10" '
+                    'stroke="#38ddf5" stroke-width="2.8" stroke-linecap="round"/>'
+                    '<path d="M2 19 C8 13,14 13,20 19 S32 25,40 19" '
+                    'stroke="#b8f3ff" stroke-width="2.8" stroke-linecap="round"/>'
+                    '<path d="M5 28 Q20 22 37 28" stroke="#38ddf5" '
+                    'stroke-width="2.8" stroke-linecap="round"/>'
+                    '</svg></span></span>' + sub + '</div>',
                     unsafe_allow_html=True, width="content")
         st.markdown(estado_html(fenomeno, capa, activos, capa_visible), unsafe_allow_html=True, width="content")
         st.space("stretch")

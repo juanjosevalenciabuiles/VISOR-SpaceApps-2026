@@ -71,6 +71,10 @@ header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecor
   background: linear-gradient(90deg, #ffffff, var(--theme-accent));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
+.mc-marca-linea { display: inline-flex; align-items: center; gap: 0.35rem; }
+.mc-marca-olas { display: inline-flex; flex: 0 0 auto; align-items: center;
+  filter: drop-shadow(0 0 5px rgba(56, 221, 245, .28)); }
+.mc-marca-olas svg { display: block; }
 .mc-marca-sub { font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mc-tenue); }
 .mc-estado { display: flex; gap: 0.4rem; align-items: center; margin-left: 0.6rem; white-space: nowrap; }
 .mc-grupo { display: inline-flex; gap: 0.35rem; align-items: center; }

@@ -58,8 +58,12 @@ def confirmar_zona(limites, origen: str, geometria: dict | None = None) -> None:
 
 def quitar_zona() -> None:
     st.session_state["zona"] = None
+    # La geometría editable no debe reactivar una zona que el usuario retiró.
+    # Se conserva su firma hasta que Leaflet entregue un dibujo NUEVO.
+    st.session_state["mapa_dibujo"] = None
     st.session_state.update(sar_busqueda=None, sar_error_busqueda=None, mc_informe_sar=None, error_zona=None)
     st.session_state["sel_par"] = None
+    limpiar_resultado()
 
 
 # --- Contexto y resultado activo ----------------------------------------------
