@@ -21,7 +21,6 @@ def planificar_stack(escenas, aoi, objetivo, dias_antes=30, dias_despues=30,
     if not (-180 <= oeste < este <= 180 and -90 <= sur < norte <= 90):
         raise ValueError("AOI inválida")
     filtradas = []
-    qa_pendiente = False
     for e in escenas:
         try:
             f = _fecha(e["observed_at"])
@@ -41,8 +40,6 @@ def planificar_stack(escenas, aoi, objetivo, dias_antes=30, dias_despues=30,
                 continue
             if e.get("qa_apto") is False:
                 continue
-            if e.get("qa_apto") is not True:
-                qa_pendiente = True
             filtradas.append((f, e))
         except (KeyError, TypeError, ValueError):
             continue
