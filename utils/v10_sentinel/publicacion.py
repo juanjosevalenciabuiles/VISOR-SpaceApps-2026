@@ -73,7 +73,12 @@ def publicar_comparacion(
         ) as ds:
             ds.write(clases.astype("uint8"), 1)
             ds.set_band_description(1, "Cambio exploratorio de agua observada")
-        sha256 = hashlib.sha256(temporal.read_bytes()).hexdigest()
+        # Hash incremental: no cargar el GeoTIFF completo en RAM.
+        digest = hashlib.sha256()
+        with temporal.open("rb") as raster:
+            for bloque in iter(lambda: raster.read(1024 * 1024), b""):
+                digest.update(bloque)
+        sha256 = digest.hexdigest()
         ficha = {
             "schema": "visor.ficha.v1",
             "estado": "APTA",
