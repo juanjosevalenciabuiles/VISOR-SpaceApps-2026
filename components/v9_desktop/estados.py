@@ -1,6 +1,8 @@
 """Estados de trabajo del visor PC; jamás inferir una capa desde insumos."""
 from __future__ import annotations
 
+from components.v9_desktop.perfiles import perfil_publicable
+
 ESTADOS = {
     "sin_busqueda": "Selecciona zona y periodo para iniciar.",
     "buscando": "Buscando escenas para la zona y el periodo.",
@@ -20,15 +22,12 @@ def describir_estado(estado: str, *, ficha: dict | None = None) -> dict:
     if estado not in ESTADOS:
         raise ValueError("Estado de análisis desconocido")
     ficha = ficha or {}
-    publicado = (
-        estado == "apto"
-        and ficha.get("schema") == "visor.ficha.v1"
-        and ficha.get("estado") == "validado"
-        and ficha.get("raster_validado") is True
-        and bool(ficha.get("sha256"))
-        and bool(ficha.get("fecha_inicio"))
-        and bool(ficha.get("fecha_fin"))
+    # La compuerta única valida perfil, fechas y QA; nunca confiar en un
+    # estado "apto" aislado ni en un indicador de raster sin ficha coherente.
+    perfil = perfil_publicable(
+        ficha, raster_verificado=ficha.get("raster_validado") is True
     )
+    publicado = estado == "apto" and perfil["mostrar_mapa"]
     if estado == "apto" and not publicado:
         estado = "qa_insuficiente"
     return {
