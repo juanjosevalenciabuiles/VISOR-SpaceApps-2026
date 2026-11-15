@@ -11,7 +11,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
-from shapely.geometry import shape
+from shapely.geometry import mapping, shape
 
 ENDPOINT = "https://eonet.gsfc.nasa.gov/api/v3/events"
 ATRIBUCION = "NASA EONET v3 — Earth Observatory Natural Event Tracker"
@@ -238,7 +238,9 @@ def consultar_ideam(aoi_geojson: dict, abrir=None) -> dict:
                 "url": IDEAM_BOLETIN, "fetched_at": ahora, "observed_at": None,
                 "published_at": next((v for v in fechas_val.values() if v), None),
                 "valid_from": None, "valid_to": None,
-                "geometry": None, "spatial_relation": relacion,
+                # Se conserva SOLO la intersección geográfica auténtica con el AOI
+                # para el mapa: no se crea un centroide que simule riesgo local.
+                "geometry": mapping(geom.intersection(poligono)), "spatial_relation": relacion,
                 "value": str(valor) if valor not in (None, "") else None, "unit": "nivel de alerta" if nivel else None,
                 "status": "alerta vigente según el servicio", "campo_nivel": nivel, "campo_nombre": nombre,
                 "zona_hidrografica": (str(atributos.get(zona_h)).strip() or None) if zona_h else None,

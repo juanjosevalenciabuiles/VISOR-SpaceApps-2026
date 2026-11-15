@@ -6,7 +6,7 @@ interfaz vive en components/ y la lógica de datos en utils/.
 """
 import streamlit as st
 
-from components import estilos, flujo, interfaz, mapa
+from components import capas_ambientales, estilos, flujo, interfaz, mapa
 from components import herramientas_sar as herramientas
 from components import resultados as ui_resultados
 from utils import alcance_geografico, diagnostico
@@ -46,7 +46,8 @@ if controles.mostrar_capa:
 
 # 2. El mapa único, detrás de todo.
 with st.container(key="lienzo_mapa"):
-    mapa.render(fenomeno, capa, controles, st.session_state["vista"], resultados, herramientas.grupos_mapa(),
+    mapa.render(fenomeno, capa, controles, st.session_state["vista"], resultados,
+                [*herramientas.grupos_mapa(), *capas_ambientales.grupos_mapa()],
                 seguir_vista=herramientas.necesita_vista())
 
 # 3. Superficies flotantes.

@@ -448,6 +448,9 @@ def render(activos: list, acciones: dict | None = None) -> bool:
     # La cabecera y los botones van fuera del fragmento: sus clics recargan la app completa.
     st.markdown(cabecera_html(zona, local_de(zona), estados), unsafe_allow_html=True)
     _acciones(zona, acciones)
+    # Capas opcionales: se actualizan con el mapa existente, sin alterar SAR.
+    from components import capas_ambientales
+    capas_ambientales.controles()
     if consultando(estados):
         _vigilar(zona["clave"], bool(activos))
     else:
