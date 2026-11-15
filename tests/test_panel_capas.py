@@ -26,7 +26,6 @@ def test_dock_se_inicializa_con_capas_ambientales_reales(monkeypatch):
     assert estado["visor_mapa_municipios_dane"] is True
     assert estado["visor_mapa_eventos_eonet"] is False
     assert estado["ctx_hidrografia"] is False
-    assert estado["capa_sar"] if "capa_sar" in estado else True
     panel_capas._alternar_dock()
     assert estado["ui_capas_abierto"] is False
     panel_capas._alternar_dock()

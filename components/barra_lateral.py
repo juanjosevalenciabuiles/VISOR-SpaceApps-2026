@@ -17,7 +17,7 @@ from components import flujo, leyenda
 from components.panel_info import insignia
 from utils import alcance_geografico, lugares, sesion
 from utils import mapas_base
-from utils.capas_contexto import CAPAS_CONTEXTO, disponibles, recortar
+from utils.capas_contexto import CAPAS_CONTEXTO, disponibles
 from utils.config import FENOMENOS, Fenomeno, carto_estado
 from utils.geotiff import Capa
 from utils.mapas_base import MAPA_BASE_PREDETERMINADO, MAPAS_BASE, obtener
