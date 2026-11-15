@@ -45,3 +45,15 @@ def test_clases_no_validadas_no_se_publican():
     f = ficha("clases_inundacion_nisar")
     f["clases_verificadas"] = True
     assert not perfil_publicable(f, raster_verificado=True)["mostrar_mapa"]
+
+
+@pytest.mark.parametrize("cambio", [
+    {"fecha_inicio": "no-es-fecha"},
+    {"fecha_fin": "2026-02-30"},
+    {"fecha_inicio": "2026-12-01", "fecha_fin": "2026-11-01"},
+    {"fecha_inicio": 123},
+])
+def test_fecha_invalida_o_invertida_bloquea_mapa(cambio):
+    """Las fechas de ficha sintética deben ser ISO y ordenadas."""
+    f = {**ficha(), **cambio}
+    assert not perfil_publicable(f, raster_verificado=True)["mostrar_mapa"]

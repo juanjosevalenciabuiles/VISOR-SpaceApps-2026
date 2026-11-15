@@ -28,3 +28,14 @@ Los fixtures de tests son simulaciones explícitas, **no observaciones satelital
 ## Perfil declarativo de capas (incremento IA2)
 
 `components/v9_desktop/perfiles.py:perfil_publicable(ficha, raster_verificado=...)` es una **compuerta de presentación**, no verifica por sí misma un GeoTIFF. El integrador debe verificar previamente archivo existente, hash SHA-256, máscara, QA y compatibilidad espacial/temporal en V8, y solo entonces pasar `raster_verificado=True`. Un `diferencia_db` real con `real_sin_validar` y unidad dB puede visualizarse únicamente como **indicio exploratorio**; no representa agua clasificada. `clases_inundacion_nisar` exige `validado` y `clases_verificadas=True`, además de raster verificado; hoy no existe esa exportación. La leyenda de cinco clases es declarativa y jamás colorea píxeles por sí sola. Las fichas de tests son sintéticas. El adaptador espera campos normalizados `schema, estado, tipo_producto, sha256, qa_apto, fecha_inicio, fecha_fin, unidad`; el integrador debe mapear explícitamente desde el bloque `procedencia` de V8 y NO tomar estas etiquetas de un JSON no verificado.
+
+
+## Validación temporal de fichas (incremento IA2)
+
+La compuerta `perfil_publicable` rechaza fechas inexistentes, mal formadas,
+no textuales o invertidas aun cuando el backend haya indicado raster verificado.
+Esto es validación defensiva de metadatos, **no** QA satelital. Las pruebas
+`test_fecha_invalida_o_invertida_bloquea_mapa` usan exclusivamente fichas
+sintéticas. Sigue siendo obligación del integrador verificar hash, cobertura
+AOI, máscaras y fecha observacional contra los archivos reales antes de
+habilitar el visor.

@@ -5,6 +5,8 @@ Nunca se infiere una clase de inundación a partir de una diferencia en dB.
 """
 from __future__ import annotations
 
+from datetime import date
+
 PERFIL_CAMBIO = "diferencia_db"
 PERFIL_CLASES = "clases_inundacion_nisar"
 CLASES = {
@@ -29,6 +31,13 @@ def perfil_publicable(ficha: dict | None, *, raster_verificado: bool = False) ->
     if ficha.get("schema") != "visor.ficha.v1" or not ficha.get("sha256"):
         return base
     if ficha.get("qa_apto") is not True or not ficha.get("fecha_inicio") or not ficha.get("fecha_fin"):
+        return base
+    try:
+        inicio = date.fromisoformat(ficha["fecha_inicio"])
+        fin = date.fromisoformat(ficha["fecha_fin"])
+    except (TypeError, ValueError):
+        return base
+    if fin < inicio:
         return base
     estado = ficha.get("estado")
     if estado not in ("real_sin_validar", "validado"):
