@@ -512,6 +512,9 @@ def paso_analisis() -> None:
     completas = [d for d in disp if d.completa]
     t = trabajos.leer(st.session_state["trabajo_activo"]) if st.session_state.get("trabajo_activo") else None
     if not completas:
+        # Mantener visible el CTA bloqueado incluso cuando el inventario y avisos son extensos.
+        st.button("Analizar", key="sar_analizar", type="primary", icon=":material/play_arrow:", disabled=True,
+                  help="Bloqueado: faltan los productos RTC de este par.")
         filas = [f"<tr><td>{d.polarizacion}</td><td>{_celda_rtc(d.antes, d.tipo_antes, d.empatados_antes)}</td>"
                  f"<td>{_celda_rtc(d.despues, d.tipo_despues, d.empatados_despues)}</td></tr>" for d in disp]
         st.markdown('<div class="visor-seccion">Productos RTC en data/sar/</div>'
@@ -529,8 +532,6 @@ def paso_analisis() -> None:
               "productos RTC de este par en data/sar/. El catálogo entrega escenas GRD; convertirlas a RTC "
               "requiere SNAP en un worker aislado o ASF HyP3 con autorización expresa, y ninguno está disponible "
               "en la app (ver «Estado del sistema»). No se calcula ni se muestra nada en su lugar.", "mc-aviso")
-        st.button("Analizar", key="sar_analizar", type="primary", icon=":material/play_arrow:", disabled=True,
-                  help="Bloqueado: faltan los productos RTC de este par.")
         return
     with st.expander("Ajustes avanzados (umbrales y filtro)", expanded=False, key="sar_avanzado"):
         _nota("Método: diferencia de retrodispersión (dB) entre las dos fechas, posterior − anterior, con un "
