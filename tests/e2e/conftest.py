@@ -147,7 +147,9 @@ def navegador():
         pytest.fail(f"VISOR_E2E_NAVEGADOR={NAVEGADOR!r} no es chromium, firefox ni webkit")
     with sync_api.sync_playwright() as p:
         try:
-            b = getattr(p, NAVEGADOR).launch()
+            # VISOR_E2E_EJECUTABLE: usar un navegador ya instalado (p. ej. /usr/bin/google-chrome) sin descargarlo.
+            ruta = os.environ.get("VISOR_E2E_EJECUTABLE")
+            b = getattr(p, NAVEGADOR).launch(**({"executable_path": ruta, "args": ["--no-sandbox"]} if ruta else {}))
         except Exception as e:  # noqa: BLE001
             mensaje = f"{NAVEGADOR} no disponible: {str(e).splitlines()[0][:200]}"
             if EXIGIR:
@@ -284,7 +286,10 @@ class Pagina:
         return self.page.locator(f".st-key-{clave}").first.is_visible()
 
     def texto(self, clave: str) -> str:
-        return self.page.locator(f".st-key-{clave}").first.inner_text()
+        """Texto del bloque, incluido lo plegado en «Detalles técnicos» y similares (se despliega para leerlo)."""
+        bloque = self.page.locator(f".st-key-{clave}").first
+        bloque.evaluate("e=>e.querySelectorAll('details.mc-detalles').forEach(d=>{d.open=true})")
+        return bloque.inner_text()
 
     # --- Recorrido: resultados, historial, DEMO y zona -------------------------------------
 

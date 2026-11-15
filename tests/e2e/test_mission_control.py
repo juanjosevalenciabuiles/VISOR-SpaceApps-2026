@@ -5,7 +5,7 @@ def test_mapa_unico_y_superficies(abrir):
     p = abrir()
     assert p.mapa.evaluate("()=>{const r=document.querySelector('.leaflet-container').getBoundingClientRect();"
                            "return r.width>=innerWidth-1 && r.height>=innerHeight-1}")
-    for clave in ("barra_superior", "panel_explorador", "panel_info", "linea_temporal"):
+    for clave in ("barra_superior", "panel_explorador", "panel_info"):
         assert p.visible(clave), clave
     assert not p.visible("panel_sar")
     assert p.mapa.evaluate("()=>document.querySelector('.leaflet-control-attribution').offsetHeight>0")

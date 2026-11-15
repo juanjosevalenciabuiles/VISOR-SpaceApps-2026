@@ -244,7 +244,7 @@ def test_app_activa_resultado_sin_perder_controles(tmp_path, monkeypatch):
     texto = " ".join(m.value for m in at.markdown)
     assert "PROCEDENCIA NO DECLARADA" in texto and "No es una inundación confirmada" in texto
     assert "HISTÓRICO" in texto and "no se ejecutó un análisis nuevo" in texto
-    assert "LÍNEA TEMPORAL · CONCEPTUAL" in texto                    # sin ficha: no hay fechas
+    assert "LÍNEA TEMPORAL" not in texto                             # sin ficha: no hay fechas ni línea
 
     # Cambiar el fenómeno de la DEMO no apaga el resultado ni su opacidad, ni enciende la DEMO.
     at.radio(key="fenomeno").set_value("deslizamiento").run()

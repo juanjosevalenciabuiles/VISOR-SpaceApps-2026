@@ -399,7 +399,7 @@ def _acciones(zona: dict, acciones: dict | None) -> None:
                   on_click=acciones["analizar"], help="Abrir el análisis de radar de esta zona")
         st.button("Centrar", key="ctx_centrar", icon=":material/center_focus_strong:",
                   on_click=acciones["centrar"], args=(zona["limites"],), help="Encuadrar la zona en el mapa")
-        st.button("Cambiar zona", key="ctx_cambiar", icon=":material/edit_location_alt:",
+        st.button("Cambiar", key="ctx_cambiar", icon=":material/edit_location_alt:",
                   on_click=acciones["cambiar"], help="Quitar esta zona y elegir otra")
 
 
