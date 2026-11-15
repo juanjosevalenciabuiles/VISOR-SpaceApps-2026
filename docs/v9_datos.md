@@ -51,3 +51,7 @@ Pruebas sintéticas añadidas en `tests/v9_datos/test_ventanas.py`; consultar CI
 - Pruebas offline: `tests/v9_datos/test_fuentes.py`, con negativos de catálogo, QA, AOI, linaje, fechas, URL y lluvia inválida. No se usaron escenas reales ni se descargaron datos.
 
 El integrador debe reconciliar el HEAD V8 #17 `e73d3de` ya fusionado a main, sin merge forzado de la rama IA1. La PR sigue draft, **no lista para fusionar**. La CI del nuevo incremento se comprueba por separado.
+
+## Incremento 6 — caché por firma y presupuesto
+
+`utils/v9_datos/cache.py` implementa `firma_cache`, `guardar` y `recuperar` para blobs locales pequeños **ya procesados**. Firma SHA256 de granules ordenados, AOI, versión, QA, madurez y polarización; PROVISIONAL y VALIDATED nunca comparten clave. Escritura atómica, límites de bytes y verificación de SHA256 esperado externo en cada HIT. No consulta red, no calcula píxeles ni transforma un HIT en evidencia. No hay bloqueo entre procesos, política LRU, cuota global ni tiempos medidos; el integrador debe gestionar persistencia y digest confiable. Tests offline `tests/v9_datos/test_cache.py` con hit/miss, integridad, madurez/QA y presupuesto; ejecución pendiente de CI. Persisten QA/looks Harmony reales, smoke GeoTIFF, lectores observacionales DSWx/IMERG y reconciliación V8. No existe mapa de inundación confirmado.
