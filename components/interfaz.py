@@ -368,8 +368,15 @@ def herramientas_sar() -> None:
             "Busca y prepara imágenes; compara dos fechas para analizar posibles cambios.</div>",
             unsafe_allow_html=True,
         )
-        v9_experiencia.render()
-        st.markdown('**Herramientas científicas y recorrido paso a paso**')
+        # En el recorrido científico Sentinel (RTC), el CTA debe permanecer
+        # visible dentro del panel. El flujo público NISAR tiene su propia
+        # entrada área+periodo y no debe empujar los controles heredados.
+        import os
+        sensor_actual = st.session_state.get("sar_sensor")
+        sensor_inicial = (herramientas.SENSORES[1] if os.environ.get("VISOR_SENSOR_DEFECTO") == "SENTINEL"
+                          else herramientas.SENSORES[0])
+        if (sensor_actual or sensor_inicial) == herramientas.SENSORES[0]:
+            v9_experiencia.render()
         herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
         st.html(SUBIR_AL_CAMBIAR_DE_PASO, unsafe_allow_javascript=True)
     with st.container(key="sar_minimizado"):
