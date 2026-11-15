@@ -52,6 +52,7 @@ with st.container(key="lienzo_mapa"):
 # 3. Superficies flotantes.
 activos = [activo] if activo is not None else []
 interfaz.barra_superior(fenomeno, capa, activos, controles.mostrar_capa)
+interfaz.buscador()
 interfaz.panel_informacion(fenomeno, capa, error, controles, resultados)
 interfaz.herramientas_sar()
 interfaz.linea_temporal(ui_resultados.fechas_activas(resultados, controles.resultados))
