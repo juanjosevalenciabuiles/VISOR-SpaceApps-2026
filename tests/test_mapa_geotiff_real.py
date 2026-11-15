@@ -43,15 +43,33 @@ def test_capa_sin_pixeles_colombianos_o_demostrativa_se_oculta(monkeypatch):
     assert visibles == [] and ocultos == 2
 
 
-def test_refuerzo_alpha_preserva_color_y_nodata():
-    original = np.array([[[0, 0, 0, 0], [50, 110, 230, 38],
-                          [200, 100, 70, 255]]], dtype=np.uint8)
-    mostrado = mapa.realzar_alpha_delta(original)
-    assert mostrado[0, 0, 3] == 0
-    assert mostrado[0, 1, 3] == 192
-    assert mostrado[0, 2, 3] == 255
+def test_areas_sin_cambio_transparentes_y_cambios_visibles_sin_tocar_datos():
+    # Valores medidos de prueba: 0 y ±2 dB se ocultan SOLO en visualización.
+    datos = np.ma.array([[-9999.0, -1.5, 0.0, 2.0, -3.0, 5.0]],
+                        mask=[[True, False, False, False, False, False]])
+    copia = datos.copy()
+    original = np.array([[[0, 0, 0, 0], [199, 199, 204, 40],
+                          [199, 199, 204, 38], [210, 200, 180, 55],
+                          [50, 110, 230, 44], [200, 100, 70, 255]]],
+                        dtype=np.uint8)
+    mostrado = mapa.realzar_alpha_delta(original, datos)
+    assert mostrado[0, :4, 3].tolist() == [0, 0, 0, 0]
+    assert mostrado[0, 4:, 3].tolist() == [192, 255]
     np.testing.assert_array_equal(mostrado[..., :3], original[..., :3])
-    assert original[0, 1, 3] == 38
+    np.testing.assert_array_equal(original[0, :, 3], [0, 40, 38, 55, 44, 255])
+    np.testing.assert_array_equal(datos.data, copia.data)
+    np.testing.assert_array_equal(np.ma.getmaskarray(datos), np.ma.getmaskarray(copia))
+
+
+def test_leyenda_declara_transparencia_visual():
+    from components import resultados as ui
+    from types import SimpleNamespace
+    res = SimpleNamespace(dibujable=True, nombre="ΔdB", perfil=SimpleNamespace(
+        continuo=True, nota="Valores completos conservados", clases=()))
+    texto = ui.leyenda_html(res)
+    assert "|Δ| ≤ 2 dB" in texto
+    assert "transparente en el mapa" in texto
+    assert "Sin dato (NoData)" in texto
 
 
 def test_geo_tif_real_se_activa_en_mapa_principal(monkeypatch):

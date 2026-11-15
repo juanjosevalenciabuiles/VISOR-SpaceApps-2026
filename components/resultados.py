@@ -14,6 +14,7 @@ import streamlit as st
 from components.panel_info import insignia
 from utils.combinacion_sar import umbrales_por_polarizacion
 from utils.diferencia_db import RANGO_DB, TICKS, leyenda_css
+from components.mapa import UMBRAL_TRANSPARENCIA_VISUAL_DB
 from utils import qgis
 from utils.resultados import ResultadoSAR, _firma
 
@@ -219,6 +220,8 @@ def leyenda_html(res: ResultadoSAR) -> str:
                 f'<div class="mc-rampa-marcas">{marcas}</div>'
                 '<div class="visor-leyenda-clase">dB · ← disminución · aumento →</div>'
                 '<div class="visor-leyenda-clase"><i class="mc-transparente"></i>Sin dato (NoData) (transparente)</div>'
+                f'<div class="visor-leyenda-clase"><i class="mc-transparente"></i>'
+                f'|Δ| ≤ {UMBRAL_TRANSPARENCIA_VISUAL_DB:g} dB: transparente en el mapa (solo visualización)</div>'
                 f'<div class="visor-leyenda-nota">{escape(res.perfil.nota)}</div></div>')
     filas = []
     for valor, etiqueta, color in res.perfil.clases:

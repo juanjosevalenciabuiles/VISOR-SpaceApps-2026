@@ -64,7 +64,8 @@ PERFILES: dict[str, PerfilResultado] = {
         ),
         clases=(),
         nota=(f"Rampa fija de ±{RANGO_DB:g} dB (fuera de ese rango el color se satura, el valor no cambia). "
-              "La opacidad crece con |Δ|; ningún píxel válido se oculta. No se aplica ningún umbral."),
+              "Para legibilidad, el mapa deja transparente |Δ| ≤ 2 dB, solo en la imagen RGBA. "
+              "El GeoTIFF conserva todos sus valores y no se aplica un umbral de clasificación."),
         limitaciones=(
             "Una disminución de retrodispersión no confirma agua ni inundación: también la producen humedad, "
             "cosechas, labores agrícolas o viento sobre el agua.",

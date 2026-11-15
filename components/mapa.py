@@ -216,15 +216,24 @@ def grupo_sar(fenomeno: Fenomeno, capa: Capa, opacidad: float) -> folium.Feature
     return grupo
 
 
-def realzar_alpha_delta(rgba: np.ndarray) -> np.ndarray:
-    """Hace perceptible el ΔdB en Leaflet sin tocar valores ni pintar NoData.
+UMBRAL_TRANSPARENCIA_VISUAL_DB = 2.0
 
-    La rampa de color y sus límites ±10 dB no cambian; solo se refuerza la
-    opacidad de píxeles YA válidos para que no desaparezcan sobre las teselas.
+
+def realzar_alpha_delta(rgba: np.ndarray, datos: np.ma.MaskedArray) -> np.ndarray:
+    """Deja ver el mapa base donde |ΔdB| ≤ 2; resalta cambios mayores.
+
+    Esto NO clasifica, elimina ni modifica píxeles del GeoTIFF. Es únicamente
+    transparencia RGBA de la capa dibujada. NoData sigue siempre invisible.
+    El umbral visual fijo consta expresamente en la leyenda del panel.
     """
     imagen = rgba.copy()
-    validos = imagen[..., 3] > 0
-    imagen[..., 3][validos] = np.maximum(imagen[..., 3][validos], 192)
+    valores = np.ma.getdata(datos)
+    mascara = np.ma.getmaskarray(datos)
+    sin_cambio_apreciable = (~mascara & np.isfinite(valores)
+                             & (np.abs(valores) <= UMBRAL_TRANSPARENCIA_VISUAL_DB))
+    imagen[..., 3][sin_cambio_apreciable] = 0
+    visibles = (imagen[..., 3] > 0) & ~mascara & np.isfinite(valores)
+    imagen[..., 3][visibles] = np.maximum(imagen[..., 3][visibles], 192)
     return imagen
 
 
@@ -237,7 +246,7 @@ def imagen_resultado(ruta: str, firma: tuple, perfil: str, _res: ResultadoSAR) -
     rgba = (colorizar_diferencia(_res.capa.datos) if _res.perfil.continuo
             else colorizar_categorico(_res.capa.datos, _res.perfil.clases))
     if _res.perfil.continuo:
-        rgba = realzar_alpha_delta(rgba)
+        rgba = realzar_alpha_delta(rgba, _res.capa.datos)
     # Mostrar los píxeles reales terrestres aunque su huella bounding-box
     # cruza la costa. Recorte SOLO visual; las matrices y estadísticas siguen
     # siendo las originales, sin reinterpretar mar ni zonas extranjeras.
