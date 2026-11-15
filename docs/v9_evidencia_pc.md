@@ -24,3 +24,7 @@ El piloto Chocó sigue experimental: no hay modelo ML entrenado, predicciones, p
 4. Probar en PC 1366×768, 1440×900 y 1920×1080 y revisar fallas Playwright de la PR #19.
 
 Los fixtures de tests son simulaciones explícitas, **no observaciones satelitales**. Tests añadidos: `tests/v9_desktop/test_flujo_publico.py`; las verificaciones CI se reportan únicamente tras consultar GitHub Actions.
+
+## Perfil declarativo de capas (incremento IA2)
+
+`components/v9_desktop/perfiles.py:perfil_publicable(ficha, raster_verificado=...)` es una **compuerta de presentación**, no verifica por sí misma un GeoTIFF. El integrador debe verificar previamente archivo existente, hash SHA-256, máscara, QA y compatibilidad espacial/temporal en V8, y solo entonces pasar `raster_verificado=True`. Un `diferencia_db` real con `real_sin_validar` y unidad dB puede visualizarse únicamente como **indicio exploratorio**; no representa agua clasificada. `clases_inundacion_nisar` exige `validado` y `clases_verificadas=True`, además de raster verificado; hoy no existe esa exportación. La leyenda de cinco clases es declarativa y jamás colorea píxeles por sí sola. Las fichas de tests son sintéticas. El adaptador espera campos normalizados `schema, estado, tipo_producto, sha256, qa_apto, fecha_inicio, fecha_fin, unidad`; el integrador debe mapear explícitamente desde el bloque `procedencia` de V8 y NO tomar estas etiquetas de un JSON no verificado.
