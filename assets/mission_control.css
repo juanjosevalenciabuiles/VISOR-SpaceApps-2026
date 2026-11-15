@@ -421,14 +421,43 @@ a.mc-ficha-credito:hover { text-decoration: underline; }
   letter-spacing: .08em; font-size: .72rem; font-weight: 650; color: #b9c2cf; }
 [class*="st-key-panel_"] [data-testid="stCaptionContainer"] p { color: #b9c2cf; }
 .mc-titulo-panel { letter-spacing: .1em; }
-/* Buscador: el campo ocupa el ancho y la lupa queda al lado, como en un mapa */
+/* Buscador flotante sobre el mapa, arriba a la izquierda (como en un mapa web). Siempre visible;
+   los paneles de la izquierda empiezan debajo. */
+:root { --mc-buscador: 60px; }
+.st-key-buscador_flotante { position: fixed !important; z-index: 26; top: var(--mc-arriba); left: var(--mc-lateral);
+  width: var(--mc-ancho) !important; padding: 8px 10px !important; gap: .35rem !important;
+  max-height: calc(100vh - var(--mc-arriba) - 40px); overflow-y: auto;
+  color: var(--mc-texto); border-radius: 18px; border: 1px solid rgba(var(--theme-rgb), .32);
+  background: linear-gradient(138deg, rgba(var(--theme-rgb), .14), rgba(7, 19, 34, .82) 60%), rgba(8, 22, 36, .82);
+  box-shadow: var(--mc-sombra); -webkit-backdrop-filter: var(--mc-desenfoque); backdrop-filter: var(--mc-desenfoque); }
+.st-key-panel_explorador, .st-key-panel_sar { top: calc(var(--mc-arriba) + var(--mc-buscador)); max-height:
+  calc(100vh - var(--mc-arriba) - var(--mc-buscador) - 40px); }
+.st-key-sar_minimizado { top: calc(var(--mc-arriba) + var(--mc-buscador)); }
 .st-key-buscador { flex-wrap: nowrap !important; }
 .st-key-buscador > div:first-child { flex: 1 1 auto; min-width: 0; }
-.st-key-lugar_buscar { flex: 0 0 auto; width: auto !important; }
-.st-key-lugar_buscar button { min-height: 40px; padding: 0 .6rem !important; border-radius: 12px !important; }
-.st-key-lugar_buscar button p { display: none; }
-.st-key-lugar_texto label p { font-size: .82rem !important; font-weight: 650; }
+.st-key-lugar_buscar, .st-key-btn_inicio { flex: 0 0 auto; width: auto !important; }
+.st-key-lugar_buscar button, .st-key-btn_inicio button { min-height: 40px; padding: 0 .55rem !important;
+  border-radius: 12px !important; }
+.st-key-lugar_buscar button p, .st-key-btn_inicio button p { display: none; }
 .st-key-lugar_texto [data-baseweb="select"] > div { border-radius: 12px; min-height: 40px; }
+.st-key-buscador_flotante [class*="st-key-lugar_ir_"] button { justify-content: flex-start; text-align: left; }
+@media (max-width: 720px) {
+  .st-key-buscador_flotante { top: 68px; left: 8px; right: 8px; width: auto !important; }
+  .st-key-panel_explorador, .st-key-panel_sar { top: auto !important; max-height: 46vh; }
+  .st-key-sar_minimizado { top: auto; }
+  /* Celular: ECO en una fila (burbuja + avatar) entre el buscador y las hojas inferiores */
+  .st-key-eco, .st-key-eco_oculto { top: 132px !important; right: 8px !important; flex-direction: row !important;
+    align-items: center !important; flex-wrap: nowrap !important; }
+  .st-key-eco { height: auto !important; min-height: 56px; }
+  .st-key-eco > * { flex-shrink: 0 !important; height: auto !important; }
+  .st-key-eco .eco-burbuja { display: block; overflow: visible; max-width: 236px; max-height: none;
+    font-size: .68rem; line-height: 1.3; padding: .3rem .55rem; }
+  .st-key-eco .eco-nombre { display: none; }
+  .st-key-eco [data-testid="stElementContainer"], .st-key-eco [data-testid="stMarkdownContainer"] {
+    height: auto !important; overflow: visible !important; }
+  .st-key-eco .eco-avatar { margin-left: 0; flex: 0 0 52px; }
+  .st-key-eco_ocultar { right: 56px; top: -10px; }
+}
 /* Tamaños parejos en el panel derecho (guía, notas y ficha) */
 .st-key-panel_info p.visor-leyenda-nota, .st-key-panel_info .visor-leyenda-nota { font-size: .74rem !important;
   line-height: 1.45 !important; color: var(--mc-tenue); }
@@ -448,8 +477,6 @@ a.mc-ficha-credito:hover { text-decoration: underline; }
 /* Barra superior: el estado se lee en la insignia (ECO da la instrucción); «Ir a…» queda como ícono */
 .mc-grupo-nota { display: none; }
 .mc-insignia { font-size: .68rem; }
-.st-key-popover_ir button [data-testid="stMarkdownContainer"] { display: none; }
-.st-key-popover_ir button { padding: 0 .55rem !important; }
 /* Aviso corto de Herramientas SAR y pestañas que caben */
 .st-key-panel_sar .mc-aviso { font-size: .76rem; }
 .st-key-panel_sar [role="tab"] p { font-size: .8rem; white-space: nowrap; }

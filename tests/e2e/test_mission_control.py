@@ -55,29 +55,24 @@ def test_paneles_conservan_su_estado(abrir):
     assert p.visible("panel_info")
 
 
-def test_ir_a(abrir):
+def test_coordenadas_en_el_buscador_y_vista_inicial(abrir):
+    """«Ir a…» se retiró: las coordenadas se escriben en el buscador flotante."""
     p = abrir()
     p.marcar_mapa()
-    p.clic("popover_ir")
-    campos = p.page.locator("[data-testid=stPopoverBody] input")
-    assert [campos.nth(i).input_value() for i in range(2)] == ["7.6750", "-76.6750"]
-    campos.nth(0).fill("6,25")
-    campos.nth(0).press("Enter")
-    campos.nth(1).fill("-75.57")
-    campos.nth(1).press("Enter")
-    p.esperar(800)
-    p.clic("btn_ir")
+    assert p.page.locator(".st-key-popover_ir").count() == 0 and p.visible("buscador_flotante")
+    p.escribir("lugar_texto", "6.25, -75.57")
+    p.esperar(1500)
     assert p.vista()[1:] == [6.25, -75.57] and p.mapa_intacto()
-    campos.nth(0).fill("850")
-    campos.nth(0).press("Enter")
-    p.esperar(800)
-    p.clic("btn_ir")
+    p.escribir("lugar_texto", "850, 10")                       # no son coordenadas válidas ni un lugar
+    p.esperar(1500)
     assert p.vista()[1:] == [6.25, -75.57], "un valor inválido no mueve el mapa"
-    assert "entre -85 y 85" in p.page.evaluate("()=>document.body.innerText")
-    p.clic("btn_chigorodo")
-    assert p.vista() == [11, 7.675, -76.675]
+    assert "No se encontró" in p.texto("buscador_flotante")
     p.clic("btn_inicio")
     assert p.vista() == [8, 7.0, -75.5] and p.mapa_intacto()
+    # El buscador no tapa el Explorador ni la barra.
+    cajas = {k: p.page.locator(f".st-key-{k}").first.bounding_box() for k in ("barra_superior", "buscador", "panel_explorador")}
+    assert cajas["barra_superior"]["y"] + cajas["barra_superior"]["height"] <= cajas["buscador"]["y"]
+    assert cajas["buscador"]["y"] + cajas["buscador"]["height"] <= cajas["panel_explorador"]["y"]
 
 
 def test_ayuda_explica_procedencia(abrir):

@@ -274,27 +274,13 @@ def test_app_flujo_sar_e_ir_a(app):
     app.button(key="cerrar_sar").click().run()
     assert app.session_state["ui_sar"] == "cerrado" and app.session_state["ui_explorador"] is True
 
-    # Los campos arrancan en Chigorodó, no en el centro de Antioquia ni en los límites.
-    assert app.text_input(key="ir_lat").value == "7.6750" and app.text_input(key="ir_lon").value == "-76.6750"
-    assert app.slider(key="ir_zoom").value == 11
-
-    app.text_input(key="ir_lat").input("7,67")                     # coma decimal aceptada
-    app.text_input(key="ir_lon").input("-76.68")
-    app.slider(key="ir_zoom").set_value(12)
-    app.button(key="btn_ir").click().run()
-    assert not app.exception
-    assert app.session_state["vista"] == {"centro": [7.67, -76.68], "zoom": 12.0, "n": 1}
+    # «Ir a…» ya no existe: las coordenadas se escriben en el buscador (tests/test_comodidad.py).
+    assert "popover_ir" not in inspect.getsource(interfaz.barra_superior)
+    app.selectbox(key="lugar_texto").set_value("Chigorodó, Antioquia, Colombia").run()
+    assert app.session_state["vista"]["centro"] == [7.67, -76.68] and app.session_state["vista"]["n"] == 1
     app.button(key="btn_inicio").click().run()
     assert app.session_state["vista"]["centro"] == list(MAPA_CENTRO) and app.session_state["vista"]["n"] == 2
-
-    # Un valor fuera de rango no mueve el mapa y se explica.
-    app.text_input(key="ir_lat").input("850").run()
-    app.button(key="btn_ir").click().run()
-    assert app.session_state["vista"]["n"] == 2 and "entre -85 y 85" in app.session_state["ir_error"]
-    app.button(key="btn_chigorodo").click().run()
     assert not app.exception and len(app.warning) == 0
-    assert app.session_state["ir_error"] is None
-    assert app.session_state["vista"]["centro"] == [7.675, -76.675] and app.session_state["vista"]["zoom"] == 11
 
 
 def test_barra_superior_separa_fenomeno_demo_de_resultado_real():

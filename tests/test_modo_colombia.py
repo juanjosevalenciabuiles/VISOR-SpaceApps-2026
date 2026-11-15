@@ -159,16 +159,18 @@ def test_co04_geocodificador_pide_solo_colombia_y_se_verifica_la_geometria(monke
 
 
 def test_co05_coordenadas_externas_no_navegan(monkeypatch):
-    at = _app(monkeypatch)
-    vista = at.session_state["vista"]
-    at.text_input(key="ir_lat").input("35.68")
-    at.text_input(key="ir_lon").input("139.69")
-    at.button(key="btn_ir").click().run()
-    assert at.session_state["vista"] == vista and "fuera de Colombia" in at.session_state["ir_error"]
-    at.text_input(key="ir_lat").input("7.67")
-    at.text_input(key="ir_lon").input("-76.68")
-    at.button(key="btn_ir").click().run()
-    assert at.session_state["ir_error"] is None and at.session_state["vista"]["centro"] == [7.67, -76.68]
+    """Las coordenadas se escriben en el buscador: fuera de Colombia no navegan; dentro, sí."""
+    import streamlit as st
+    from components import barra_lateral
+    monkeypatch.setenv("VISOR_REGION_MODE", "CO")
+    estado = {"lugar_texto": "35.68, 139.69", "resultado_activo": None, "zona": None}       # Tokio
+    monkeypatch.setattr(st, "session_state", estado)
+    idas = []
+    barra_lateral._buscar_lugar(lambda lat, lon, zoom: idas.append([lat, lon]))
+    assert idas == [] and "fuera de Colombia" in estado["lugares_encontrados"]["aviso"]
+    estado["lugar_texto"] = "7.67, -76.68"
+    barra_lateral._buscar_lugar(lambda lat, lon, zoom: idas.append([lat, lon]))
+    assert idas == [[7.67, -76.68]] and estado["lugares_encontrados"] is None
 
 
 # ---------------------------------------------------------------------------
