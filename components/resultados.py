@@ -80,11 +80,13 @@ def ficha_html(res: ResultadoSAR) -> str:
     alto, ancho = capa.forma_original
     partes = [
         f'<div class="mc-res-titulo">{escape(perfil.nombre)}</div>',
-        f'<div class="mc-res-archivo"><code>{escape(res.archivo)}</code></div>',
         f'<div class="visor-procedencia">{insignia(estado)}'
         f'<p class="visor-nota-procedencia">{detalle}</p></div>',
-        f'<div class="visor-aviso visor-aviso-general">{escape(AVISO)}</div>',
         f'<p class="visor-texto">{escape(perfil.descripcion)}</p>',
+        leyenda_html(res),                       # qué significa cada color, antes que lo técnico
+        f'<div class="visor-aviso visor-aviso-general">{escape(AVISO)}</div>',
+        '<details class="mc-detalles" id="res-detalles-tecnicos"><summary>Detalles técnicos</summary>',
+        f'<div class="mc-res-archivo"><code>{escape(res.archivo)}</code></div>',
         '<div class="visor-seccion">Datos de origen</div>',
         _fila("Producto", *d["producto"]),
         _fila("Sensor", *d["sensor"]),
@@ -123,6 +125,7 @@ def ficha_html(res: ResultadoSAR) -> str:
         if e.get("pixeles_otros_valores"):
             partes.append(f'<div class="visor-aviso">{_num(e["pixeles_otros_valores"])} píxeles tienen valores '
                           "fuera de las clases del perfil; se pintan en gris.</div>")
+    partes.append("</details>")
     limitaciones = (res.ficha or {}).get("limitaciones") if estado.es_real else None
     lista = limitaciones if isinstance(limitaciones, list) and limitaciones else list(perfil.limitaciones)
     partes.append(

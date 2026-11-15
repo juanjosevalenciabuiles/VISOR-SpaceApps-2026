@@ -532,15 +532,17 @@ def paso_analisis() -> None:
         st.button("Analizar", key="sar_analizar", type="primary", icon=":material/play_arrow:", disabled=True,
                   help="Bloqueado: faltan los productos RTC de este par.")
         return
-    _nota("Método: diferencia de retrodispersión (dB) entre las dos fechas, posterior − anterior, con un umbral "
-          "de disminución por polarización. Los umbrales son experimentales.")
-    for d in completas:
-        st.slider(f"Umbral de disminución {d.polarizacion} (dB)", 1.0, 10.0, flujo.UMBRAL_DEFECTO, 0.5,
-                  key=f"sar_umbral_{d.polarizacion}", on_change=_fijar,
-                  args=(d.polarizacion, "umbral_disminucion_db", f"sar_umbral_{d.polarizacion}"))
-        st.select_slider(f"Filtro de speckle {d.polarizacion} (ventana en píxeles)", [1, 3, 5, 7],
-                         flujo.VENTANA_DEFECTO, key=f"sar_ventana_{d.polarizacion}", on_change=_fijar,
-                         args=(d.polarizacion, "ventana_speckle", f"sar_ventana_{d.polarizacion}"))
+    with st.expander("Ajustes avanzados (umbrales y filtro)", expanded=False, key="sar_avanzado"):
+        _nota("Método: diferencia de retrodispersión (dB) entre las dos fechas, posterior − anterior, con un "
+              "umbral de disminución por polarización. Los umbrales son experimentales; si no los cambias se usan "
+              "los valores por defecto.")
+        for d in completas:
+            st.slider(f"Umbral de disminución {d.polarizacion} (dB)", 1.0, 10.0, flujo.UMBRAL_DEFECTO, 0.5,
+                      key=f"sar_umbral_{d.polarizacion}", on_change=_fijar,
+                      args=(d.polarizacion, "umbral_disminucion_db", f"sar_umbral_{d.polarizacion}"))
+            st.select_slider(f"Filtro de speckle {d.polarizacion} (ventana en píxeles)", [1, 3, 5, 7],
+                             flujo.VENTANA_DEFECTO, key=f"sar_ventana_{d.polarizacion}", on_change=_fijar,
+                             args=(d.polarizacion, "ventana_speckle", f"sar_ventana_{d.polarizacion}"))
     pols = [d.polarizacion for d in completas]
     parametros = flujo.parametros_actuales(pols)
     identificador = sesion.run_id(region.limites, p.antes.nombre, p.despues.nombre, parametros)

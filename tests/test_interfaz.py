@@ -242,7 +242,7 @@ def test_app_un_solo_mapa_sin_barra_lateral(app):
     assert not app.exception and len(app.error) == 0
     assert len(app.sidebar) == 0                                  # todo es superficie flotante
     assert "--theme-rgb:79, 220, 244" in textos(app)
-    assert "LÍNEA TEMPORAL · CONCEPTUAL" in textos(app) and len(app.select_slider) == 0
+    assert "LÍNEA TEMPORAL" not in textos(app) and len(app.select_slider) == 0
     assert app.session_state["ui_sar"] == "cerrado"
 
 

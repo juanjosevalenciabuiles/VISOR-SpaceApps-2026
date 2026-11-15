@@ -150,6 +150,7 @@ def test_glo_09_12_fondos_y_capas_sin_perder_mapa_ni_zona(abrir, servidor_global
         activos = fondos(p)
         assert len(activos) == 1 and url in activos[0], (nombre, activos)
         assert credito in atribucion(p) and p.vista() == v and p.trazos() >= zona
+    p.expandir("nota_mapa_base")                         # el detalle técnico del fondo va plegado
     texto = p.texto("panel_explorador")
     assert "No disponibles aquí" in texto and "CARTO_API_KEY" in texto, "CARTO sin clave no se ofrece"
 

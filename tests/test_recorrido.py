@@ -243,8 +243,7 @@ def test_app_arranca_vacia_aunque_haya_resultados_en_disco(tmp_path, monkeypatch
         assert not any(k.startswith("qgis_") for k in (b.key or "" for b in at.get("download_button")))
         # Ni el mapa base ni la búsqueda de un lugar ponen nada en el mapa.
         at.selectbox(key="mapa_base").set_value("calles").run()
-        at.text_input(key="lugar_texto").input("Chigorodó")
-        at.button(key="lugar_buscar").click().run()
+        at.selectbox(key="lugar_texto").set_value("Chigorodó, Antioquia, Colombia").run()   # sugerencia elegida
         assert at.session_state["lugar"]["etiqueta"].startswith("Chigorodó")
         assert at.session_state["zona"] is None and at.session_state["resultado_activo"] is None
         at.button(key="hist_ver_coincidencia_vv_vh_20260924_20261006").click().run()

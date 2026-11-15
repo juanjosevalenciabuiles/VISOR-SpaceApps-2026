@@ -52,7 +52,7 @@ def test_a_todavia_no_analice(abrir, servidor_propio):
     p.marcar_mapa()
     assert sin_resultado(p), "primera carga"
     assert len(list(analisis.glob("*.tif"))) >= 3, "hay archivos en disco y aun así no se dibujan"
-    assert "CONCEPTUAL" in p.texto("linea_temporal").upper()
+    assert not p.visible("linea_temporal"), "sin resultado no hay línea temporal"
 
     # Buscar un lugar: mueve el mapa y pone un marcador; no crea zona ni resultado.
     p.escribir("lugar_texto", "rionegro")

@@ -43,7 +43,7 @@ ESTADO_INICIAL = {
 IR_A_INICIAL = {"ir_lat": f"{CHIGORODO_CENTRO[0]:.4f}", "ir_lon": f"{CHIGORODO_CENTRO[1]:.4f}",
                 "ir_zoom": CHIGORODO_ZOOM}
 ESTADOS_SAR = ("cerrado", "abierto", "minimizado")
-PASOS_SAR = ("01 · Área", "02 · Escenas", "03 · Análisis", "04 · Resultados")
+PASOS_SAR = ("1 · Zona", "2 · Imágenes", "3 · Análisis", "4 · Resultado")
 
 
 def inicializar_estado() -> None:
@@ -352,9 +352,6 @@ def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, 
             st.caption("CAPA DE DEMOSTRACIÓN")
             panel_info.render(fenomeno, capa, error)
     barra_lateral.render_leyenda(fenomeno, capa if demo else None, controles, panel)
-    if activos:
-        with panel:
-            st.markdown("".join(ui_resultados.leyenda_html(r) for r in activos), unsafe_allow_html=True)
 
 
 def guia_eco(activos: list) -> None:
@@ -374,6 +371,18 @@ def guia_eco(activos: list) -> None:
     eco.render(eco.decidir(lugar, zona is not None, ocupado, trabajo, bool(activos), flujo.es_historico()))
 
 
+SUBIR_AL_CAMBIAR_DE_PASO = """<script>
+(() => {          // Al cambiar de paso, el panel vuelve arriba (antes quedaba a mitad de camino).
+  const panel = document.querySelector('.st-key-panel_sar');
+  if (!panel || panel.dataset.subir) return;
+  panel.dataset.subir = '1';
+  panel.addEventListener('click', (e) => {
+    if (e.target.closest('[role="tab"]')) setTimeout(() => { panel.scrollTop = 0; }, 60);
+  });
+})();
+</script>"""
+
+
 def herramientas_sar() -> None:
     with st.container(key="panel_sar"):
         with st.container(horizontal=True, vertical_alignment="center", key="cabecera_sar"):
@@ -383,12 +392,14 @@ def herramientas_sar() -> None:
             st.button("Cerrar", key="cerrar_sar", icon=":material/close:", type="tertiary",
                       on_click=cerrar_sar)
         st.markdown(
-            '<div class="mc-aviso">Zona → imágenes → fechas → Analizar. Nada se calcula ni se dibuja hasta que '
-            "pulses «Analizar» en Sentinel-1. NISAR permite buscar y preparar GCOV con ASF y Harmony; "
-            "Sentinel-1 aún requiere RTC locales. Una variación de radar no confirma inundaciones.</div>",
+            '<div class="mc-aviso" title="NISAR permite preparar recortes GCOV con NASA Harmony. '
+            'Sentinel-1 requiere RTC locales. Un GCOV o cambio SAR aislado no confirma inundación.">'
+            "NISAR (banda L) principal · Sentinel-1 (banda C) respaldo. "
+            "Busca y prepara imágenes; compara dos fechas para analizar posibles cambios.</div>",
             unsafe_allow_html=True,
         )
         herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
+        st.html(SUBIR_AL_CAMBIAR_DE_PASO, unsafe_allow_javascript=True)
     with st.container(key="sar_minimizado"):
         st.button("Herramientas SAR · restaurar", key="restaurar_sar", icon=":material/open_in_full:",
                   on_click=abrir_sar)
@@ -403,11 +414,7 @@ def linea_temporal(fechas: list[str] | None = None) -> None:
         nota = "Comparación de dos fechas. No hay observaciones intermedias en este producto."
         clase = " mc-linea-fechada"
     else:
-        titulo = "LÍNEA TEMPORAL · CONCEPTUAL"
-        t1, t2 = "T₁ · sin producto", "T₂ · sin producto"
-        nota = ("Se completa al activar un resultado con ficha de procedencia válida. "
-                "No interpola imágenes ni sugiere cambios.")
-        clase = ""
+        return          # sin resultado no hay fechas que mostrar: no ocupa sitio sobre el mapa
     with st.container(key="linea_temporal"):
         st.markdown(
             f'<div class="mc-linea{clase}" aria-disabled="true">'

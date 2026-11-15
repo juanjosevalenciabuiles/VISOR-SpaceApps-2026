@@ -85,11 +85,11 @@ def render(e: EstadoEco) -> None:
     visible = st.session_state.setdefault("ui_eco", True)
     with st.container(key="eco" if visible else "eco_oculto"):
         if visible:
+            st.button("Ocultar a ECO", key="eco_ocultar", icon=":material/close:", type="tertiary",
+                      on_click=_alternar, help="Ocultar a ECO (vuelve con el botón de la esquina)")
             st.markdown(burbuja_html(e), unsafe_allow_html=True)
             # Elemento aparte: si solo cambia el mensaje, el video no se reinicia.
             st.markdown(avatar_html(e), unsafe_allow_html=True)
-            st.button("Ocultar a ECO", key="eco_ocultar", icon=":material/close:", type="tertiary",
-                      on_click=_alternar, help="Ocultar a ECO (vuelve con el botón de la esquina)")
         else:
             st.button("ECO", key="eco_mostrar", icon=":material/support_agent:", on_click=_alternar,
                       help="Mostrar a ECO, el guía")
