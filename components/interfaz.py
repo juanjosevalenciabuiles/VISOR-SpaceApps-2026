@@ -367,7 +367,7 @@ def herramientas_sar() -> None:
         import os
         modo_legado = os.environ.get("VISOR_SENSOR_DEFECTO") == "SENTINEL"
         if modo_legado:
-            st.caption("Diagnóstico avanzado Sentinel-1: requiere RTC locales; no es un análisis automático.")
+            st.caption("Sentinel-1 requiere RTC locales para el diagnóstico avanzado; no es un análisis automático.")
         else:
             st.caption("Selecciona el área y las fechas: V.I.S.O.R. gestiona la búsqueda NISAR "
                        "sin pedirte escoger satélite. Sentinel-1 automático sigue en validación.")
