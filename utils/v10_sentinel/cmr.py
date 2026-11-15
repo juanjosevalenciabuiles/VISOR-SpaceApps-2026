@@ -34,6 +34,10 @@ def extraer_granulos(payload: dict) -> list[dict]:
     entries = payload.get("feed", {}).get("entry", [])
     if not isinstance(entries, list):
         raise ValueError("Respuesta CMR inválida")
+    # CMR page_size=100: una página llena no demuestra que el catálogo esté completo.
+    # Nunca seleccionar pre/post sobre un conjunto potencialmente truncado.
+    if len(entries) >= 100:
+        raise ValueError("CMR_PAGINACION_PENDIENTE: página completa de 100 granulos")
     salida = []
     for item in entries:
         if not isinstance(item, dict) or not item.get("id") or not item.get("time_start"):
