@@ -7,6 +7,7 @@ from utils.v10_sentinel.cmr import extraer_granulos, parametros_cmr
 def test_url_cmr_restringe_coleccion_y_aoi():
     url = parametros_cmr((-77, 5, -76, 6), "2026-10-01T00:00:00Z", "2026-10-10T00:00:00Z")
     assert "OPERA_L3_DSWX-S1_V1" in url
+    assert "collection_concept_id=C2949811996-POCLOUD" in url
     assert "bounding_box=-77.0%2C5.0%2C-76.0%2C6.0" in url
     assert "page_size=100" in url
 
