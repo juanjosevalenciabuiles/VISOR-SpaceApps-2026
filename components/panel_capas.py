@@ -141,6 +141,13 @@ def render(resultados: list, activo=None) -> None:
                     key="mapa_base",
                     help="Cambia únicamente el fondo; conserva resultados, zona y encuadre.",
                 )
+                faltan = mapas_base.no_ofrecidos()
+                if faltan:
+                    nombres = "; ".join(
+                        f"{MAPAS_BASE[k].nombre} ({motivo})" for k, motivo in faltan.items()
+                    )
+                    st.caption("No disponibles aquí: " + nombres
+                               + ". El mapa base nunca cambia silenciosamente a uno sin acceso.")
                 hay = disponibles()
                 for clave in ("hidrografia", "vias"):
                     capa = CAPAS_CONTEXTO[clave]
