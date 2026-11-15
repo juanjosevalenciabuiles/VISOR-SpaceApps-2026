@@ -509,6 +509,9 @@ def paso_analisis() -> None:
         return
     rtcs, avisos = flujo_sar.rtc_locales()
     disp = flujo_sar.disponibilidad(p, rtcs)
+    completas = [d for d in disp if d.completa]
+    t = trabajos.leer(st.session_state["trabajo_activo"]) if st.session_state.get("trabajo_activo") else None
+    if not completas:
     filas = [f"<tr><td>{d.polarizacion}</td><td>{_celda_rtc(d.antes, d.tipo_antes, d.empatados_antes)}</td>"
              f"<td>{_celda_rtc(d.despues, d.tipo_despues, d.empatados_despues)}</td></tr>" for d in disp]
     st.markdown('<div class="visor-seccion">Productos RTC en data/sar/</div>'
@@ -521,9 +524,6 @@ def paso_analisis() -> None:
             if empatados:
                 _nota(f"{d.polarizacion} {fecha}: {len(empatados)} RTC empatan para la misma escena "
                       f"({', '.join(empatados)}). Deja solo el correcto en data/sar/.", "mc-aviso")
-    completas = [d for d in disp if d.completa]
-    t = trabajos.leer(st.session_state["trabajo_activo"]) if st.session_state.get("trabajo_activo") else None
-    if not completas:
         st.markdown(progreso_html(_fases_previstas(region, p, completas)), unsafe_allow_html=True)
         _nota("Imágenes encontradas, pero sus datos de análisis todavía no están disponibles aquí: faltan los "
               "productos RTC de este par en data/sar/. El catálogo entrega escenas GRD; convertirlas a RTC "
@@ -581,6 +581,19 @@ def paso_analisis() -> None:
     bloqueado = activo or (bool(por_dia) and not aceptar) or (previa is not None and not reanalizar)
     st.button("Analizar", key="sar_analizar", type="primary", icon=":material/play_arrow:", disabled=bloqueado,
               on_click=_pedir_analisis, help="Hay un trabajo en marcha." if activo else None)
+    # Mantener el CTA visible antes del inventario técnico, que puede ocupar varios renglones.
+    filas = [f"<tr><td>{d.polarizacion}</td><td>{_celda_rtc(d.antes, d.tipo_antes, d.empatados_antes)}</td>"
+             f"<td>{_celda_rtc(d.despues, d.tipo_despues, d.empatados_despues)}</td></tr>" for d in disp]
+    st.markdown('<div class="visor-seccion">Productos RTC en data/sar/</div>'
+                '<table class="mc-tabla mc-tabla-rtc"><thead><tr><th>Pol.</th><th>Antes</th><th>Después</th>'
+                f'</tr></thead><tbody>{"".join(filas)}</tbody></table>', unsafe_allow_html=True)
+    for a in avisos[:4]:
+        _nota(a)
+    for d in disp:
+        for fecha, empatados in (("antes", d.empatados_antes), ("después", d.empatados_despues)):
+            if empatados:
+                _nota(f"{d.polarizacion} {fecha}: {len(empatados)} RTC empatan para la misma escena "
+                      f"({', '.join(empatados)}). Deja solo el correcto en data/sar/.", "mc-aviso")
     # Solo una pulsación de «Analizar» en esta misma ejecución deja `lanzar` con contenido.
     permitido = (not activo and isinstance(lanzar, dict) and not (bool(por_dia) and not aceptar)
                  and (previa is None or lanzar.get("reanalizar")))
