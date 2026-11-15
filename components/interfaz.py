@@ -140,6 +140,11 @@ def css_estado() -> str:
     if st.session_state["ui_sar"] != "minimizado":
         ocultos.append(".st-key-sar_minimizado")
     css = (",".join(ocultos) + "{display:none !important}") if ocultos else ""
+    if not st.session_state.get("ui_capas_abierto", True):
+        css += (".st-key-panel_capas_body{display:none !important}"
+                "@media(min-width:721px){.st-key-panel_info{"
+                "top:calc(var(--mc-arriba) + 72px) !important;"
+                "max-height:calc(100vh - var(--mc-arriba) - 260px) !important}}")
     if st.session_state["ui_explorador"]:
         # Móvil: ambas son hojas inferiores; con el explorador abierto, la información sube.
         css += ("@media (max-width:720px){.st-key-panel_info{bottom:calc(46vh + 38px) !important;"

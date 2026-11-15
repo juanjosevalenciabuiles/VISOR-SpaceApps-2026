@@ -6,7 +6,7 @@ interfaz vive en components/ y la lógica de datos en utils/.
 """
 import streamlit as st
 
-from components import capas_ambientales, estilos, flujo, interfaz, mapa
+from components import capas_ambientales, estilos, flujo, interfaz, mapa, panel_capas
 from components import herramientas_sar as herramientas
 from components import resultados as ui_resultados
 from utils import alcance_geografico, diagnostico
@@ -38,6 +38,9 @@ st.session_state["resultados_fuera_de_alcance"] = fuera_de_alcance
 activo = flujo.sincronizar(resultados)
 # Comprobación ligera de servicios externos, una vez cada 15 min por proceso y sin bloquear la vista.
 diagnostico.comprobar_en_segundo_plano()
+# Dock permanente: se dibuja antes de Controles para que todos los interruptores
+# afecten al mapa en esta misma ejecución, sin recálculo ni duplicados.
+panel_capas.render(resultados, activo)
 controles = interfaz.panel_explorador(resultados, activo)
 fenomeno = FENOMENOS[controles.clave]
 estilos.inyectar_tema(fenomeno)

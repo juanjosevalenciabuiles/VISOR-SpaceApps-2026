@@ -187,7 +187,11 @@ def _controles_resultados(resultados: list, centrar=None, activo=None) -> dict[s
             f'<div class="mc-resultado"><span class="mc-insignia mc-insignia-origen">{flujo.etiqueta_origen()}</span>'
             f"{insignia(activo.capa.procedencia)}<code>{escape(activo.ruta.name)}</code></div>",
             unsafe_allow_html=True)
-        activos[activo.id] = st.slider("Opacidad del resultado", 0.0, 1.0, 0.85, 0.05, key="res_opacidad")
+        # El interruptor y la opacidad residen en el selector persistente.
+        if st.session_state.get("visor_capa_resultado_visible", True):
+            activos[activo.id] = float(st.session_state.get("res_opacidad", 0.85))
+        else:
+            st.caption("Resultado oculto desde «Capas del mapa». No se borró.")
         with st.container(horizontal=True):
             if centrar is not None:
                 st.button("Centrar", key="res_centrar", icon=":material/center_focus_strong:", type="tertiary",
@@ -249,60 +253,23 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None,
 
         activos = _controles_resultados(resultados, centrar, activo) if resultados is not None else {}
 
-        st.caption("MAPA BASE")
-        opciones = mapas_base.ofrecidos()
-        anterior = st.session_state.get("mapa_base")
-        if anterior not in opciones:
-            st.session_state["mapa_base"] = mapas_base.predeterminado()
-            if anterior in MAPAS_BASE:      # el fondo elegido dejó de estar disponible: se dice, no se oculta
-                st.session_state["aviso_mapa_base"] = (
-                    f"{MAPAS_BASE[anterior].nombre} dejó de estar disponible "
-                    f"({mapas_base.no_ofrecidos().get(anterior, 'sin respuesta')}); se cambió a "
-                    f"{MAPAS_BASE[st.session_state['mapa_base']].nombre}.")
-        if mapas_base.todos_caidos():
-            st.markdown('<div class="mc-aviso" id="aviso-sin-mapas">Ningún mapa base respondió a la última '
-                        "comprobación desde el servidor (ver «Estado del sistema»). Se siguen ofreciendo; si el "
-                        "fondo no carga en tu navegador, el mapa avisará.</div>", unsafe_allow_html=True)
-        if st.session_state.get("aviso_mapa_base"):
-            st.markdown(f'<div class="mc-aviso" id="aviso-mapa-base">{escape(st.session_state["aviso_mapa_base"])}'
-                        "</div>", unsafe_allow_html=True)
-        mapa_base = st.selectbox(
-            "Mapa base",
-            options=opciones,
-            format_func=lambda k: MAPAS_BASE[k].nombre,
-            help="Cambia solo el fondo. Los resultados, la zona, la ubicación y el zoom se conservan.",
-            key="mapa_base",
-            on_change=lambda: st.session_state.pop("aviso_mapa_base", None),
-        )
-        faltan = mapas_base.no_ofrecidos()
-        with st.expander("Sobre este mapa base", expanded=False, key="nota_mapa_base"):   # detalle técnico, plegado
-            st.markdown(
-                f'<div class="visor-leyenda-nota visor-nota-base">{escape(MAPAS_BASE[mapa_base].uso)}</div>',
-                unsafe_allow_html=True,
-            )
-            if faltan:
-                st.markdown('<div class="visor-leyenda-nota">No disponibles aquí: ' + "; ".join(
-                    f"{escape(MAPAS_BASE[k].nombre)} ({escape(m)})" for k, m in faltan.items()) + ".</div>",
-                    unsafe_allow_html=True)
-
-        st.caption("INFORMACIÓN GEOGRÁFICA")
-        hay = disponibles()
-        hidrografia = _interruptor_contexto("hidrografia", hay["hidrografia"])
-        vias = _interruptor_contexto("vias", hay["vias"])
-        mostrar_referencia = st.toggle("Área de referencia (Antioquia)", value=False, key="referencia",
-                                       help="Rectángulo aproximado de Antioquia, solo como referencia visual.")
+        # El dock persistente es el ÚNICO lugar con widgets de capas.
+        # Aquí solo leemos su estado para construir Controles; el explorador
+        # nunca duplica claves Streamlit ni altera el mapa por sí solo.
+        st.caption("CAPAS DEL MAPA")
+        st.caption("Activa y cambia tus capas en «CAPAS DEL MAPA», visible sobre el mapa "
+                   "aunque cierres el Explorador.")
+        mapa_base = st.session_state.get("mapa_base") or mapas_base.predeterminado()
+        disponibles_locales = disponibles()
+        hidrografia = bool(st.session_state.get("ctx_hidrografia", False)
+                           and disponibles_locales.get("hidrografia", False))
+        vias = bool(st.session_state.get("ctx_vias", False)
+                    and disponibles_locales.get("vias", False))
+        mostrar_referencia = bool(st.session_state.get("referencia", False))
         limites, zoom = (None, None)
         if hidrografia or vias:
             from components.mapa import vista_actual
             limites, zoom = vista_actual(st.session_state.get("vista"))
-            for clave, activa in (("hidrografia", hidrografia), ("vias", vias)):
-                datos = recortar(clave, limites, zoom) if activa else None
-                if datos is not None and datos.aviso:
-                    st.markdown(f'<div class="visor-leyenda-nota">{escape(datos.aviso)}</div>', unsafe_allow_html=True)
-                elif datos is not None and not datos.elementos:
-                    st.markdown(f'<div class="visor-leyenda-nota">{escape(CAPAS_CONTEXTO[clave].nombre)}: nada en esta '
-                                "vista a escala general (puede haberlo en el mapa base «Calles»).</div>",
-                                unsafe_allow_html=True)
 
         from components import sistema
         with st.expander("Estado del sistema", expanded=False, key="sistema"):

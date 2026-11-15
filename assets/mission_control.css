@@ -487,3 +487,42 @@ a.mc-ficha-credito:hover { text-decoration: underline; }
 [role="option"][data-key="__creatable__"] [data-item-hl] { font-size: 0; }
 [role="option"][data-key="__creatable__"] [data-item-hl]::before { content: "🔎  Buscar lo que escribí (Enter)";
   font-size: .8rem; color: var(--theme-accent); }
+
+
+/* Panel flotante de capas — visible independientemente de Explorador e Info.
+   Un único lugar para encender/apagar capas: evita duplicar widgets Streamlit. */
+.st-key-panel_capas {
+  position: fixed !important; z-index: 25 !important;
+  top: var(--mc-arriba); right: var(--mc-lateral);
+  width: 274px !important; max-width: calc(100vw - 20px);
+  max-height: 34vh; overflow-y: auto; overscroll-behavior: contain;
+  padding: 9px 12px 12px !important;
+  color: var(--mc-texto);
+  border: 1px solid rgba(var(--theme-rgb), .39);
+  border-radius: 17px;
+  background: linear-gradient(140deg, rgba(var(--theme-rgb), .18), rgba(7,18,31,.93) 55%);
+  box-shadow: var(--mc-sombra); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+}
+.st-key-panel_capas [data-testid="stCaptionContainer"] {
+  font-size: .7rem !important; letter-spacing: .04em !important; color: #b9c6d3 !important;
+}
+.st-key-panel_capas label p {font-size: .83rem; line-height: 1.2;}
+.st-key-panel_capas [data-testid="stWidgetLabel"] { margin-bottom: .12rem; }
+.st-key-panel_capas [data-testid="stVerticalBlock"] { gap: .27rem; }
+.st-key-cabecera_capas { justify-content: space-between; align-items: center; }
+.st-key-cabecera_capas button {padding: .18rem .45rem !important; min-height: 28px !important;}
+.st-key-panel_capas .stSlider {margin-top: .12rem;}
+@media (min-width: 721px) {
+  /* El panel informativo sigue accesible debajo del selector de capas. */
+  .st-key-panel_info {
+    top: calc(var(--mc-arriba) + 34vh + 11px) !important;
+    max-height: calc(100vh - var(--mc-arriba) - 34vh - 185px) !important;
+  }
+}
+@media (max-width: 720px) {
+  .st-key-panel_capas { top: 136px !important; right: 8px !important;
+    width: min(216px, 52vw) !important; max-height: 32vh; padding: 7px 9px !important;
+  }
+  .st-key-panel_info { top: auto !important; bottom: 20px !important;
+    max-height: 30vh !important; }
+}
