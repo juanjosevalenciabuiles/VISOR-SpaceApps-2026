@@ -94,6 +94,11 @@ def dentro_de_zona(resultado: Any, zona: tuple[float, float, float, float] | Non
 def productos_disponibles(resultados: list, zona=None, inicio: date | None = None,
                           fin: date | None = None) -> list[ProductoTemporal]:
     """Comparar por zona y rango de interés, sin asumir fechas idénticas entre sensores."""
+    # La lista temporal también debe rechazar periodos inválidos; no solo el mapa.
+    if (inicio is not None and not isinstance(inicio, date)) or (fin is not None and not isinstance(fin, date)):
+        return []
+    if inicio is not None and fin is not None and inicio > fin:
+        return []
     datos = []
     for r in resultados:
         p = producto_de_resultado(r)
