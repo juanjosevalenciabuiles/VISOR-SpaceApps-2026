@@ -22,7 +22,7 @@ MAX_HARMONY_MB = 384
 MARGEN_DIAS = 45
 INICIO_PROVISIONAL = date(2026, 6, 17)
 FIN_PROVISIONAL = date(2026, 10, 23)
-DISTANCIA_SUGERENCIAS_DIAS = 90
+DISTANCIA_SUGERENCIAS_DIAS = 180
 
 
 def _madurez_del_periodo(inicio: date, fin: date) -> str:
@@ -223,14 +223,13 @@ def _solicitar(zona, inicio: date, fin: date):
     candidatos = _pares_del_periodo(resultado.pares, inicio, fin)
     if not candidatos:
         pares = resultado.pares
-        # Segunda consulta SOLO DE METADATOS si el plazo inicial no produjo
-        # ningún par. No constituye adquisición NISAR ni exige token NASA.
-        if not pares:
-            amplio_desde, amplio_hasta = _limites_coleccion(
-                madurez, inicio, fin, margen=DISTANCIA_SUGERENCIAS_DIAS)
-            if (amplio_desde, amplio_hasta) != (desde, hasta):
-                mas = cat.buscar(*zona, amplio_desde, amplio_hasta, madurez=madurez)
-                pares = mas.pares
+        # Buscar también en la ventana ampliada por METADATOS para sugerir
+        # un par más cercano, sin descargar ni extrapolar adquisiciones.
+        amplio_desde, amplio_hasta = _limites_coleccion(
+            madurez, inicio, fin, margen=DISTANCIA_SUGERENCIAS_DIAS)
+        if (amplio_desde, amplio_hasta) != (desde, hasta):
+            mas = cat.buscar(*zona, amplio_desde, amplio_hasta, madurez=madurez)
+            pares = [*pares, *mas.pares]
         st.session_state["v9_sugerencias"] = {
             "firma": _firma(zona, inicio, fin), "madurez": madurez,
             "pares": _sugerencias_cercanas(pares, inicio, fin),
@@ -407,6 +406,7 @@ def render() -> None:
     if st.button("Buscar y analizar cambios", key="v9_analizar", type="primary",
                  use_container_width=True):
         _limpiar_v9()
+        flujo.limpiar_resultado()
         if preparado_prev:
             st.session_state.update(v9_firma=firma, v9_preparacion=preparado_prev["job_id"],
                                     nisar_auto_job=preparado_prev["job_id"])
