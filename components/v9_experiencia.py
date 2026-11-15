@@ -83,6 +83,60 @@ def _preparacion_existente(zona, inicio: date, fin: date) -> dict | None:
     return None
 
 
+def _explorar_provisional(zona, inicio: date, fin: date):
+    """Preflight CMR sin descargas: solo metadatos de la madurez PROVISIONAL.
+
+    No envía trabajos Harmony, no calcula ΔdB y no confunde un candidato de
+    catálogo con cobertura de píxeles aptos ni con una inundación confirmada.
+    """
+    hoy = datetime.now(timezone.utc).date()
+    if inicio > fin or fin > hoy:
+        raise ValueError("El intervalo debe estar ordenado y no incluir fechas futuras.")
+    primero = max(date(2026, 6, 17), inicio - timedelta(days=MARGEN_DIAS))
+    ultimo = min(date(2026, 10, 23), hoy, fin + timedelta(days=MARGEN_DIAS))
+    if primero > ultimo:
+        raise ValueError("La consulta queda fuera de las fechas públicas de NISAR PROVISIONAL.")
+    resultado = cat.buscar(*zona, primero, ultimo, madurez="PROVISIONAL")
+    return resultado, _pares_del_periodo(resultado.pares, inicio, fin)
+
+
+def _mostrar_preflight(preflight, firma):
+    if not isinstance(preflight, dict) or preflight.get("firma") != firma:
+        return
+    if preflight.get("error"):
+        st.warning("No fue posible consultar el catálogo PROVISIONAL: " + preflight["error"])
+        return
+    resultado, pares = preflight["resultado"], preflight["pares"]
+    st.caption(
+        f"NASA CMR · colección PROVISIONAL · {resultado.total_catalogo} registros, "
+        f"{len(resultado.candidatos)} escenas candidatas en la región · "
+        f"{len(pares)} pares que cumplen las fechas. Solo metadatos, sin descargas."
+    )
+    if not pares:
+        st.info(
+            "No se identificó un par comparable que encierre o esté dentro de estas fechas "
+            "para el área consultada. Esto no demuestra ausencia de inundación ni "
+            "autoriza a fabricar un mapa."
+        )
+        return
+    st.warning(
+        "Hay candidatos PROVISIONAL por metadatos, NO datos descargados ni "
+        "píxeles aptos verificados. Su procesamiento requiere controles científicos "
+        "adicionales; no se ha iniciado."
+    )
+    for par in pares[:3]:
+        st.caption(
+            f"Posible par: {par.antes.nombre.inicio:%Y-%m-%d} → "
+            f"{par.despues.nombre.inicio:%Y-%m-%d} · "
+            f"órbita {par.antes.nombre.track}, frame {par.antes.nombre.frame}"
+        )
+
+
+def _abrir_modo_jurado():
+    """Abrir solo archivos satelitales locales, nunca crear escenas sintéticas."""
+    st.session_state["visor_modo_muestra_real"] = True
+
+
 def _solicitar(zona, inicio: date, fin: date):
     hoy = datetime.now(timezone.utc).date()
     if inicio > fin or fin > hoy:
@@ -204,7 +258,40 @@ def render() -> None:
     if preparado_prev:
         st.caption("Ya hay un par NISAR preparado para esta zona y periodo. "
                    "Se reutilizará sin repetir descargas de NASA Harmony.")
-    if st.button("Buscar y analizar cambios", key="v9_analizar", type="primary"):
+    anterior_validated = fin < cat.INICIO_VALIDATED
+    if anterior_validated and not preparado_prev:
+        st.warning(
+            "El periodo elegido es anterior al 21/10/2026. La colección NISAR "
+            "VALIDATED no contiene adquisiciones de esos días. PROVISIONAL "
+            "podría contenerlas, pero todavía no está habilitada para producir "
+            "automáticamente un GeoTIFF en este flujo."
+        )
+        if st.button(
+            "Comprobar cobertura PROVISIONAL (solo metadatos)",
+            key="v9_catalogo_provisional", type="secondary",
+            help="Consulta NASA CMR: no descarga escenas, no crea trabajos Harmony ni recalcula GeoTIFF.",
+        ):
+            with st.spinner("Consultando únicamente el catálogo NASA CMR…"):
+                try:
+                    catalogo, pares = _explorar_provisional(zona, inicio, fin)
+                    st.session_state["v9_preflight_provisional"] = {
+                        "firma": firma, "resultado": catalogo, "pares": pares,
+                    }
+                except (ValueError, cat.ErrorServicio, cat.ErrorConexion) as exc:
+                    st.session_state["v9_preflight_provisional"] = {
+                        "firma": firma, "error": str(exc),
+                    }
+        _mostrar_preflight(st.session_state.get("v9_preflight_provisional"), firma)
+    if st.button(
+        "Ver los GeoTIFF NISAR reales ya guardados · sin descargas",
+        key="v9_ver_guardados",
+        on_click=_abrir_modo_jurado,
+        help="Abre la exhibición de imágenes existentes: no implica que correspondan al periodo seleccionado.",
+    ):
+        st.rerun(scope="app")
+    if st.button("Buscar y analizar cambios", key="v9_analizar", type="primary",
+                 disabled=anterior_validated and not preparado_prev,
+                 help="VALIDATED requiere fechas desde 21/10/2026; para fechas anteriores usa primero la comprobación de metadatos."):
         st.session_state["v9_error"] = None
         st.session_state.update(v9_firma=None, v9_preparacion=None,
                                 v9_mapa_job=None, v9_publicado=None)
