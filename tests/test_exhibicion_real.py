@@ -1,6 +1,4 @@
 """La muestra exige preparación local REAL y no invoca búsquedas ni descargas."""
-from pathlib import Path
-from types import SimpleNamespace
 
 from components import exhibicion_real as muestra
 

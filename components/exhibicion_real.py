@@ -16,8 +16,7 @@ import numpy as np
 import streamlit as st
 from streamlit_folium import st_folium
 
-from components import flujo
-from utils import alcance_geografico, sesion, trabajos
+from utils import alcance_geografico, trabajos
 from utils.config import DATA_DIR
 from utils.geotiff import ErrorCapa, a_web_mercator, colorizar, leer_geotiff
 from utils.resultados import cargar_resultados, leer_resultado
@@ -159,7 +158,6 @@ def _mostrar_delta(trabajo: dict, parent_id: str) -> None:
             st.success("GeoTIFF verdadero generado: " + ruta.name)
             st.caption("Cambio de retrodispersión entre dos fechas, no inundación confirmada.")
             from components.mapa import grupo_resultado
-            from utils.resultados import _firma
             # Reutilizar exactamente los colores y la leyenda del mapa principal.
             m = folium.Map(location=[(res.capa.limites[1]+res.capa.limites[3])/2,
                                      (res.capa.limites[0]+res.capa.limites[2])/2],
@@ -169,9 +167,8 @@ def _mostrar_delta(trabajo: dict, parent_id: str) -> None:
             m.fit_bounds([[s, o], [n, e]])
             st_folium(m, height=420, use_container_width=True,
                       returned_objects=[], key="visor_muestra_delta_" + parent_id)
-            st.download_button("Descargar GeoTIFF real", data=ruta.read_bytes(),
-                               file_name=ruta.name, mime="image/tiff",
-                               key="visor_descargar_delta_" + parent_id)
+            st.caption("Archivo local disponible: data/analisis/" + ruta.name +
+                       " · no se ha realizado ninguna descarga adicional.")
         except (OSError, ValueError, ErrorCapa) as exc:
             st.warning("No se pudo abrir el GeoTIFF: " + str(exc))
     else:
