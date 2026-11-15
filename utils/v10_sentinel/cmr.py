@@ -41,7 +41,7 @@ def extraer_granulos(payload: dict, *, pagina_final: bool = True) -> list[dict]:
     salida = []
     for item in entries:
         if not isinstance(item, dict) or not item.get("id") or not item.get("time_start"):
-            continue
+            raise ValueError("CMR granulo incompleto: catalogo no verificable")
         enlaces = []
         for link in item.get("links", []):
             if not isinstance(link, dict):
