@@ -35,3 +35,11 @@ Pruebas sintéticas sin red en `tests/v10_sentinel/test_wtr.py`. No hay ejecuci�
 Se corrigió una condición de publicación peligrosa: antes `comparar_wtr` podía devolver `APTA` y una matriz con clase 255 aunque el AOI incluyera píxeles sin QA. Ahora **solo** publica `clases` y estado `APTA` cuando todos los píxeles de la matriz AOI tienen clasificación pre/post inequívoca y QA válida. Con cobertura parcial devuelve `NO_APTA`, `clases=None`, `cobertura_qa_completa=False` y los conteos de diagnóstico. Esto es una política conservadora temporal, no un algoritmo de mosaico; AOI irregulares deberán enmascararse antes de esta función, y la cobertura geométrica de teselas sigue pendiente.
 
 Se añadieron regresiones sintéticas para cobertura completa y códigos desconocidos en post; se adaptó el caso de cobertura parcial. CI del commit anterior `d7bda93`: **unidad/integración/Ruff/verificación success**, navegador Chromium y Firefox **failure** (run 43703907607). La CI de estos nuevos commits aún no está confirmada. No hay lectura de píxeles OPERA reales, ni GeoTIFF ni evidencia de inundación.
+
+## Incremento 6: máscara explícita de AOI irregular
+
+`comparar_wtr(..., mascara_aoi=...)` acepta una matriz booleana alineada con WTR y QA. La exigencia de cobertura completa ahora se evalúa **solo sobre píxeles dentro del AOI**, mientras los píxeles exteriores permanecen en clase interna 255. Devuelve `pixeles_totales` dentro del AOI y `pixeles_fuera_aoi`; rechaza máscaras de dimensiones incorrectas, no booleanas o AOI vacío. Un solo píxel interior sin QA o con WTR ambiguo sigue devolviendo `NO_APTA` sin matriz publicable. Sin máscara se conserva el comportamiento anterior sobre el rectángulo completo.
+
+Se añadieron cinco casos sintéticos sin red en `tests/v10_sentinel/test_wtr_aoi.py`. No se han ejecutado localmente: verificar CI del commit nuevo. CI de `2039517`: workflow `Pruebas` run 43708383566 terminó `failure`; no se ha comprobado el desglose de jobs. La base V9 `feature/v9-integracion-pc-nisar` permanece en `8ff1dcd` al comparar, sin reconciliación requerida en esta ejecución.
+
+**Límite:** la máscara debe generarse por rasterización georreferenciada de la geometría AOI en la misma cuadrícula; esta función no rasteriza geometrías, no verifica cobertura real de teselas ni crea GeoTIFF. No hay observaciones ni inundaciones confirmadas.
