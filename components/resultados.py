@@ -175,16 +175,30 @@ def _detalle_procedencia(res: ResultadoSAR) -> str:
     filas = [_fila("Ficha", f"{res.ruta.with_suffix('.json').name}" if res.ficha is not None else "No existe")]
     bloque = (res.ficha or {}).get("procedencia")
     if estado.es_real and isinstance(bloque, dict):
-        gen = bloque.get("generado_por") or {}
+        # V9 NISAR/Harmony guarda generado_por como texto; otros motores
+        # registran un objeto {funcion, version_motor}. Ambos son válidos.
+        gen = bloque.get("generado_por")
+        if isinstance(gen, dict):
+            nombre = str(gen.get("funcion") or NO_DECLARADO)
+            version = gen.get("version_motor")
+            generado_por = f"{nombre} · motor {version}" if version else nombre
+        elif isinstance(gen, str) and gen.strip():
+            generado_por = gen.strip()
+        else:
+            generado_por = NO_DECLARADO
+        fecha = bloque.get("generado_utc") or (res.ficha or {}).get("creado_utc") or NO_DECLARADO
+        archivo = bloque.get("archivo")
+        sha = archivo.get("sha256") if isinstance(archivo, dict) else None
         filas += [
-            _fila("Generado por", f"{gen.get('funcion', '?')} · motor {gen.get('version_motor', '?')}"),
-            _fila("Fecha de generación", str(bloque.get("generado_utc", NO_DECLARADO))),
-            _fila("SHA-256", str((bloque.get("archivo") or {}).get("sha256", ""))[:16] + "…"),
+            _fila("Generado por", generado_por),
+            _fila("Fecha de generación", str(fecha)),
+            _fila("SHA-256", str(sha)[:16] + "…" if sha else NO_DECLARADO),
         ]
         for entrada in bloque.get("entradas") or []:
             if isinstance(entrada, dict):
-                filas.append(_fila(f"Entrada {entrada.get('polarizacion') or ''}".strip(),
-                                   str(entrada.get("archivo", "?"))))
+                etiqueta = f"Entrada {entrada.get('polarizacion') or ''}".strip()
+                nombre_entrada = entrada.get("archivo") or entrada.get("granule") or NO_DECLARADO
+                filas.append(_fila(etiqueta, str(nombre_entrada)))
     else:
         filas.append(_fila("Generación", "No documentada: el archivo no trae una ficha válida"))
         tags = res.capa.metadatos
