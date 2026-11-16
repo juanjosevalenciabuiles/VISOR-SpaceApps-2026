@@ -258,6 +258,15 @@ def mapa_fijo() -> folium.Map:
     )
     # folium solo pasa min_zoom a las teselas por defecto (aquí no hay): se fija en el propio mapa.
     m.options["min_zoom"] = limites["min_zoom"]
+    # Transiciones Leaflet más fluidas; mover el mapa ya no recalcula los paneles
+    # Streamlit gracias al fragmento render (solo la AOI fuerza rerun completo).
+    m.options.update({
+        "preferCanvas": True,
+        "zoomAnimation": True,
+        "zoomAnimationThreshold": 8,
+        "wheelDebounceTime": 55,
+        "wheelPxPerZoomLevel": 45,
+    })
     if alcance_geografico.restringido():
         _modo_colombia(m)
     m.get_root().header.add_child(folium.Element(ESTILO_LIENZO), name="visor_lienzo")
@@ -579,6 +588,7 @@ def _sincronizar_zona_dibujada(dibujos: list | None) -> bool:
     return True
 
 
+@st.fragment
 def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | None = None,
            resultados: list[ResultadoSAR] | tuple = (), extras: list[folium.FeatureGroup] | tuple = (),
            seguir_vista: bool = False) -> None:
@@ -609,7 +619,7 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
     limites = limites_de_vista(salida.get("bounds"))
     st.session_state["mapa_limites"] = limites if limites is not None and limites[0] < limites[2] else None
     if nueva_seleccion:
-        st.rerun()  # La AOI confirmada aparece sin ningún botón adicional.
+        st.rerun(scope="app")  # Nueva AOI: refresca también los controles externos al mapa.
 
 
 def limites_de_vista(bounds) -> tuple[float, float, float, float] | None:
