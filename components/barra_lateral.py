@@ -477,7 +477,13 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None,
         if centrar is not None:
             recomendaciones_analisis(centrar)
 
-        if abrir_zona is not None:
+        # La ficha «LOCATED» es solo para explorar antes del análisis.
+        # Si SAR Tools está abierto o ya hay resultado, no renderizarla
+        # detrás del panel: daba la impresión de tener información duplicada
+        # a la izquierda. Wikipedia permanece exclusivamente en Information.
+        if (abrir_zona is not None and activo is None
+                and st.session_state.get("ui_explorador", True)
+                and st.session_state.get("ui_sar") != "abierto"):
             lugar_ubicado(abrir_zona)
 
         activos = _controles_resultados(resultados, centrar, activo) if resultados is not None else {}
