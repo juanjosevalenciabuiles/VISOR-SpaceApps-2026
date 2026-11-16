@@ -22,6 +22,26 @@ NO_DECLARADO = "No declarado en el archivo"
 AVISO = ("Indicio de cambio en la señal de radar. No es una inundación confirmada ni ningún otro "
          "fenómeno: requiere validación independiente.")
 
+NOMBRES_EN = {
+    "diferencia_db": "Radar backscatter change (dB)",
+    "coincidencia_vv_vh": "VV/VH change agreement",
+    "mascara_cambios": "Radar change mask",
+}
+DESCRIPCIONES_EN = {
+    "diferencia_db": "Change in backscatter between two SAR acquisitions. Blue generally marks signal decreases and orange marks increases; neither confirms flooding.",
+    "coincidencia_vv_vh": "Significant radar-signal decreases in VV only, VH only, or both polarizations. Agreement does not confirm flooding.",
+    "mascara_cambios": "Categorical SAR backscatter change between acquisition dates. Class colors are signal-based, not flood-severity levels.",
+}
+
+
+def nombre_visible(perfil) -> str:
+    return tr(perfil.nombre, NOMBRES_EN.get(perfil.clave, perfil.nombre))
+
+
+def descripcion_visible(perfil) -> str:
+    return tr(perfil.descripcion, DESCRIPCIONES_EN.get(perfil.clave, perfil.descripcion))
+
+
 
 def _fila(etiqueta: str, valor: str, origen: str | None = None) -> str:
     nota = f'<em class="mc-origen">{escape(origen)}</em>' if origen else ""
@@ -88,32 +108,35 @@ def ficha_html(res: ResultadoSAR) -> str:
     alto, ancho = capa.forma_original
     madurez = d["madurez"][0]
     aviso_madurez = (
-        '<div class="visor-aviso">Fuente: NISAR PROVISIONAL. Datos calibrados, '
-        'con validación científica parcial; no equivalen a una inundación confirmada.</div>'
+        '<div class="visor-aviso">' +
+        tr("NISAR PROVISIONAL: datos calibrados parcialmente; no confirma inundaciones.",
+           "NISAR PROVISIONAL: partially calibrated data; not a confirmed flood.") + '</div>'
         if madurez == "PROVISIONAL" else
-        '<div class="visor-leyenda-nota">Fuente: NISAR VALIDATED.</div>'
+        '<div class="visor-leyenda-nota">' +
+        tr("Colección NISAR VALIDATED.", "NISAR VALIDATED collection.") + '</div>'
         if madurez == "VALIDATED" else ""
     )
     partes = [
-        f'<div class="mc-res-titulo">{escape(perfil.nombre)}</div>',
+        f'<div class="mc-res-titulo">{escape(nombre_visible(perfil))}</div>',
         f'<div class="visor-procedencia">{insignia(estado)}'
         f'<p class="visor-nota-procedencia">{detalle}</p></div>',
         aviso_madurez,
-        f'<p class="visor-texto">{escape(perfil.descripcion)}</p>',
-        leyenda_html(res),                       # qué significa cada color, antes que lo técnico
-        f'<div class="visor-aviso visor-aviso-general">{escape(AVISO)}</div>',
-        '<details class="mc-detalles" id="res-detalles-tecnicos"><summary>Detalles técnicos</summary>',
+        f'<p class="visor-texto">{escape(descripcion_visible(perfil))}</p>',
+        '<details class="mc-detalles"><summary>' + tr("Leyenda científica detallada", "Detailed scientific legend") +
+        '</summary>' + leyenda_html(res) + '</details>',
+        f'<div class="visor-aviso visor-aviso-general">{escape(tr(AVISO, "Exploratory radar-signal change, not confirmed flooding. Independent verification is required."))}</div>',
+        f'<details class="mc-detalles" id="res-detalles-tecnicos"><summary>{tr("Detalles técnicos", "Technical details")}</summary>',
         f'<div class="mc-res-archivo"><code>{escape(res.archivo)}</code></div>',
-        '<div class="visor-seccion">Datos de origen</div>',
-        _fila("Producto", *d["producto"]),
+        f'<div class="visor-seccion">{tr("Datos de origen", "Source data")}</div>',
+        _fila(tr("Producto", "Product"), *d["producto"]),
         _fila("Sensor", *d["sensor"]),
-        (_fila("Madurez NISAR", *d["madurez"]) if d["sensor"][0] == "NISAR" else ""),
-        _fila("Fechas", *d["fechas"]),
-        _fila("Polarizaciones", *d["polarizaciones"]),
-        _fila("Umbral", "No aplica: dato continuo sin umbral") if perfil.continuo else _fila("Umbral", *d["umbral"]),
+        (_fila(tr("Madurez NISAR", "NISAR product maturity"), *d["madurez"]) if d["sensor"][0] == "NISAR" else ""),
+        _fila(tr("Fechas", "Acquisition dates"), *d["fechas"]),
+        _fila(tr("Polarizaciones", "Polarizations"), *d["polarizaciones"]),
+        _fila(tr("Umbral", "Threshold"), tr("No aplica: dato continuo sin umbral", "Not applicable to continuous data")) if perfil.continuo else _fila(tr("Umbral", "Threshold"), *d["umbral"]),
         _fila("CRS", capa.crs_original),
         _fila("Dimensiones", f"{ancho} × {alto} px"),
-        '<div class="visor-seccion">Método</div>',
+        f'<div class="visor-seccion">{tr("Método", "Method")}</div>',
         f'<p class="visor-texto">{escape(metodo_continuo(res) if perfil.continuo and d["metodo"][1] is None else d["metodo"][0])}</p>',
     ]
     if e and perfil.continuo:
@@ -147,7 +170,7 @@ def ficha_html(res: ResultadoSAR) -> str:
     limitaciones = (res.ficha or {}).get("limitaciones") if estado.es_real else None
     lista = limitaciones if isinstance(limitaciones, list) and limitaciones else list(perfil.limitaciones)
     partes.append(
-        f'<details class="mc-detalles"><summary>Limitaciones ({len(lista)})</summary><ul class="visor-lista">'
+        f'<details class="mc-detalles"><summary>{tr("Limitaciones", "Limitations")} ({len(lista)})</summary><ul class="visor-lista">'
         + "".join(f"<li>{escape(str(x))}</li>" for x in lista) + "</ul></details>"
     )
     partes.append(_detalle_procedencia(res))
@@ -312,7 +335,8 @@ def boton_qgis(res: ResultadoSAR) -> None:
         st.caption(str(e))
         return
     st.download_button(
-        "Exportar para QGIS", datos, file_name=nombre, mime="application/zip", key=f"qgis_{res.id}",
+        tr("Exportar para QGIS", "Export for QGIS"), datos, file_name=nombre, mime="application/zip", key=f"qgis_{res.id}",
         icon=":material/download:", on_click="ignore", type="tertiary",
-        help="ZIP con el GeoTIFF original (mismo SHA-256), estilo .qml, ficha (si existe), leyenda y manifiesto.",
+        help=tr("ZIP con GeoTIFF original, estilo QGIS, ficha y manifiesto.",
+                "ZIP with original GeoTIFF, QGIS styling, metadata and manifest."),
     )
