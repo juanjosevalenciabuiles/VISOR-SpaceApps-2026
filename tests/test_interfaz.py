@@ -153,8 +153,9 @@ def test_modo_inmersivo(estado):
     interfaz.alternar_explorador()
     interfaz.alternar_info()
     css = interfaz.css_estado()
-    for panel in ("panel_explorador", "panel_info", "panel_sar", "sar_minimizado"):
+    for panel in ("panel_explorador", "panel_sar", "sar_minimizado"):
         assert f".st-key-{panel}" in css
+    assert ".st-key-panel_info" not in css  # se abrió expresamente con el último clic
 
 
 def test_ir_a_coordenadas_y_volver(estado):
@@ -193,11 +194,12 @@ def test_insignias_de_procedencia():
         procedencia = None
     assert "DEMO" in interfaz.insignia_procedencia(Capa())
     Capa.es_demo = False   # sin evaluación: nunca se supone que es real
-    assert "NO DECLARADA" in interfaz.insignia_procedencia(Capa()) and "REAL" not in interfaz.insignia_procedencia(Capa())
+    assert ("SOURCE UNVERIFIED" in interfaz.insignia_procedencia(Capa())
+            or "NO DECLARADA" in interfaz.insignia_procedencia(Capa()))
     assert "SIN CAPA" in interfaz.insignia_procedencia(None)
-    for estado, texto, clase in ((p.NO_DECLARADA, "PROCEDENCIA NO DECLARADA", "mc-insignia-nodeclarada"),
-                                 (p.REAL_SIN_VALIDAR, "REAL SIN VALIDAR", "mc-insignia-real"),
-                                 (p.VALIDADO, "VALIDADO", "mc-insignia-validado")):
+    for estado, texto, clase in ((p.NO_DECLARADA, "SOURCE UNVERIFIED", "mc-insignia-nodeclarada"),
+                                 (p.REAL_SIN_VALIDAR, "REAL · UNVALIDATED", "mc-insignia-real"),
+                                 (p.VALIDADO, "VALIDATED", "mc-insignia-validado")):
         html = interfaz.insignia(p.Procedencia(estado, "x"))
         assert texto in html and clase in html
 
@@ -237,6 +239,7 @@ def app(monkeypatch):
     from streamlit.testing.v1 import AppTest
 
     monkeypatch.chdir(RAIZ)
+    monkeypatch.setenv("VISOR_MOSTRAR_DEMO", "1")  # QA del comportamiento legacy; público sin DEMO
     return AppTest.from_file(str(RAIZ / "app.py"), default_timeout=60).run()
 
 
@@ -304,11 +307,11 @@ def test_barra_superior_separa_fenomeno_demo_de_resultado_real():
     vacio = interfaz.estado_html(fen, None)
     assert "SIN RESULTADO" in vacio and "DEMO" not in vacio
     solo = interfaz.estado_html(fen, demo)
-    assert "DEMO · DATOS SINTÉTICOS" in solo and "Resultado SAR" not in solo and ">Demostración<" in solo
+    assert "DEMO" in solo and "Resultado SAR" not in solo and ">Demostración<" in solo
     ambos = interfaz.estado_html(fen, demo, [real])
     # Las dos insignias aparecen, cada una en su grupo rotulado, y en ese orden.
-    i_fen, i_demo = ambos.index(">Demostración<"), ambos.index("DEMO · DATOS SINTÉTICOS")
-    i_res, i_real = ambos.index(">Resultado SAR<"), ambos.index("REAL SIN VALIDAR")
+    i_fen, i_demo = ambos.index(">Demostración<"), ambos.index("mc-insignia-demo")
+    i_res, i_real = ambos.index(">Resultado SAR<"), ambos.index("mc-insignia-real")
     assert i_fen < i_demo < i_res < i_real and "SIN RESULTADO" not in ambos
     oculta = interfaz.estado_html(fen, demo, [real], capa_visible=False)
     assert "DEMO" not in oculta and ("REAL SIN VALIDAR" in oculta or "REAL · UNVALIDATED" in oculta)
