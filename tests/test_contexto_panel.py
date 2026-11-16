@@ -742,3 +742,70 @@ def test_mapa_protege_contra_marcador_historico_fuera_de_aoi(monkeypatch):
         for grupo in herramientas_sar.grupos_mapa()
         for child in grupo._children.values()
     )
+
+
+def test_cambiar_zona_reemplaza_centro_anterior_y_no_recentrar_en_cada_rerun(monkeypatch):
+    """Búsqueda Quibdó -> AOI Murindó: actualizar nunca vuelve a Quibdó."""
+    from components import flujo, mapa
+
+    vieja = (-76.75, 5.65, -76.62, 5.74)
+    nueva = (-76.57, 6.94, -76.37, 7.13)
+    estado = {
+        "zona": {"limites": vieja, "origen": "búsqueda"},
+        "lugar": {"etiqueta": "Quibdó", "latitud": 5.69, "longitud": -76.66},
+        "lugar_texto": "Quibdó", "ui_info": False,
+        "vista": {"centro": [5.69, -76.66], "zoom": 12, "n": 9},
+        "mapa_encuadre_usuario": {"centro": [5.69, -76.66], "zoom": 12},
+        "mapa_ultimo_destino": 9,
+        "mapa_limites": vieja,
+    }
+    monkeypatch.setattr(flujo.st, "session_state", estado)
+    id_viejo = mapa._identificador_vista_zona(estado["zona"])
+
+    flujo.confirmar_zona(nueva, "rectángulo dibujado")
+    assert estado["lugar"] is None
+    assert estado["vista"]["centro"] == [
+        (nueva[1] + nueva[3]) / 2,
+        (nueva[0] + nueva[2]) / 2,
+    ]
+    assert estado["vista"]["n"] == 10
+    assert "mapa_encuadre_usuario" not in estado
+    assert "mapa_ultimo_destino" not in estado
+    assert "mapa_limites" not in estado
+    id_nuevo = mapa._identificador_vista_zona(estado["zona"])
+    assert id_viejo != id_nuevo
+
+    destino, zoom = mapa._centro_y_zoom_guardados(estado["vista"])
+    assert abs(destino[0] - (nueva[1] + nueva[3]) / 2) < .00001
+    assert abs(destino[1] - (nueva[0] + nueva[2]) / 2) < .00001
+    assert zoom >= 3
+    assert estado["mapa_ultimo_destino"] == 10
+
+    # Un rerun por capas o información NO vuelve a emitir la navegación antigua.
+    vista_estable = dict(estado["vista"])
+    flujo.confirmar_zona(nueva, "misma zona")
+    assert estado["vista"] == vista_estable
+    assert mapa._centro_y_zoom_guardados(estado["vista"]) == (
+        estado["mapa_encuadre_usuario"]["centro"],
+        estado["mapa_encuadre_usuario"]["zoom"],
+    )
+
+
+def test_recuerdo_navegador_mapa_se_separa_por_cada_aoi():
+    """El iframe no puede aplicar el viewport guardado de otra ciudad."""
+    import folium
+    from components import mapa
+
+    quibdo = {"limites": (-76.75, 5.65, -76.62, 5.74)}
+    murindo = {"limites": (-76.57, 6.94, -76.37, 7.13)}
+    a = mapa._identificador_vista_zona(quibdo)
+    b = mapa._identificador_vista_zona(murindo)
+    assert a != b and mapa._identificador_vista_zona(dict(murindo)) == b
+    assert mapa._identificador_vista_zona(None) == "sin_zona"
+    # Verificar JavaScript generado: no usar más la clave global del viejo mapa.
+    m = folium.Map(location=[6, -76], zoom_start=8)
+    mapa.RecordarVistaNavegador(b).add_to(m)
+    html = m.get_root().render()
+    assert f"visor-mapa-vista:{b}" in html
+    assert f"visor-mapa-vista:{a}" not in html
+    assert "var clave = " in html and "sessionStorage.getItem(clave)" in html
