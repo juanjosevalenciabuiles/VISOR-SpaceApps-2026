@@ -158,7 +158,8 @@ def test_recomendaciones_fluviales_un_click_crea_zona_y_muestra_info(abrir):
     p.clic("recom_chigorodo")
     p.esperar_mapa()
     zoom, lat, lon = p.vista()
-    assert abs(lat - 7.675) < 0.02 and abs(lon + 76.67) < 0.02
+    # Rectángulo mayor de la captura Turbo/Chigorodó; no el antiguo preset urbano.
+    assert abs(lat - 7.622) < 0.02 and abs(lon + 76.7365) < 0.02
     assert p.visible("panel_info") and "Chigorodó" in p.texto("panel_info")
     assert p.page.locator("#zona-confirmada").count() == 1
     assert capas_imagen(p) == [], "un preset no lanza SAR"
