@@ -14,7 +14,8 @@ import streamlit as st
 from components.panel_info import insignia
 from utils.combinacion_sar import umbrales_por_polarizacion
 from utils.diferencia_db import RANGO_DB, TICKS, UMBRAL_TRANSPARENCIA_VISUAL_DB, leyenda_css
-from utils import qgis
+from utils import leyenda_sar, qgis
+from utils.i18n import idioma, tr
 from utils.resultados import ResultadoSAR, _firma
 
 NO_DECLARADO = "No declarado en el archivo"
@@ -226,6 +227,31 @@ def _detalle_procedencia(res: ResultadoSAR) -> str:
                 filas.append(_fila(clave.capitalize(), tags[clave], "etiqueta del GeoTIFF"))
     return ('<details class="mc-detalles"><summary>Procedencia y archivo</summary>'
             + "".join(filas) + "</details>")
+
+
+
+def leyenda_rapida_html(res: ResultadoSAR) -> str:
+    """Guía de colores breve junto al GeoTIFF activo; depende de SU perfil.
+
+    Naranja NO representa una inundación pequeña; en coincidencia VV/VH es
+    disminución solo en VH, mientras que en ΔdB es señal en aumento.
+    """
+    if not res.dibujable or res.perfil is None:
+        return ""
+    entradas = leyenda_sar.entradas(res.perfil.clave, idioma())
+    if not entradas:
+        return ""
+    filas = []
+    for color, mensaje in entradas:
+        muestra = ('background:repeating-linear-gradient(45deg,#657080 0 3px,'
+                   'transparent 3px 6px);border:1px solid #8795aa' if color == "transparent"
+                   else f"background:{color};border:1px solid rgba(255,255,255,.35)")
+        filas.append(f'<div class="visor-color-fila"><span class="visor-color-muestra" '
+                     f'style="{muestra}"></span><span>{escape(mensaje)}</span></div>')
+    titulo = tr("¿Qué significa cada color?", "What do the colors mean?")
+    nota = leyenda_sar.aviso(idioma())
+    return (f'<div class="visor-color-resumen" role="note"><strong>{escape(titulo)}</strong>'
+            + "".join(filas) + f'<small>{escape(nota)}</small></div>')
 
 
 def leyenda_html(res: ResultadoSAR) -> str:
