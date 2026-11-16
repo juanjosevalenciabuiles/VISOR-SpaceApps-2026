@@ -32,8 +32,11 @@ COLECCIONES_AUTORIZADAS = {
 }
 FRECUENCIA = "A"
 MAX_ARCHIVOS = 4
-MAX_TOTAL_BYTES = 512 * 1024**2
-MAX_UN_ARCHIVO = 256 * 1024**2
+# Límite estricto, nunca dependiente del tamaño anunciado por NASA.
+# V9 permite hasta 1 GiB por par, y hasta 512 MiB por capa. Cada archivo
+# se recibe en bloques de 2 MiB y se verifica antes de publicarlo.
+MAX_TOTAL_BYTES = 1024 * 1024**2
+MAX_UN_ARCHIVO = 512 * 1024**2
 BLOQUE = 2 * 1024**2
 PLAZO_S = 540
 INTERVALO_S = 5
