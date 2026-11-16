@@ -50,6 +50,10 @@ def inicializar_estado() -> None:
     flujo.inicializar()
     if st.session_state["ui_sar"] not in ESTADOS_SAR:
         st.session_state["ui_sar"] = "cerrado"
+    # Migrar una sola vez pestañas antiguas: no abrir contexto redundante al volver.
+    if not st.session_state.get("visor_ux_compacto_migrado"):
+        st.session_state["ui_info"] = False
+        st.session_state["visor_ux_compacto_migrado"] = True
 
 
 # ---------------------------------------------------------------------------
@@ -187,15 +191,15 @@ def estado_html(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple = (
             f"{insignia_procedencia(capa)}</span>")
     if activos:
         res = "".join(
-            f'<span class="mc-chip mc-chip-res">{escape(r.nombre)}</span>'
-            f'<span class="mc-insignia mc-insignia-origen">{flujo.etiqueta_origen()}</span>'
+            f'<span class="mc-chip mc-chip-res">{escape(ui_resultados.nombre_visible(r.perfil))}</span>'
+            f'<span class="mc-insignia mc-insignia-origen">{tr(flujo.etiqueta_origen(), "HISTORICAL" if flujo.es_historico() else "CURRENT ANALYSIS")}</span>'
             f"{insignia(r.capa.procedencia)}" for r in list(activos)[:1])
         grupos.append('<span class="mc-grupo" title="Resultado en el mapa"><span class="mc-grupo-rot">Resultado SAR'
                       f"</span>{res}</span>")
     if not grupos:
         grupos.append('<span class="mc-grupo" title="No hay ningún resultado en el mapa">'
-                      '<span class="mc-insignia mc-insignia-tenue">SIN RESULTADO</span>'
-                      '<span class="mc-grupo-nota">Busca un lugar, define la zona y analiza</span></span>')
+                      f'<span class="mc-insignia mc-insignia-tenue">{tr("SIN RESULTADO", "NO RESULT")}</span>'
+                      f'<span class="mc-grupo-nota">{tr("Busca un lugar, define la zona y analiza", "Search for a place, select an area and analyze")}</span></span>')
     return '<div class="mc-estado">' + '<span class="mc-separador"></span>'.join(grupos) + "</div>"
 
 
@@ -204,7 +208,7 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple 
     with st.container(key="barra_superior", horizontal=True, vertical_alignment="center", gap="small"):
         sub = ('<span class="mc-marca-sub mc-insignia-pais" id="insignia-colombia" title="En esta versión solo se '
                'explora y analiza el territorio colombiano (continental e insular).">'
-               f'<span class="mc-insignia-larga">{escape(alcance_geografico.INSIGNIA)}</span>'
+               f'<span class="mc-insignia-larga">{escape(tr(alcance_geografico.INSIGNIA, "COLOMBIA · STUDY AREA ENABLED"))}</span>'
                '<span class="mc-insignia-corta">COLOMBIA</span></span>' if alcance_geografico.restringido()
                else '<span class="mc-marca-sub">Mission Control · Earth Explorer</span>')
         st.markdown('<div class="mc-marca"><span class="mc-marca-linea">'
@@ -223,9 +227,9 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple 
                     unsafe_allow_html=True, width="content")
         st.markdown(estado_html(fenomeno, capa, activos, capa_visible), unsafe_allow_html=True, width="content")
         st.space("stretch")
-        st.button(tr("Explorador", "Explorer"), key="btn_explorador", help="Explorador: buscar lugar, resultado en el mapa, historial y mapa base", icon=":material/layers:", on_click=alternar_explorador,
+        st.button(tr("Explorador", "Explorer"), key="btn_explorador", help=tr("Explorador: búsqueda e historial", "Search and SAR history"), icon=":material/layers:", on_click=alternar_explorador,
                   type="primary" if st.session_state["ui_explorador"] else "secondary")
-        st.button(tr("Información", "Information"), key="btn_info", help="Información científica de las capas activas", icon=":material/info:", on_click=alternar_info,
+        st.button(tr("Información", "Information"), key="btn_info", help=tr("Información científica de las capas activas", "Scientific details of active layers"), icon=":material/info:", on_click=alternar_info,
                   type="primary" if st.session_state["ui_info"] else "secondary")
         if activos:
             st.button(tr("Nuevo análisis", "New analysis"), key="btn_nuevo_analisis",
@@ -233,7 +237,7 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple 
                       icon=":material/add_location_alt:",
                       on_click=v9_experiencia._nuevo_analisis, args=(True,),
                       type="primary")
-        st.button(tr("Herramientas SAR", "SAR tools"), key="btn_sar", help="Herramientas SAR: área, escenas, análisis y resultados", icon=":material/satellite_alt:", on_click=abrir_sar,
+        st.button(tr("Herramientas SAR", "SAR tools"), key="btn_sar", help=tr("Área, escenas y análisis SAR", "SAR area, scenes and analysis"), icon=":material/satellite_alt:", on_click=abrir_sar,
                   type="primary" if st.session_state["ui_sar"] == "abierto" else "secondary")
         if st.button(
             tr("Laboratorio IA", "AI Laboratory"), key="btn_laboratorio_ia", icon=":material/science:",
