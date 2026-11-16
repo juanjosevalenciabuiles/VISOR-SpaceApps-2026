@@ -73,13 +73,24 @@ def grupos_mapa() -> list[folium.FeatureGroup]:
     grupo = folium.FeatureGroup(name="Recorrido · lugar, zona y huellas de entrada")
     hay = False
     lugar = st.session_state.get("lugar")
+    zona = st.session_state.get("zona")
+    # Seguridad visual adicional: una ciudad buscada anteriormente no debe
+    # aparecer marcada como punto principal de una AOI diferente, aunque una
+    # sesión heredada conserve por error la antigua referencia.
+    if lugar and zona:
+        try:
+            o, sur, e, n = zona["limites"]
+            lon, lat = float(lugar["longitud"]), float(lugar["latitud"])
+            if not (o <= lon <= e and sur <= lat <= n):
+                lugar = None
+        except (KeyError, ValueError, TypeError):
+            lugar = None
     if lugar:
         folium.CircleMarker([lugar["latitud"], lugar["longitud"]], radius=7, color="#ffffff", weight=2,
                             fill=True, fill_color="#0a84ff", fill_opacity=0.9,
                             tooltip=f"{lugar['etiqueta']} " + tr("(lugar buscado; no es un resultado)",
                                                             "(located place; not an analysis result)")).add_to(grupo)
         hay = True
-    zona = st.session_state.get("zona")
     if zona:
         o, s, e, n = zona["limites"]
         folium.Rectangle([[s, o], [n, e]], color="#ffffff", weight=2, fill=False,
