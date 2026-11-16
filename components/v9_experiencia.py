@@ -248,12 +248,18 @@ def _pares_del_periodo(pares, inicio: date, fin: date) -> list:
             and p.despues.nombre.inicio.date() > fin]
 
 
-def _compatible(job: dict | None, zona, inicio: date, fin: date) -> bool:
+def _compatible(job: dict | None, zona, inicio: date, fin: date,
+                granules: tuple[str, str] | None = None) -> bool:
     if not isinstance(job, dict) or job.get("estado") != trabajos.APTO:
         return False
     if job.get("tipo") != "adquisicion_nisar_gcov" or job.get("procesador") != "harmony_cog":
         return False
     if tuple((job.get("aoi") or {}).get("limites") or ()) != tuple(zona):
+        return False
+    if granules is not None and (
+        (job.get("escenas") or {}).get("antes"),
+        (job.get("escenas") or {}).get("despues"),
+    ) != tuple(granules):
         return False
     try:
         pre, post = _fechas_de_preparacion(job["job_id"])
@@ -262,14 +268,15 @@ def _compatible(job: dict | None, zona, inicio: date, fin: date) -> bool:
     return _fechas_compatibles(pre, post, inicio, fin)
 
 
-def _preparacion_existente(zona, inicio: date, fin: date) -> dict | None:
+def _preparacion_existente(zona, inicio: date, fin: date,
+                           granules: tuple[str, str] | None = None) -> dict | None:
     """Recuperar el par Harmony compatible más reciente aun en otra sesión.
 
     Los trabajos se registran en disco; guardar solo el último job_id en
     session_state hacía invisible un par válido preparado previamente.
     """
     for job in trabajos.listar(200):
-        if _compatible(job, zona, inicio, fin):
+        if _compatible(job, zona, inicio, fin, granules):
             return job
     return None
 
@@ -360,6 +367,48 @@ def _solicitar(zona, inicio: date, fin: date):
         replace(resultado, pares=candidatos), max_gb=15.0, aceptar_escena_unica=False,
     )
     # Un clic autoriza recortes auténticos de hasta 384 MiB, nunca HDF5 completos.
+    from components import nisar_auto_ui
+    preparado = nisar_auto_ui._ejecutar_en_cola(
+        resultado, plan, nisar_auto_ui.METODOS[0], MAX_HARMONY_MB,
+    )
+    return preparado["job_id"]
+
+
+def _solicitar_elegido(zona, inicio: date, fin: date, estado: dict, item: dict) -> str:
+    """Procesa SOLO el par elegido y revalida geometría, presupuesto y fecha.
+
+    No vuelve a buscar automáticamente otro par. Buscar no descarga; esta
+    función solo se llama tras el clic explícito de confirmación.
+    """
+    if estado.get("firma") != _firma(zona, inicio, fin) or item["id"] != estado.get("seleccionado"):
+        raise ValueError("La selección pertenece a otro período o zona; busca de nuevo.")
+    if item.get("plan") is None:
+        raise ValueError("Este par no cumple cobertura/presupuesto; elige otro.")
+    resultado = estado["resultado"]
+    par = item["par"]
+    if (not any(p.antes.granule == par.antes.granule and
+                p.despues.granule == par.despues.granule for p in resultado.pares)
+            or not any(p.antes.granule == par.antes.granule and
+                       p.despues.granule == par.despues.granule
+                       for p in _pares_del_periodo(resultado.pares, inicio, fin))):
+        raise ValueError("El par ya no coincide con el catálogo y las fechas.")
+    revalidado = cat.evaluar_par(par.antes, par.despues, resultado.region)
+    if not isinstance(revalidado, cat.ParNISAR):
+        raise ValueError("NASA CMR no acredita la compatibilidad del par seleccionado.")
+    if not os.environ.get(nisar_descarga.VARIABLE_TOKEN, "").strip():
+        raise ValueError("Configura EARTHDATA_TOKEN en los Secrets de Replit; no lo compartas.")
+    # Volver a ejecutar la política nisar_auto, restringida al par elegido.
+    revalidado = replace(revalidado, cobertura_comun=item["cobertura"])
+    punto = _punto_local(zona) if item["cubre_punto"] else None
+    plan = nisar_auto.planear(
+        replace(resultado, pares=[revalidado]), max_gb=15.0,
+        aceptar_escena_unica=False, punto_prioritario=punto,
+    )
+    if plan.granules != (par.antes.granule, par.despues.granule):
+        raise ValueError("La selección cambió durante la verificación; no se descarga.")
+    plan = replace(plan, avisos=(*plan.avisos,
+        "Selección visual de par CMR, no verificación de píxeles; "
+        f"id={item['id']}; cobertura geodésica estimada={item['cobertura']:.4f}."))
     from components import nisar_auto_ui
     preparado = nisar_auto_ui._ejecutar_en_cola(
         resultado, plan, nisar_auto_ui.METODOS[0], MAX_HARMONY_MB,
