@@ -305,14 +305,14 @@ def test_barra_superior_separa_fenomeno_demo_de_resultado_real():
     fen = FENOMENOS["inundacion"]
     # Sin capa ni resultado lo dice; nunca muestra la DEMO por su cuenta.
     vacio = interfaz.estado_html(fen, None)
-    assert "SIN RESULTADO" in vacio and "DEMO" not in vacio
+    assert ("NO RESULT" in vacio or "SIN RESULTADO" in vacio) and "DEMO" not in vacio
     solo = interfaz.estado_html(fen, demo)
     assert "DEMO" in solo and "Resultado SAR" not in solo and ">Demostración<" in solo
     ambos = interfaz.estado_html(fen, demo, [real])
     # Las dos insignias aparecen, cada una en su grupo rotulado, y en ese orden.
     i_fen, i_demo = ambos.index(">Demostración<"), ambos.index("mc-insignia-demo")
     i_res, i_real = ambos.index(">Resultado SAR<"), ambos.index("mc-insignia-real")
-    assert i_fen < i_demo < i_res < i_real and "SIN RESULTADO" not in ambos
+    assert i_fen < i_demo < i_res < i_real and "NO RESULT" not in ambos and "SIN RESULTADO" not in ambos
     oculta = interfaz.estado_html(fen, demo, [real], capa_visible=False)
     assert "DEMO" not in oculta and ("REAL SIN VALIDAR" in oculta or "REAL · UNVALIDATED" in oculta)
     tres = interfaz.estado_html(fen, None, [real, real, real])
