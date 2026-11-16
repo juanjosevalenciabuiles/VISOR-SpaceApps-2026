@@ -827,6 +827,70 @@ def _error_cog_grande(error: str) -> bool:
     )
 
 
+def _reintentar_mismo_par_cog() -> bool:
+    """Reintenta SOLO un trabajo fallido, en la misma AOI, fechas y granules.
+
+    La solicitud ocurre tras un clic explícito y utiliza el presupuesto
+    actual de Harmony. La huella de trabajo incluye el presupuesto, así
+    que nunca vuelve a ejecutar el fallido de 384 MiB como si fuera nuevo.
+    """
+    zona = flujo.zona_confirmada()
+    estado = _coberturas_actuales()
+    inicio = st.session_state.get("v9_inicio_periodo")
+    fin = st.session_state.get("v9_fin_periodo")
+    id_anterior = st.session_state.get("v9_preparacion")
+    anterior = trabajos.leer(id_anterior) if id_anterior else None
+    elegido = (
+        nisar_coberturas.seleccion_actual(estado, estado["firma"])
+        if estado else None
+    )
+    if (zona is None or estado is None or not isinstance(inicio, date)
+            or not isinstance(fin, date) or not anterior or not elegido
+            or elegido.get("plan") is None
+            or anterior.get("estado") not in (trabajos.ERROR, trabajos.BLOQUEADO,
+                                               trabajos.CANCELADO)
+            or not _error_cog_grande(str(anterior.get("error") or ""))):
+        st.session_state["v9_error"] = tr(
+            "El trabajo o el par ya no coincide con la selección actual. Busca de nuevo.",
+            "The job or pair no longer matches your selection. Search again.",
+        )
+        return False
+    if (tuple((anterior.get("aoi") or {}).get("limites") or ()) != tuple(zona)
+            or tuple((anterior.get("escenas") or {}).get(k) for k in ("antes", "despues"))
+            != tuple(elegido["plan"].granules)):
+        st.session_state["v9_error"] = tr(
+            "Este error pertenece a otro par o zona. No se reutilizará.",
+            "This failure belongs to a different pair or area. It will not be reused.",
+        )
+        return False
+    if ((elegido["cobertura"] < .90 or not elegido["cubre_punto"]) and
+            not st.session_state.get(
+                _clave_aceptacion(estado["firma"], elegido["id"]), False
+            )):
+        st.session_state["v9_error"] = tr(
+            "Confirma primero la cobertura parcial en la lista de pares.",
+            "Confirm partial coverage in the pair list first.",
+        )
+        return False
+    try:
+        nuevo = _solicitar_elegido(zona, inicio, fin, estado, elegido)
+    except (ValueError, nisar_auto.ErrorAutoNISAR) as exc:
+        st.session_state["v9_error"] = str(exc)
+        return False
+    except Exception:
+        st.session_state["v9_error"] = tr(
+            "No se pudo iniciar el nuevo trabajo Harmony.",
+            "Could not start a new Harmony job.",
+        )
+        return False
+    for clave in ("v9_mapa_job", "v9_publicado", "v9_error", "nisar_auto_job"):
+        st.session_state.pop(clave, None)
+    st.session_state.update(
+        v9_firma=estado["firma"], v9_preparacion=nuevo, nisar_auto_job=nuevo,
+    )
+    return True
+
+
 @st.fragment(run_every=2.0)
 def _progreso_pie_sar() -> None:
     """Indicador en pie fijo: seguimiento de fases REALES sin rerun del mapa.
@@ -863,6 +927,20 @@ def _progreso_pie_sar() -> None:
             ))
             with st.expander(tr("Detalle del límite", "Size-limit details"), expanded=False):
                 st.caption(error.replace("COG_DEMASIADO_GRANDE: ", ""))
+            st.caption(tr(
+                "Ahora hay hasta 1 GiB para ambas fechas. Puedes reintentar "
+                "el mismo par sin cambiar el área.",
+                "The two dates now share a 1 GiB limit. You can retry "
+                "this same pair without changing the area.",
+            ))
+            if st.button(
+                tr("Reintentar este par (1 GiB)", "Retry this pair (1 GiB)"),
+                key="v9_reintentar_mismo_par_cog", use_container_width=True,
+                help=tr("Inicia una nueva descarga Harmony solo si pulsas aquí.",
+                        "Starts a new Harmony download only if you click."),
+            ):
+                _reintentar_mismo_par_cog()
+                st.rerun(scope="app")
             if st.button(
                 tr("Reducir zona y revisar cobertura", "Shrink area and check coverage"),
                 key="v9_reducir_zona_cog", use_container_width=True,
