@@ -353,3 +353,114 @@ def test_reduccion_manual_cog_preserva_geometria_y_resolucion():
     ancho_km, alto_km = sesion.dimensiones_km(sugerida)
     assert 0.98 < ancho_km / alto_km < 1.02
     assert ui._reducir_zona_cog(actual, (-76.68, 7.68)) == sugerida
+
+
+
+def test_sugiere_solo_fechas_de_pares_viables_cmr_sin_descargar(monkeypatch):
+    """Sin pares en período, la fecha sugerida existe y supera el límite CMR."""
+    import components.nisar_auto_ui as auto_ui
+
+    malo = _par("B1", "B2", box(-76.80, 7.55, -76.75, 7.8))
+    malo.antes.nombre.inicio = datetime(2026, 10, 28, tzinfo=timezone.utc)
+    malo.despues.nombre.inicio = datetime(2026, 11, 9, tzinfo=timezone.utc)
+    bueno = _par("G1", "G2", box(*AOI))
+    bueno.antes.nombre.inicio = datetime(2026, 11, 11, tzinfo=timezone.utc)
+    bueno.despues.nombre.inicio = datetime(2026, 11, 14, tzinfo=timezone.utc)
+    r = _resultado([malo, bueno])
+    elegido_inicio, elegido_fin = date(2026, 10, 20), date(2026, 10, 25)
+    estado = {"v9_inicio_periodo": elegido_inicio, "v9_fin_periodo": elegido_fin}
+    monkeypatch.setattr(ui.st, "session_state", estado)
+    llamadas = []
+    monkeypatch.setattr(ui.cat, "buscar",
+                        lambda *a, **kwargs: llamadas.append(kwargs) or r)
+    monkeypatch.setattr(auto_ui, "_ejecutar_en_cola",
+                        lambda *_a: pytest.fail("CMR nunca debe descargar"))
+    ui._consultar_coberturas(AOI, elegido_inicio, elegido_fin)
+    sugerencias = estado["v9_sugerencias"]
+    assert sugerencias["firma"] == ui._firma(AOI, elegido_inicio, elegido_fin)
+    assert len(sugerencias["opciones"]) == 1
+    assert sugerencias["opciones"][0]["par"] is bueno
+    assert sugerencias["opciones"][0]["plan"] is not None
+    assert sugerencias["opciones"][0]["cobertura"] > .95
+    assert all(x["madurez"] == "VALIDATED" for x in llamadas)
+    assert "v9_preparacion" not in estado and "nisar_auto_job" not in estado
+
+
+def test_recomienda_fechas_incluso_si_existen_pares_invalidos_en_el_periodo(monkeypatch):
+    """El par con cobertura insuficiente no impide proponer otro período."""
+    actual = _par("C1", "C2", box(-76.80, 7.55, -76.76, 7.8))
+    actual.antes.nombre.inicio = datetime(2026, 10, 28, tzinfo=timezone.utc)
+    actual.despues.nombre.inicio = datetime(2026, 11, 3, tzinfo=timezone.utc)
+    alterno = _par("A1", "A2", box(*AOI))
+    alterno.antes.nombre.inicio = datetime(2026, 11, 11, tzinfo=timezone.utc)
+    alterno.despues.nombre.inicio = datetime(2026, 11, 14, tzinfo=timezone.utc)
+    r = _resultado([actual, alterno])
+    estado = {}
+    monkeypatch.setattr(ui.st, "session_state", estado)
+    monkeypatch.setattr(ui.cat, "buscar", lambda *a, **kw: r)
+    ui._consultar_coberturas(AOI, date(2026, 10, 26), date(2026, 11, 5))
+    assert len(estado["v9_coberturas"]["opciones"]) == 1
+    assert estado["v9_coberturas"]["opciones"][0]["plan"] is None
+    recomendaciones = estado["v9_sugerencias"]["opciones"]
+    assert len(recomendaciones) == 1
+    assert recomendaciones[0]["par"] is alterno
+    assert recomendaciones[0]["plan"] is not None
+
+
+def test_no_inventa_fechas_si_ningun_par_alcanza_cobertura_minima(monkeypatch):
+    actual = _par("M1", "M2", box(-76.80, 7.55, -76.78, 7.8))
+    r = _resultado([actual])
+    estado = {}
+    monkeypatch.setattr(ui.st, "session_state", estado)
+    monkeypatch.setattr(ui.cat, "buscar", lambda *a, **kw: r)
+    ui._consultar_coberturas(AOI, INI, FIN)
+    assert estado["v9_sugerencias"]["opciones"] == []
+    assert not any(x.get("plan") is not None for x in estado["v9_coberturas"]["opciones"])
+
+
+def test_fechas_alternativas_visibles_encima_de_analizar_y_sin_descarga(monkeypatch):
+    """La recomendación principal debe estar arriba, sin abrir Harmony."""
+    from contextlib import nullcontext
+
+    par = _par("S1", "S2", box(*AOI))
+    par.antes.nombre.inicio = datetime(2026, 11, 11, tzinfo=timezone.utc)
+    par.despues.nombre.inicio = datetime(2026, 11, 14, tzinfo=timezone.utc)
+    r = _resultado([par])
+    opciones = geo.opciones(r, [par])
+    fecha_ini, fecha_fin = date(2026, 10, 20), date(2026, 10, 25)
+    firma = ui._firma(AOI, fecha_ini, fecha_fin)
+    estado = {
+        "zona": {"limites": list(AOI)},
+        "v9_inicio_periodo": fecha_ini, "v9_fin_periodo": fecha_fin,
+        "v9_coberturas": {"firma": firma, "opciones": [],
+                         "seleccionado": None},
+        "v9_sugerencias": {"firma": firma, "madurez": "VALIDATED",
+                           "opciones": opciones},
+    }
+    monkeypatch.setattr(ui.st, "session_state", estado)
+    monkeypatch.setattr(ui.st, "container", lambda **kw: nullcontext())
+    monkeypatch.setattr(ui.st, "caption", lambda *a, **kw: None)
+    monkeypatch.setattr(ui.st, "warning", lambda msg: eventos.append(("warning", msg)))
+    monkeypatch.setattr(ui.st, "expander", lambda *a, **kw: nullcontext())
+    eventos = []
+
+    def boton(label, **kwargs):
+        eventos.append(("button", kwargs["key"]))
+        return False
+
+    monkeypatch.setattr(ui.st, "button", boton)
+    ui.accion_principal()
+    assert ("button", "v9_usar_sugerencia_0") in eventos
+    assert eventos.index(("button", "v9_usar_sugerencia_0")) < (
+        eventos.index(("button", "v9_analizar"))
+    )
+    assert any("NASA CMR" in msg for tipo, msg in eventos if tipo == "warning")
+    assert "nisar_auto_job" not in estado
+    callback = next(x for x in opciones if x["plan"] is not None)
+    ui._usar_fechas_sugeridas(
+        callback["par"].antes.nombre.inicio.date(),
+        callback["par"].despues.nombre.inicio.date(),
+    )
+    assert estado["v9_inicio_periodo"] == date(2026, 11, 11)
+    assert estado["v9_fin_periodo"] == date(2026, 11, 14)
+    assert "v9_coberturas" not in estado and "v9_sugerencias" not in estado
