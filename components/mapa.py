@@ -337,6 +337,11 @@ def grupo_mapa_base(mapa: MapaBase) -> folium.FeatureGroup:
         max_zoom=mapa.max_zoom,
         max_native_zoom=mapa.max_zoom_nativo or mapa.max_zoom,
         no_wrap=True,
+        # Mantener teselas ya vistas al arrastrar, sin descargar en cada
+        # fotograma del zoom. Se conserva el proveedor/licencia original.
+        keep_buffer=4,
+        update_when_zooming=False,
+        update_when_idle=True,
         **({"class_name": mapa.clase_css} if mapa.clase_css else {}),
     ).add_to(grupo)
     return grupo
