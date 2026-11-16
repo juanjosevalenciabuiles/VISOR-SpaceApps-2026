@@ -205,6 +205,63 @@ RECOMENDACIONES_AOI = {
 }
 
 
+def _ampliar_area_recomendada(limites) -> tuple[float, float, float, float]:
+    """Amplía la AOI hasta ~87 % del máximo admitido, sin salir de Colombia.
+
+    Conserva íntegro el rectángulo de referencia, incluido el sector que
+    funcionó en Chigorodó/Turbo. Prueba varias proporciones y desplazamientos
+    hacia el interior: una ampliación centrada puede cruzar costas/fronteras.
+    Solo se ejecuta al hacer clic en una recomendación, nunca por pan/zoom.
+    No garantiza que exista un par NISAR que cubra toda la AOI resultante.
+    """
+    import math
+
+    from utils.analisis_sar import MAX_PIXELES
+    base = sesion.validar_zona(limites)  # fallo temprano; no borrar sesión anterior
+    objetivo = int(MAX_PIXELES * 0.87)  # margen para redondeo y consumo de RAM
+    pix_base = sesion.pixeles_estimados(base)
+    if pix_base >= objetivo:
+        return base
+    o, sur, e, n = base
+    centro_x, centro_y = (o + e) / 2, (sur + n) / 2
+    ancho, alto = e - o, n - sur
+    mejor = base
+    pix_mejor = pix_base
+    max_escala = math.sqrt(objetivo / max(pix_base, 1)) * 2
+    # La AOI inicial siempre queda contenida, nunca cambia de río ni de lugar.
+    for aspecto in (0.7, 1.0, 1.42):
+        factor_x = math.sqrt(aspecto)
+        for fraccion_x in (0.2, 0.5, 0.8):
+            for fraccion_y in (0.2, 0.5, 0.8):
+                def candidato(escala):
+                    w = ancho * escala * factor_x
+                    h = alto * escala / factor_x
+                    return (
+                        round(min(o, centro_x - fraccion_x * w), 5),
+                        round(min(sur, centro_y - fraccion_y * h), 5),
+                        round(max(e, centro_x + (1 - fraccion_x) * w), 5),
+                        round(max(n, centro_y + (1 - fraccion_y) * h), 5),
+                    )
+
+                bajo, alto_escala = 1.0, max_escala
+                for _ in range(13):
+                    medio = (bajo + alto_escala) / 2
+                    prueba = candidato(medio)
+                    if sesion.pixeles_estimados(prueba) > objetivo:
+                        alto_escala = medio
+                        continue
+                    try:
+                        valido = sesion.validar_zona(prueba)
+                    except sesion.ErrorZona:
+                        alto_escala = medio
+                        continue
+                    bajo = medio
+                    pix = sesion.pixeles_estimados(valido)
+                    if pix > pix_mejor:
+                        mejor, pix_mejor = valido, pix
+    return mejor
+
+
 def _seleccionar_recomendacion(clave: str, centrar) -> None:
     """Un clic confirma la AOI, la encuadra y muestra su ficha; NUNCA inicia SAR.
 
@@ -213,7 +270,7 @@ def _seleccionar_recomendacion(clave: str, centrar) -> None:
     """
     recomendacion = RECOMENDACIONES_AOI[clave]
     try:
-        limites = sesion.validar_zona(recomendacion["limites"])
+        limites = _ampliar_area_recomendada(recomendacion["limites"])
     except sesion.ErrorZona as exc:
         st.session_state["error_recomendacion"] = str(exc)
         return
@@ -239,6 +296,7 @@ def _seleccionar_recomendacion(clave: str, centrar) -> None:
     }
     flujo.confirmar_zona(limites, tr("zona fluvial sugerida", "suggested riverside area"))
     st.session_state["recomendacion_aoi_actual"] = clave
+    st.session_state["recomendacion_aoi_limites"] = limites
     st.session_state["error_recomendacion"] = None
     # Un clic deja la AOI seleccionada y abre SAR Tools, sin consultar NASA
     # ni lanzar Harmony. Al cerrar SAR se vuelve al Explorador.
@@ -253,7 +311,7 @@ def _seleccionar_recomendacion(clave: str, centrar) -> None:
 def _boton_zona_recomendada(clave: str, recomendacion: dict, centrar) -> None:
     """Mismo comportamiento para todas las AOI: seleccionar y abrir SAR, sin descargar."""
     seleccionada = st.session_state.get("recomendacion_aoi_actual") == clave and (
-        flujo.zona_confirmada() == recomendacion["limites"])
+        flujo.zona_confirmada() == st.session_state.get("recomendacion_aoi_limites"))
     st.button(
         recomendacion["nombre_es"] if idioma() == "es" else recomendacion["nombre_en"],
         key=f"recom_{clave}", icon=":material/water_drop:",
@@ -271,12 +329,10 @@ def recomendaciones_analisis(centrar) -> None:
         unsafe_allow_html=True,
     )
     st.caption(tr(
-        "Cerca de los ríos es útil explorar posibles cambios asociados al agua. "
-        "Elige una zona para abrir SAR y comprobar después cobertura y fechas NISAR. "
-        "No son inundaciones confirmadas.",
-        "Riverside areas are useful starting points for exploring water-related "
-        "changes. Select an area to open SAR, then check NISAR coverage and dates. "
-        "These are not confirmed floods.",
+        "Áreas fluviales amplias, ajustadas al máximo seguro del motor. "
+        "Pulsa una zona y comprueba después la cobertura real de NISAR.",
+        "Larger riverside areas, within the analysis engine's safe size limit. "
+        "Choose one, then check actual NISAR coverage.",
     ))
     principales = ("chigorodo", "choco_atrato")
     for clave in principales:
