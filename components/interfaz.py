@@ -325,15 +325,9 @@ def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None,
                            else tr("RESULTADO ACTUAL", "CURRENT RESULT"))
                 st.markdown(ui_resultados.ficha_html(res), unsafe_allow_html=True)
                 ui_resultados.boton_qgis(res)
-        elif not demo and st.session_state.get("zona"):
-            # Contexto científico disponible, pero plegado: no invade el mapa
-            # ni repite automáticamente la zona en un panel abierto.
-            with st.expander(tr("Contexto del territorio", "Area context"), expanded=False):
-                contexto_zona.render(activos, {"analizar": abrir_sar,
-                                              "centrar": centrar_en, "cambiar": cambiar_zona})
         elif not demo:
-            st.caption(tr("Selecciona una zona y analiza para ver los detalles.",
-                          "Choose an area and run an analysis to see details."))
+            st.caption(tr("Ejecuta un análisis para consultar sus fechas y procedencia.",
+                          "Run an analysis to inspect its dates and data provenance."))
         if demo:
             # Solo habilitado cuando VISOR_MOSTRAR_DEMO=1 en un entorno QA.
             st.caption(tr("CAPA SINTÉTICA", "SYNTHETIC LAYER"))
