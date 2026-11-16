@@ -260,16 +260,17 @@ def _mostrar_sugerencias(firma) -> None:
         return
     pares = estado.get("pares") or []
     if not pares:
-        st.info("NASA CMR no encontró pares comparables cercanos para esta zona y "
-                "madurez. Prueba una AOI diferente o fechas más amplias.")
+        st.info(tr("NASA CMR no encontró pares comparables. Prueba otra zona o fechas.",
+                   "NASA CMR found no comparable pairs. Try another area or date range."))
         return
-    st.markdown("**Fechas NISAR más cercanas disponibles en el catálogo**")
-    st.caption("Recomendaciones basadas en huellas y metadatos reales de NASA; "
-               "la cobertura de píxeles y máscaras todavía debe verificarse.")
+    st.markdown(tr("**Fechas NISAR más cercanas disponibles**",
+                   "**Closest available NISAR acquisition dates**"))
+    st.caption(tr("Sugerencias basadas en metadatos NASA; verificar cobertura y QA.",
+                  "Suggestions based on NASA metadata; pixel coverage and QA must be verified."))
     for i, par in enumerate(pares):
         a, b = par.antes.nombre.inicio.date(), par.despues.nombre.inicio.date()
         st.button(
-            f"Usar {a:%d/%m/%Y} → {b:%d/%m/%Y} · {estado['madurez']}",
+            f"{tr('Usar', 'Use')} {a:%Y-%m-%d} → {b:%Y-%m-%d} · {estado['madurez']}",
             key=f"v9_usar_sugerencia_{i}",
             on_click=_usar_fechas_sugeridas,
             args=(a, b),
@@ -294,9 +295,12 @@ def _mostrar_progreso(trabajo: dict, fase: str) -> None:
         "En cola para iniciar" if trabajo.get("estado") in trabajos.ACTIVOS else
         "Etapas completadas" if trabajo.get("estado") == trabajos.APTO else
         "Trabajo detenido")
-    st.progress(min(100, max(0, porcentaje)), text=f"{porcentaje}% de etapas · {detalle}")
-    st.caption("El porcentaje indica fases terminadas, no el tiempo restante. "
-               f"Estado del trabajo: {trabajo['estado']}.")
+    st.progress(min(100, max(0, porcentaje)),
+                text=f"{porcentaje}% {tr('de etapas', 'of steps')} · "
+                     f"{tr('procesando datos SAR', 'processing SAR data')}")
+    st.caption(tr("El porcentaje indica etapas, no tiempo restante.",
+                  "Progress is based on completed steps, not remaining time.") +
+               f" · {tr('Estado', 'Status')}: {trabajo['estado']}")
 
 
 @st.fragment(run_every=2.0)
@@ -308,20 +312,21 @@ def _seguimiento(firma):
         return
     preparacion = trabajos.leer(prep_id)
     if preparacion is None:
-        st.warning("No se pudo recuperar el trabajo NISAR de esta sesión.")
+        st.warning(tr("No se pudo recuperar el trabajo NISAR.", "NISAR job could not be recovered."))
         return
     if preparacion["estado"] in trabajos.ACTIVOS:
-        st.info("Preparando observaciones NISAR reales…")
+        st.info(tr("Preparando observaciones NISAR reales…", "Preparing real NISAR observations…"))
         _mostrar_progreso(preparacion, "preparacion")
         return
     if preparacion["estado"] != trabajos.APTO:
-        st.warning("La preparación NISAR no terminó: " +
+        st.warning(tr("La preparación NISAR falló", "NISAR preparation failed") + ": " +
                    str(preparacion.get("error") or preparacion["estado"]))
         return
     zona = flujo.zona_confirmada()
     inicio, fin = date.fromisoformat(firma[1]), date.fromisoformat(firma[2])
     if not zona or tuple(zona) != firma[0] or not _compatible(preparacion, zona, inicio, fin):
-        st.warning("Los COG preparados no corresponden a este AOI y periodo; se evita generar un mapa incorrecto.")
+        st.warning(tr("Los COG no coinciden con la zona y fechas activas; no se publica el mapa.",
+                          "Prepared COGs do not match the current AOI and dates; no map is published."))
         return
     mapa_job = st.session_state.get("v9_mapa_job")
     if not mapa_job:
@@ -329,36 +334,40 @@ def _seguimiento(firma):
             mapa_job = iniciar(preparacion)["job_id"]
             st.session_state["v9_mapa_job"] = mapa_job
         except (ValueError, OSError, QAInsuficiente) as exc:
-            st.warning("No se pudo iniciar el cálculo de cambio SAR: " + str(exc))
+            st.warning(tr("No se pudo iniciar el análisis", "Could not start analysis") + ": " + str(exc))
             return
     cambio = trabajos.leer(mapa_job)
     if not cambio:
-        st.warning("El trabajo de comparación todavía no está disponible.")
+        st.warning(tr("El trabajo de comparación no está disponible.", "Change analysis job is unavailable."))
         return
     if cambio["estado"] in trabajos.ACTIVOS:
-        st.info("Calculando el cambio SAR real de las dos fechas…")
+        st.info(tr("Calculando el cambio SAR de ambas fechas…", "Calculating two-date SAR change…"))
         _mostrar_progreso(cambio, "calculo")
         return
     if cambio["estado"] != trabajos.APTO:
-        st.warning("No se pudo construir el mapa de cambios: " +
+        st.warning(tr("No se pudo construir el mapa", "Could not generate map") + ": " +
                    str(cambio.get("error") or cambio["estado"]))
-        st.caption("Sin datos válidos o cuadrículas compatibles no se publica ninguna capa.")
-        if st.button("Reintentar el cálculo", key="v9_reintentar"):
+        st.caption(tr("Sin píxeles válidos y cuadrículas compatibles no se publica nada.",
+                      "No layer is published without valid pixels and aligned grids."))
+        if st.button(tr("Reintentar el cálculo", "Retry calculation"), key="v9_reintentar"):
             st.session_state["v9_mapa_job"] = None
             st.rerun(scope="app")
         return
     ruta = DATA_DIR / "analisis" / str(cambio.get("principal") or "")
     if not ruta.is_file():
-        st.warning("El análisis terminó, pero su GeoTIFF no está disponible.")
+        st.warning(tr("El GeoTIFF del análisis no está disponible.", "Analysis GeoTIFF is unavailable."))
         return
     res = leer_resultado(ruta)
     if not res.dibujable or not res.capa or not res.capa.procedencia.es_real:
-        st.warning("El mapa todavía no supera los controles de procedencia y QA.")
+        st.warning(tr("El mapa no supera los controles de procedencia y QA.",
+                          "The map did not pass provenance and QA checks."))
         return
     _mostrar_progreso(cambio, "calculo")
-    st.success("Mapa de cambio NISAR preparado. Son diferencias de señal, no inundaciones confirmadas.")
-    st.caption("Fuente de las tomas: " + str((leer_preparacion(prep_id).get("madurez") or "VALIDATED"))
-               + " · fecha real y procedencia disponibles en la ficha científica.")
+    st.success(tr("Cambio NISAR preparado: señales, no inundaciones confirmadas.",
+                  "NISAR change map ready: signal differences, not confirmed floods."))
+    st.caption(tr("Colección", "Collection") + ": " +
+               str((leer_preparacion(prep_id).get("madurez") or "VALIDATED")) +
+               tr(" · Ver fechas y procedencia en la ficha.", " · See dates and provenance in Information."))
     if st.session_state.get("v9_publicado") != mapa_job:
         flujo.activar(id_resultado(ruta), sesion.ANALISIS, cambio["run_id"])
         st.session_state["v9_publicado"] = mapa_job
@@ -433,9 +442,9 @@ def render() -> None:
                 except (ValueError, nisar_auto.ErrorAutoNISAR) as exc:
                     st.session_state["v9_error"] = str(exc)
                 except Exception:
-                    st.session_state["v9_error"] = (
-                        "No se pudo consultar el catálogo o preparar imágenes; "
-                        "revisa conectividad o disponibilidad Harmony.")
+                    st.session_state["v9_error"] = tr(
+                        "No se pudo consultar el catálogo ni preparar las imágenes. Revisa Harmony.",
+                        "Could not query the catalog or prepare imagery. Check Harmony.")
     if st.session_state.get("v9_error"):
         st.warning(st.session_state["v9_error"])
     _mostrar_sugerencias(firma)
