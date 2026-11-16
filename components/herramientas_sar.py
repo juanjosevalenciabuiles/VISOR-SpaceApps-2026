@@ -19,6 +19,7 @@ from pathlib import Path
 
 import folium
 import streamlit as st
+from utils.i18n import tr
 
 from components import flujo
 from utils import buscador_sar as bus
@@ -146,9 +147,9 @@ def paso_area(centrar) -> None:
         if (zona.get("geometria") or {}).get("type") == "Polygon":
             _nota("Dibujaste un polígono: el motor analiza su rectángulo envolvente (línea blanca).")
         with st.container(horizontal=True):
-            st.button("Centrar el mapa en la zona", key="sar_centrar", icon=":material/center_focus_strong:",
+            st.button(tr("Centrar el mapa en la zona", "Center map on area"), key="sar_centrar", icon=":material/center_focus_strong:",
                       type="tertiary", on_click=centrar, args=(zona["limites"],))
-            st.button("Cambiar zona", key="zona_quitar", icon=":material/edit_location_alt:", type="tertiary",
+            st.button(tr("Cambiar zona", "Change area"), key="zona_quitar", icon=":material/edit_location_alt:", type="tertiary",
                       on_click=flujo.quitar_zona,
                       help="Quita la zona confirmada. El resultado que dependía de ella se retira del mapa.")
     else:
@@ -156,7 +157,7 @@ def paso_area(centrar) -> None:
     if st.session_state.get("error_zona"):
         _nota(st.session_state["error_zona"], "mc-aviso")
 
-    st.caption("DIBUJAR SOBRE EL MAPA")
+    st.caption(tr("DIBUJAR SOBRE EL MAPA", "DRAW ON THE MAP"))
     _nota("Pulsa «▭ Seleccionar zona» arriba a la izquierda del mapa, junto a "
           "Herramientas SAR. Arrastra de esquina a esquina y suelta: la zona "
           "quedará confirmada automáticamente. Si vuelves a dibujar, reemplaza "
@@ -166,8 +167,8 @@ def paso_area(centrar) -> None:
     elif not st.session_state.get("mapa_dibujo"):
         _nota("Todavía no has dibujado una zona.")
 
-    st.caption("O USAR LO QUE SE VE")
-    if st.toggle("Usar el área visible del mapa", value=False, key="zona_por_vista",
+    st.caption(tr("O USAR LO QUE SE VE", "OR USE THE VISIBLE AREA"))
+    if st.toggle(tr("Usar el área visible del mapa", "Use current map extent"), value=False, key="zona_por_vista",
                  help="Toma como zona el encuadre actual. Mientras está activo, el mapa informa de su encuadre "
                       "al moverlo."):
         vista = st.session_state.get("mapa_limites")
@@ -176,18 +177,19 @@ def paso_area(centrar) -> None:
         else:
             _candidata(vista, None, "área visible del mapa", "zona_usar_vista", "Área visible")
 
-    st.caption("MUNICIPIO")
+    st.caption(tr("MUNICIPIO", "MUNICIPALITY"))
     _nota("Los límites municipales del DANE (MGN 2025) se usan para decir en qué municipio está tu zona "
           "(panel derecho), pero todavía no como zona de análisis: busca el municipio por su nombre para "
           "ubicarlo y dibuja la zona.")
 
-    with st.expander("Avanzado: coordenadas o GeoJSON", expanded=False, key="zona_avanzado"):
-        st.caption("RECUADRO EN GRADOS (WGS84)")
+    with st.expander(tr("Avanzado: coordenadas o GeoJSON", "Advanced: coordinates or GeoJSON"), expanded=False, key="zona_avanzado"):
+        st.caption(tr("RECUADRO EN GRADOS (WGS84)", "BOUNDING BOX IN DEGREES (WGS84)"))
         for clave, rotulo, ejemplo in CAMPOS_AOI:
             st.text_input(rotulo, key=clave, placeholder=f"Ej.: {ejemplo}")
-        st.button("Usar estas coordenadas", key="zona_usar_coordenadas", icon=":material/check:",
+        st.button(tr("Usar estas coordenadas", "Use these coordinates"), key="zona_usar_coordenadas", icon=":material/check:",
                   on_click=_confirmar_coordenadas)
-        archivo = st.file_uploader("GeoJSON con un polígono (WGS84, longitud-latitud)", type=["geojson", "json"],
+        archivo = st.file_uploader(tr("GeoJSON con un polígono (WGS84, longitud-latitud)",
+                          "Polygon GeoJSON (WGS84, longitude-latitude)"), type=["geojson", "json"],
                                    key="zona_geojson")
         if archivo is not None:
             try:
@@ -197,11 +199,11 @@ def paso_area(centrar) -> None:
             else:
                 _candidata(limites, geometria, f"GeoJSON {archivo.name}", "zona_usar_geojson", "GeoJSON")
 
-    st.caption("PERÍODO DE BÚSQUEDA")
+    st.caption(tr("PERÍODO DE BÚSQUEDA", "SEARCH DATE RANGE"))
     inicio, fin = flujo.periodo_por_defecto()
-    st.date_input("Desde", inicio, key="sar_inicio", format="YYYY-MM-DD")
-    st.date_input("Hasta", fin, key="sar_fin", format="YYYY-MM-DD")
-    st.date_input("Fecha de interés (opcional)", None, key="sar_evento", format="YYYY-MM-DD",
+    st.date_input(tr("Desde", "From"), inicio, key="sar_inicio", format="YYYY-MM-DD")
+    st.date_input(tr("Hasta", "To"), fin, key="sar_fin", format="YYYY-MM-DD")
+    st.date_input(tr("Fecha de interés (opcional)", "Date of interest (optional)"), None, key="sar_evento", format="YYYY-MM-DD",
                   help="Si se indica, se prefieren pares que la encierren (antes < fecha ≤ después).")
     _, error_p = periodo_actual()
     if error_p:
@@ -509,7 +511,7 @@ def paso_analisis() -> None:
     t = trabajos.leer(st.session_state["trabajo_activo"]) if st.session_state.get("trabajo_activo") else None
     if not completas:
         # Mantener visible el CTA bloqueado incluso cuando el inventario y avisos son extensos.
-        st.button("Analizar", key="sar_analizar", type="primary", icon=":material/play_arrow:", disabled=True,
+        st.button(tr("Analizar", "Analyze"), key="sar_analizar", type="primary", icon=":material/play_arrow:", disabled=True,
                   help="Bloqueado: faltan los productos RTC de este par.")
         filas = [f"<tr><td>{d.polarizacion}</td><td>{_celda_rtc(d.antes, d.tipo_antes, d.empatados_antes)}</td>"
                  f"<td>{_celda_rtc(d.despues, d.tipo_despues, d.empatados_despues)}</td></tr>" for d in disp]
@@ -708,14 +710,17 @@ def render(centrar, abrir_explorador, pasos) -> None:
     sensor = SENSORES[1] if os.environ.get("VISOR_SENSOR_DEFECTO") == "SENTINEL" else SENSORES[0]
     if sensor == SENSORES[0]:
         from components import nisar_auto_ui
-        area, gcov = st.tabs(("01 · Área", "02 · Buscar y preparar NISAR"), key="nisar_paso")
+        area, gcov = st.tabs((tr("01 · Área", "01 · Area"),
+                              tr("02 · Buscar y preparar NISAR", "02 · Find and prepare NISAR")),
+                              key="nisar_paso")
         with area:
             paso_area(centrar)
         with gcov:
             zona, error = region_actual()
             nisar_auto_ui.render(zona, error)
         return
-    st.caption("Sentinel-1: respaldo. El catálogo GRD se consulta, pero el análisis requiere RTC disponibles.")
+    st.caption(tr("Sentinel-1: respaldo. El catálogo GRD se consulta, pero el análisis requiere RTC disponibles.",
+                  "Sentinel-1 is a backup. GRD metadata can be queried, but analysis requires suitable RTC scenes."))
     area, escenas, analisis, resultados = st.tabs(list(pasos), key="sar_paso")
     with area:
         paso_area(centrar)
