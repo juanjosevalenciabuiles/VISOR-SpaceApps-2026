@@ -310,19 +310,23 @@ def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, 
             st.button(tr("Cerrar", "Close"), key="cerrar_info", icon=":material/close:", type="tertiary",
                       on_click=alternar_info)
         if activos:
-            st.button("Analizar otra zona · conservar este resultado en historial",
+            st.button(tr("Analizar otra zona · conservar este resultado en historial",
+                         "Analyze another area · keep this result in history"),
                       key="v9_nueva_zona_desde_info",
                       on_click=v9_experiencia._nuevo_analisis, args=(True,),
                       use_container_width=True)
         for res in activos:
             if flujo.es_historico():
                 abierto = str((st.session_state.get("resultado_activo") or {}).get("abierto", ""))[:16]
-                st.caption("RESULTADO HISTÓRICO")
+                st.caption(tr("RESULTADO HISTÓRICO", "HISTORICAL RESULT"))
                 st.markdown('<div class="mc-aviso" id="aviso-historico">Abierto desde el historial '
                             f'({escape(abierto.replace("T", " "))} UTC). Es un resultado guardado de un análisis '
                             "anterior: no se ejecutó un análisis nuevo.</div>", unsafe_allow_html=True)
             else:
-                st.caption("RESULTADO DE ESTE ANÁLISIS")
+                st.caption(tr("RESULTADO DE ESTE ANÁLISIS", "RESULT OF THIS ANALYSIS"))
+            # Resumen de colores al comienzo del panel, junto al GeoTIFF activo.
+            # El perfil del archivo decide el significado; jamás inferir severidad.
+            st.markdown(ui_resultados.leyenda_rapida_html(res), unsafe_allow_html=True)
             st.markdown(ui_resultados.ficha_html(res), unsafe_allow_html=True)
             ui_resultados.boton_qgis(res)
         # Contexto de la zona confirmada (sin pulsar nada); sin zona, una invitación a elegirla.
