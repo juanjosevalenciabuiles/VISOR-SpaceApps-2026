@@ -15,6 +15,7 @@ que se inserta DENTRO del marco del mapa (ESTILO_LIENZO); el marco en sí se
 fija a pantalla completa desde assets/mission_control.css.
 """
 
+import hashlib
 import json
 
 import folium
@@ -241,16 +242,24 @@ class SelectorZonaUnica(MacroElement):
         self.lang = idioma()
 
 
-class RecordarVistaNavegador(MacroElement):
-    """Conservar pan/zoom entre remontajes Leaflet sin pedir reruns a Streamlit.
+def _identificador_vista_zona(zona) -> str:
+    """Aísla la vista guardada por AOI; no heredar Quibdó al elegir Murindó."""
+    if not isinstance(zona, dict) or not zona.get("limites"):
+        return "sin_zona"
+    limites = tuple(round(float(v), 6) for v in zona["limites"])
+    return hashlib.sha256(json.dumps(limites).encode("ascii")).hexdigest()[:14]
 
-    sessionStorage dura solo esta pestaña; no guarda ni transmite geometrías SAR.
-    El centro/zoom de una navegación explícita enviado por Python tiene prioridad.
+
+class RecordarVistaNavegador(MacroElement):
+    """Conservar pan/zoom entre remontajes de LA MISMA AOI, sin nuevos reruns.
+
+    El contexto del mapa en sessionStorage es independiente para cada zona;
+    una búsqueda anterior nunca domina el centro de una AOI distinta.
     """
 
     _template = Template("""{% macro script(this, kwargs) %}
 (function(m) {
-  var clave = 'visor-mapa-vista';
+  var clave = {{ this.clave_storage|tojson }};
   try {
     var guardada = JSON.parse(window.sessionStorage.getItem(clave) || 'null');
     if (guardada && Number.isFinite(guardada.lat) && Number.isFinite(guardada.lon) &&
@@ -275,8 +284,13 @@ class RecordarVistaNavegador(MacroElement):
 })({{ this._parent.get_name() }});
 {% endmacro %}""")
 
+    def __init__(self, identificador_zona: str = "sin_zona") -> None:
+        super().__init__()
+        self._name = "RecordarVistaNavegador"
+        self.clave_storage = f"visor-mapa-vista:{identificador_zona}"
 
-def mapa_fijo() -> folium.Map:
+
+def mapa_fijo(identificador_zona: str = "sin_zona") -> folium.Map:
     """Lienzo fijo. En Modo Colombia: centrado en el país, paneo limitado a su extensión con margen,
     velo exterior y contorno nacional. En GLOBAL: Antioquia y el mundo entero."""
     centro, zoom = vista_inicio()
@@ -309,7 +323,7 @@ def mapa_fijo() -> folium.Map:
         _modo_colombia(m)
     # Vista por pestaña en el navegador: al cambiar de resultado SAR no saltar
     # al último zoom registrado antes de la optimización.
-    RecordarVistaNavegador().add_to(m)
+    RecordarVistaNavegador(identificador_zona).add_to(m)
     m.get_root().header.add_child(folium.Element(ESTILO_LIENZO), name="visor_lienzo")
     # Dibujo de la zona de análisis: solo rectángulo y polígono. Lo dibujado es un borrador;
     # no se convierte en zona hasta confirmarlo en Herramientas SAR («Usar esta zona»).
@@ -646,7 +660,13 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
     # Identidad estable del mapa para pan/zoom, nueva al elegir otro GeoTIFF.
     # Así el componente no conserva overlays anteriores al cambiar el historial.
     resultado = next(iter(sorted(c.resultados)), "none")
+    identificador_zona = _identificador_vista_zona(st.session_state.get("zona"))
     clave_widget = "mapa" if resultado == "none" and idioma() == "es" else f"mapa__{resultado}__{idioma()}"
+    # Remontar Leaflet una sola vez al confirmar OTRA AOI. Evita que un
+    # dibujo antiguo o la vista guardada de otra zona gane en el iframe.
+    # La clave no cambia por pan/zoom, consulta CMR ni mensajes de progreso.
+    if identificador_zona != "sin_zona":
+        clave_widget += f"__zona_{identificador_zona}"
     # El mapa es interactivo en el navegador: un pan/zoom normal no necesita
     # ejecutar de nuevo Streamlit ni volver a serializar los overlays SAR.
     # Solo la AOI dibujada debe activar el servidor. Las herramientas que
@@ -685,7 +705,7 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
         # último encuadre enviado al servidor (que ya no recibe cada pan).
         centro, zoom = None, None
     salida = st_folium(
-        mapa_fijo(),
+        mapa_fijo(identificador_zona),
         feature_group_to_add=[*construir_capas(fenomeno, capa, c, resultados), *extras],
         height=720,                   # inicial; ESTILO_LIENZO lo lleva a pantalla completa
         use_container_width=True,
