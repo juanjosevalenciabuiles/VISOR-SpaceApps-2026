@@ -203,8 +203,14 @@ def test_insignias_de_procedencia():
 
 
 def test_ayuda_explica_etiquetas_nisar_e_ia():
-    texto = inspect.getsource(interfaz.mostrar_ayuda)
-    for frase in ("DEMO", "REAL SIN VALIDAR", "VALIDADO", "PROCEDENCIA NO DECLARADA", "NISAR", "Sentinel-1", "inteligencia artificial", "no confirma"):
+    from components import bienvenida
+    assert "bienvenida.abrir()" in inspect.getsource(interfaz.mostrar_ayuda)
+    # Los contenidos se trasladaron del diálogo de Ayuda al popup persistente,
+    # donde se presentan en ambos idiomas con búsqueda.
+    texto = "\n".join(contenido for idioma in ("es", "en")
+                      for _, contenido in bienvenida.CAPITULOS[idioma])
+    for frase in ("DEMO", "REAL SIN VALIDAR", "VALIDADO", "PROCEDENCIA NO DECLARADA",
+                  "NISAR", "Sentinel-1", "aprendizaje automático", "no confirma"):
         assert frase in texto
 
 
