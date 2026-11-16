@@ -100,3 +100,57 @@ def test_dock_no_permite_fondo_no_disponible(monkeypatch):
     monkeypatch.setattr(panel_capas.mapas_base, "predeterminado", lambda: "calles")
     panel_capas._aplicar_fondo()
     assert estado["dock_mapa_base"] == estado["mapa_base"] == "calles"
+
+
+def test_regresion_resultado_nuevo_no_es_reemplazado_por_selector_viejo(monkeypatch):
+    """Después de acabar NISAR, pan/zoom no pueden reabrir un GeoTIFF anterior."""
+    nuevo, viejo = _res("trabajo_nuevo"), _res("viejo_guardado")
+    estado = {
+        "resultado_activo": {"id": nuevo.id, "origen": sesion.ANALISIS},
+        "visor_seleccion_resultado": viejo.id,  # valor obsoleto de una versión anterior
+        "visor_capa_resultado_visible": True,
+        "res_opacidad": 0.85,
+        "visor_idioma": "en",
+    }
+    monkeypatch.setattr(panel_capas.st, "session_state", estado)
+    monkeypatch.setattr(panel_capas.st, "caption", lambda *a, **k: None)
+    monkeypatch.setattr(panel_capas.st, "toggle", lambda *a, **k: None)
+    monkeypatch.setattr(panel_capas.st, "slider", lambda *a, **k: None)
+
+    def prohibido(*a, **k):
+        raise AssertionError("No debe existir un selector que reabra historial automáticamente")
+    monkeypatch.setattr(panel_capas.st, "selectbox", prohibido)
+
+    for _ in range(5):
+        panel_capas._resultado([viejo, nuevo], nuevo)
+        assert estado["resultado_activo"]["id"] == "trabajo_nuevo"
+        assert estado["resultado_activo"]["origen"] == sesion.ANALISIS
+
+
+def test_historial_solo_se_abre_por_click_explicito(monkeypatch):
+    from components import barra_lateral, flujo, v9_experiencia
+    estado = {"resultado_activo": {"id": "nuevo", "origen": sesion.ANALISIS},
+              "zona": {"limites": (-77, 7, -76, 8)}, "lugar": "Chigorodó",
+              "ui_info": True, "visor_capa_resultado_visible": False}
+    monkeypatch.setattr(barra_lateral.st, "session_state", estado)
+    acciones = []
+    monkeypatch.setattr(v9_experiencia, "_limpiar_v9", lambda: acciones.append("limpiar_job"))
+    monkeypatch.setattr(flujo, "quitar_zona", lambda: acciones.append("quitar_aoi"))
+    monkeypatch.setattr(flujo, "activar", lambda id_, origen: acciones.append((id_, origen)))
+
+    barra_lateral._ver_historico("histórico_elegido")
+    assert acciones == ["limpiar_job", "quitar_aoi", ("histórico_elegido", sesion.HISTORICO)]
+    assert estado["visor_capa_resultado_visible"]
+    assert estado["lugar"] is None
+    assert estado["ui_info"] is False
+
+
+def test_nombre_resultado_contiene_aoi_y_fechas_sin_inventar_municipio():
+    from utils.etiquetas_resultados import nombre_resultado
+    r = _res("id")
+    etiqueta = nombre_resultado(r)
+    assert "AOI" in etiqueta and "2026-10-22" in etiqueta
+    assert "2026-11-03" in etiqueta
+    assert "Chigorodó" not in etiqueta
+    r.ficha["municipio"] = "Chigorodó"
+    assert nombre_resultado(r).startswith("Chigorodó")
