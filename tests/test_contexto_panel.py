@@ -655,3 +655,87 @@ def test_wikipedia_no_se_renderiza_en_panel_sar_ni_explorador():
     assert "contexto_zona.ficha_breve_html(" not in source.split(
         "def panel_explorador(", 1
     )[1].split("def panel_informacion(", 1)[0]
+
+
+
+def test_cambiar_aoi_olvida_ciudad_anterior_y_el_marcador_del_mapa(monkeypatch):
+    """Quibdó buscado → nueva AOI en Urabá: ni punto azul ni referencia antigua."""
+    from components import flujo, herramientas_sar, contexto_zona
+    from types import SimpleNamespace as NS
+
+    quibdo = {"etiqueta": "Quibdó, Chocó, Colombia", "latitud": 5.69,
+              "longitud": -76.66, "fuente": "local"}
+    estado = {
+        "lugar": quibdo, "lugar_texto": "Quibdó, Chocó",
+        "lugares_encontrados": {"consulta": "Quibdó"},
+        "zona": None, "ui_info": False,
+    }
+    monkeypatch.setattr(flujo.st, "session_state", estado)
+
+    def hay_punto_azul():
+        return any(
+            child.__class__.__name__ == "CircleMarker"
+            for grupo in herramientas_sar.grupos_mapa()
+            for child in grupo._children.values()
+        )
+
+    assert hay_punto_azul(), "la búsqueda inicial debe marcar su ciudad"
+    # El nuevo rectángulo se confirmó, no es un pan/zoom sobre el mapa.
+    nueva = (-76.71, 7.64, -76.63, 7.71)
+    flujo.confirmar_zona(nueva, "rectángulo dibujado en el mapa")
+    assert tuple(estado["zona"]["limites"]) == nueva
+    assert estado["lugar"] is None
+    assert estado["lugar_texto"] is None
+    assert estado["lugares_encontrados"] is None
+    assert estado["ui_info"] is True
+    assert not hay_punto_azul(), "el marcador Quibdó no puede persistir en otra zona"
+
+    local = NS(municipios=[
+        NS(nombre="Chigorodó", departamento="Antioquia", divipola="05172")
+    ])
+    monkeypatch.setattr(contexto_zona, "externo_activo", lambda: True)
+    monkeypatch.setattr(contexto_zona, "local_de", lambda _: local)
+    consultadas = []
+    monkeypatch.setattr(contexto_zona.externo, "pedir",
+                        lambda fuente, clave, consulta, **kw:
+                        consultadas.append((fuente, clave)) or
+                        {"estado": "CON_RESULTADOS", "items": []})
+    zona = contexto_zona.zona_actual()
+    assert contexto_zona.municipio_de_busqueda(zona, local, estado["lugar"]) is None
+    contexto_zona.wikipedia_zona(zona, local)
+    assert consultadas == [("wiki", "05172")], (
+        "Wikipedia debe referirse al municipio de la AOI actual"
+    )
+
+
+def test_buscador_se_conserva_si_ciudad_esta_dentro_del_area(monkeypatch):
+    """Buscar Chigorodó y dibujar allí no debe borrar la referencia útil."""
+    from components import flujo, herramientas_sar
+
+    lugar = {"etiqueta": "Chigorodó, Antioquia, Colombia",
+             "latitud": 7.67, "longitud": -76.68}
+    estado = {"lugar": lugar, "lugar_texto": "Chigorodó", "zona": None}
+    monkeypatch.setattr(flujo.st, "session_state", estado)
+    flujo.confirmar_zona((-76.71, 7.64, -76.63, 7.71), "rectángulo dibujado")
+    assert estado["lugar"] == lugar
+    assert estado["lugar_texto"] == "Chigorodó"
+    assert any(
+        child.__class__.__name__ == "CircleMarker"
+        for grupo in herramientas_sar.grupos_mapa()
+        for child in grupo._children.values()
+    )
+
+
+def test_mapa_protege_contra_marcador_historico_fuera_de_aoi(monkeypatch):
+    """Defensa adicional para sesiones previas: no pintar punto ajeno al área."""
+    from components import flujo, herramientas_sar
+
+    estado = {"lugar": {"etiqueta": "Quibdó, Chocó, Colombia",
+                       "latitud": 5.69, "longitud": -76.66},
+              "zona": {"limites": (-76.71, 7.64, -76.63, 7.71)}}
+    monkeypatch.setattr(flujo.st, "session_state", estado)
+    assert not any(
+        child.__class__.__name__ == "CircleMarker"
+        for grupo in herramientas_sar.grupos_mapa()
+        for child in grupo._children.values()
+    )
