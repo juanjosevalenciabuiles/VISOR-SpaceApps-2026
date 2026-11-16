@@ -65,8 +65,9 @@ def test_resultado_reproducible_real_sin_validar(abrir):
     for frase in ("REAL SIN VALIDAR", "VV −7,5 dB · VH −3 dB", "Sentinel-1C", "2026-09-24 → 2026-10-06",
                   "según la ficha de procedencia", "No es una inundación confirmada"):
         assert frase in info, frase
-    linea = p.texto("linea_temporal")
-    assert "2026-09-24" in linea and "2026-10-06" in linea
+    # Ya no se dibuja una línea temporal flotante; las fechas quedan en Information.
+    assert not p.visible("linea_temporal")
+    assert "2026-09-24" in info and "2026-10-06" in info
     # REAL SIN VALIDAR y DEMO no comparten color.
     colores = p.page.evaluate("""()=>[...document.querySelectorAll('.st-key-barra_superior .mc-insignia')]
         .map(e=>[e.innerText, getComputedStyle(e).backgroundColor, getComputedStyle(e).color])""")
