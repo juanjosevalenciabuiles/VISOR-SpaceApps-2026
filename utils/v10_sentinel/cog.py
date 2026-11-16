@@ -49,7 +49,7 @@ def leer_ventana_cog(url: str, bbox_wgs84: tuple[float, float, float, float],
                 raise ValueError("COG_SIN_GEOREFERENCIA")
             bounds = transform_bounds("EPSG:4326", ds.crs, *bbox_wgs84,
                                       densify_pts=21)
-            win = from_bounds(*bounds, transform=ds.transform)
+            # Una intersección parcial no demuestra cobertura del AOI: fallar cerrado.\n            left, bottom, right, top = ds.bounds\n            tolerance = max(abs(ds.res[0]), abs(ds.res[1])) * 1e-6\n            if (bounds[0] < left - tolerance or bounds[1] < bottom - tolerance\n                    or bounds[2] > right + tolerance or bounds[3] > top + tolerance):\n                raise ValueError("AOI_COBERTURA_INCOMPLETA")\n            win = from_bounds(*bounds, transform=ds.transform)
             col0 = max(0, int(np.floor(win.col_off)))
             row0 = max(0, int(np.floor(win.row_off)))
             col1 = min(ds.width, int(np.ceil(win.col_off + win.width)))
