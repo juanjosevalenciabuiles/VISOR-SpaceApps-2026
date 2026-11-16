@@ -404,17 +404,11 @@ def herramientas_sar() -> None:
             st.caption(tr("Sentinel-1 requiere RTC locales; solo diagnóstico avanzado.",
                           "Sentinel-1 requires local RTC scenes; advanced diagnostics only."))
         else:
-            st.caption(tr("Selecciona el área y las fechas para analizar NISAR. "
-                          "Esta versión no integra Sentinel-1 automático.",
-                          "Select an area and date range to analyze NISAR. "
-                          "This release does not integrate automatic Sentinel-1."))
+            # La acción principal se ve inmediatamente al abrir SAR Tools.
+            # Es el ÚNICO botón que inicia Harmony; nunca se duplica abajo.
+            v9_experiencia.accion_principal()
             v9_experiencia.render()
         herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
-        # Acción principal al final del panel: CSS la mantiene fija abajo
-        # al desplazarse entre fechas, pares, avisos y herramientas secundarias.
-        # Se renderiza UNA sola vez y no se ofrece en modo Sentinel legado.
-        if not modo_legado:
-            v9_experiencia.accion_principal()
         st.html(SUBIR_AL_CAMBIAR_DE_PASO, unsafe_allow_javascript=True)
     with st.container(key="sar_minimizado"):
         st.button(tr("Herramientas SAR · restaurar", "Restore SAR tools"), key="restaurar_sar",
