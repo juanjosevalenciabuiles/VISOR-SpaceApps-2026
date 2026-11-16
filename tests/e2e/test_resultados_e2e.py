@@ -149,3 +149,33 @@ def test_seleccionar_otro_historico_centra_y_no_reaparece_el_anterior(abrir, ser
     tercero = capas_imagen(p)
     assert len(tercero) == 1 and tercero[0]["src"] == segundo[0]["src"]
     assert p.mapa_intacto(), "Zoom desmontó el mapa o restauró la capa anterior"
+
+
+
+def test_recomendaciones_fluviales_un_click_crea_zona_y_muestra_info(abrir):
+    """Un clic selecciona/encuadra la AOI, sin activar raster ni calcular SAR."""
+    p = abrir()
+    p.clic("recom_chigorodo")
+    p.esperar_mapa()
+    zoom, lat, lon = p.vista()
+    assert abs(lat - 7.675) < 0.02 and abs(lon + 76.67) < 0.02
+    assert p.visible("panel_info") and "Chigorodó" in p.texto("panel_info")
+    assert p.page.locator("#zona-confirmada").count() == 1
+    assert capas_imagen(p) == [], "un preset no lanza SAR"
+    n = p.mapa.evaluate("""() => Object.values(map._layers).filter(
+        l => l instanceof L.Rectangle &&
+        l.getTooltip()?.getContent()?.includes('Zona de análisis confirmada')
+    ).length""")
+    assert n == 1, "el rectángulo recomendado debe verse en Leaflet"
+
+    p.clic("recom_choco_atrato")
+    p.esperar_mapa()
+    zoom, lat, lon = p.vista()
+    assert abs(lat - 5.695) < 0.02 and abs(lon + 76.66) < 0.02
+    assert p.visible("panel_info") and "Quibdó" in p.texto("panel_info")
+    assert capas_imagen(p) == []
+    n = p.mapa.evaluate("""() => Object.values(map._layers).filter(
+        l => l instanceof L.Rectangle &&
+        l.getTooltip()?.getContent()?.includes('Zona de análisis confirmada')
+    ).length""")
+    assert n == 1, "la segunda AOI sustituye la primera sin capas residuales"
