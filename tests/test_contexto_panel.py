@@ -212,8 +212,9 @@ def _texto(at):
 def test_app_sin_zona_invita_a_elegirla(monkeypatch, tmp_path):
     at = _app(monkeypatch, tmp_path)
     texto = _texto(at)
-    assert 'id="ctx-sin-zona"' in texto and "Selecciona una zona para conocer qué sucede allí" in texto
-    assert 'id="ctx-zona"' not in texto and "Cómo empezar" in texto
+    # Sin AOI no hay ficha territorial repetida sobre el mapa.
+    assert 'id="ctx-zona"' not in texto and not at.session_state["ui_info"]
+    assert "Welcome to V.I.S.O.R." in texto or "Bienvenido a V.I.S.O.R." in texto
 
 
 def test_app_al_confirmar_la_zona_aparece_el_contexto_sin_pulsar_nada(monkeypatch, tmp_path):
@@ -228,13 +229,13 @@ def test_app_al_confirmar_la_zona_aparece_el_contexto_sin_pulsar_nada(monkeypatc
     at.button(key="btn_sar").click().run()
     datos_antes = sorted(p.name for p in (RAIZ / "data").rglob("*"))
     confirmar_zona(at)
-    assert at.session_state["ui_info"] is True, "el panel derecho se abre solo"
+    assert at.session_state["ui_info"] is False, "el contexto no debe tapar el mapa al confirmar una AOI"
     texto = _texto(at)
     assert "Conozcamos esta zona" in texto and "Está en Chigorodó" in texto and "km²" in texto
     assert 'data-nivel="ALERTA NARANJA"' in texto and "subzona hidrográfica Río León" in texto
     assert "la más alta es naranja" in texto and "no publica la fecha de emisión" in texto
     assert 'data-estado="SIN_ANALISIS"' in texto and "Aún no has realizado un análisis" in texto
-    assert "no confirman lo que muestre el radar" in texto and "Cómo empezar" not in texto
+    assert "no confirman lo que muestre el radar" in texto
     assert len(llamadas) == 1
     for _ in range(3):                                # reruns: no se vuelve a consultar
         at.run()
