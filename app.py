@@ -8,7 +8,7 @@ import os
 
 import streamlit as st
 
-from components import bienvenida, capas_ambientales, estilos, flujo, interfaz, mapa, panel_capas
+from components import bienvenida, capas_ambientales, estilos, flujo, interfaz, mapa, panel_capas, v9_experiencia
 from components import herramientas_sar as herramientas
 from components import resultados as ui_resultados
 from utils import alcance_geografico, diagnostico
@@ -69,8 +69,10 @@ if controles.mostrar_capa:
 # 2. El mapa único, detrás de todo.
 with st.container(key="lienzo_mapa"):
     mapa.render(fenomeno, capa, controles, st.session_state["vista"], resultados,
-                [*herramientas.grupos_mapa(), *capas_ambientales.grupos_mapa()],
-                seguir_vista=herramientas.necesita_vista())
+                [*herramientas.grupos_mapa(), *capas_ambientales.grupos_mapa(),
+                 *v9_experiencia.grupos_mapa()],
+                seguir_vista=herramientas.necesita_vista(),
+                seleccionar_par=v9_experiencia.modo_seleccion_mapa())
 
 # Leyenda SAR siempre visible al lado del mapa (solo si hay GeoTIFF activo).
 # Fuente única: el perfil científico del archivo, no el resultado del historial.
