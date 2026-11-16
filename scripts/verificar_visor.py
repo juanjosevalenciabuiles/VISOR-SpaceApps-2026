@@ -194,7 +194,7 @@ assert len(at.error) == 0, ("st.error", [e.value for e in at.error])
 texto = " ".join(m.value for m in at.markdown)
 assert at.session_state["resultado_activo"] is None, "resultado activo al arrancar"
 assert not at.session_state.get("capa_sar", False), "DEMO encendida al arrancar"
-assert "SIN RESULTADO" in texto and "No es una inundación confirmada" not in texto, "resultado visible al arrancar"
+assert ("NO RESULT" in texto or "SIN RESULTADO" in texto) and "not confirmed flooding" not in texto and "No es una inundación confirmada" not in texto, "resultado visible al arrancar"
 claves = [b.key for b in at.button if b.key and b.key.startswith("hist_ver_")]
 for clave in claves:
     at.button(key=clave).click().run()
