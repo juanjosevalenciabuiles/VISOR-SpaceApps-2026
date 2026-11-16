@@ -410,6 +410,11 @@ def herramientas_sar() -> None:
                           "This release does not integrate automatic Sentinel-1."))
             v9_experiencia.render()
         herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
+        # Acción principal al final del panel: CSS la mantiene fija abajo
+        # al desplazarse entre fechas, pares, avisos y herramientas secundarias.
+        # Se renderiza UNA sola vez y no se ofrece en modo Sentinel legado.
+        if not modo_legado:
+            v9_experiencia.accion_principal()
         st.html(SUBIR_AL_CAMBIAR_DE_PASO, unsafe_allow_javascript=True)
     with st.container(key="sar_minimizado"):
         st.button(tr("Herramientas SAR · restaurar", "Restore SAR tools"), key="restaurar_sar",
