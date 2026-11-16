@@ -26,6 +26,7 @@ import streamlit as st
 from shapely.geometry import Point, shape
 
 from components import flujo
+from utils.i18n import tr
 from utils import contexto_ambiental as externo
 from utils import contexto_local, wikipedia_lugar, verificacion_multifuente
 
@@ -127,15 +128,7 @@ def consultas(zona: dict, inicio: date, fin: date) -> dict[str, dict]:
                           lambda: externo.consultar_ideam(geometria), sincrono=_sincrono())
     eonet = externo.pedir("eonet", f"{zona['clave']}|{desde}|{hasta}",
                           lambda: externo.consultar_eonet(geometria, desde, hasta), sincrono=_sincrono())
-    local = local_de(zona)
-    principal = municipio_de_busqueda(zona, local, st.session_state.get("lugar")) or (
-        (local.municipios or [None])[0])
-    if principal is None:
-        wiki = {"estado": "SIN_COINCIDENCIAS", "items": []}
-    else:
-        wiki = externo.pedir("wiki", principal.divipola or principal.nombre,
-                             lambda: wikipedia_lugar.consultar(principal.nombre, principal.departamento),
-                             sincrono=_sincrono())
+    wiki = wikipedia_zona(zona)
     return {"ideam": ideam, "eonet": {**eonet, "ventana": (desde, hasta)}, "wiki": wiki}
 
 
@@ -282,6 +275,20 @@ def _radar(activos: list) -> str:
             "«Analizar» en esta ficha cuando quieras comparar dos fechas.</div></div>")
 
 
+def wikipedia_zona(zona: dict, local: contexto_local.ContextoLocal | None = None) -> dict:
+    """Consulta únicamente Wikipedia para la ficha resumida y conserva el caché."""
+    if not externo_activo():
+        return {"estado": "DESACTIVADO", "items": []}
+    local = local if local is not None else local_de(zona)
+    principal = municipio_de_busqueda(zona, local, st.session_state.get("lugar")) or (
+        (local.municipios or [None])[0])
+    if principal is None:
+        return {"estado": "SIN_COINCIDENCIAS", "items": []}
+    return externo.pedir("wiki", principal.divipola or principal.nombre,
+                         lambda: wikipedia_lugar.consultar(principal.nombre, principal.departamento),
+                         sincrono=_sincrono())
+
+
 # ---------------------------------------------------------------------------
 # Ficha del lugar (estilo Google Maps): imagen, nombre, chips y acciones
 # ---------------------------------------------------------------------------
@@ -359,6 +366,53 @@ def chips(local: contexto_local.ContextoLocal, fuentes: dict[str, dict]) -> str:
             eonet["estado"], "NASA no disponible"), "mc-chip-tenue"))
     return f'<div class="mc-chips-ficha" id="ctx-chips">{"".join(c)}</div>'
 
+
+
+def ficha_breve_html(zona: dict, local: contexto_local.ContextoLocal, wiki: dict,
+                     referencia: contexto_local.Municipio | None = None) -> str:
+    """Ficha compacta: foto acreditada, lugar y resumen de Wikipedia; sin capas duplicadas."""
+    ficha = (wiki.get("items") or [None])[0] if wiki.get("estado") == "CON_RESULTADOS" else None
+    municipio = referencia or ((local.municipios or [None])[0])
+    nombre = municipio.nombre if municipio else tr("Zona seleccionada", "Selected area")
+    ubicacion = (f"{escape(municipio.departamento)}, Colombia" if municipio
+                 else tr("Colombia · zona seleccionada", "Colombia · selected area"))
+    datos = []
+    if local.area_km2 is not None:
+        datos.append(f"{local.area_km2:,.1f} km²")
+    if local.municipios:
+        n = len(local.municipios)
+        datos.append(f"{n} " + tr("municipio" if n == 1 else "municipios",
+                                  "municipality" if n == 1 else "municipalities"))
+    detalle = " · ".join(datos)
+    if ficha and ficha.get("extract"):
+        resumen = escape(wikipedia_lugar.recortar(str(ficha["extract"]), 220))
+        url = ficha.get("url")
+        enlace = (f' <a href="{escape(url)}" target="_blank" rel="noopener noreferrer">'
+                  "Wikipedia (ES)</a>" if url else "")
+        descripcion = f'<p class="mc-ficha-desc" id="ctx-descripcion">{resumen}{enlace}</p>'
+    elif wiki.get("estado") == "CONSULTANDO":
+        descripcion = f'<p class="mc-ficha-desc">{tr("Consultando Wikipedia…", "Loading Wikipedia…")}</p>'
+    else:
+        descripcion = (f'<p class="mc-ficha-desc">'
+                       f'{tr("No hay una descripción de Wikipedia comprobada para este lugar.",
+                             "No verified Wikipedia summary is available for this place.")}</p>')
+    return (f'<div class="mc-ficha mc-ficha-breve" id="ctx-ficha" data-zona="{zona["clave"]}">'
+            f'{_foto(zona, wiki)}<div class="mc-ficha-cuerpo">'
+            f'<div class="mc-ctx-titulo">{tr("Sobre esta zona", "About this area")}</div>'
+            f'<h2 class="mc-ficha-nombre">{escape(nombre)}</h2>'
+            f'<div class="mc-ficha-sub">{ubicacion}</div>{descripcion}'
+            f'<div class="visor-leyenda-nota">{escape(detalle)}</div>'
+            '</div></div>')
+
+
+@st.fragment(run_every=2.0)
+def _vigilar_wikipedia_resumen(clave: str) -> None:
+    """Actualiza la ficha cuando termina Wikipedia sin reutilizar argumentos del mapa."""
+    zona = zona_actual()
+    if zona is None or zona["clave"] != clave:
+        return
+    if wikipedia_zona(zona).get("estado") != "CONSULTANDO":
+        st.rerun(scope="app")
 
 def cabecera_html(zona: dict, local: contexto_local.ContextoLocal, fuentes: dict[str, dict],
                   referencia: contexto_local.Municipio | None = None) -> str:
