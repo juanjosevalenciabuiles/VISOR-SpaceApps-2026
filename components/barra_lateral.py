@@ -214,8 +214,11 @@ def _seleccionar_recomendacion(clave: str, centrar) -> None:
     flujo.confirmar_zona(limites, tr("zona fluvial sugerida", "suggested riverside area"))
     st.session_state["recomendacion_aoi_actual"] = clave
     st.session_state["error_recomendacion"] = None
-    st.session_state["ui_explorador"] = True
-    st.session_state["ui_sar"] = "cerrado"  # priorizar mapa + ficha Information
+    # Un clic deja la AOI seleccionada y abre SAR Tools, sin consultar NASA
+    # ni lanzar Harmony. Al cerrar SAR se vuelve al Explorador.
+    st.session_state["ui_explorador_previo"] = True
+    st.session_state["ui_explorador"] = False
+    st.session_state["ui_sar"] = "abierto"
     st.session_state["visor_aoi_recomendacion_seq"] = (
         int(st.session_state.get("visor_aoi_recomendacion_seq", 0)) + 1)
     centrar(limites)
