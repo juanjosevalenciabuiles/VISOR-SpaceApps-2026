@@ -1,0 +1,31 @@
+# Acelerar Docker y evitar publicar credenciales / productos privados.
+.git/
+.github/
+.venv/
+.pythonlibs/
+.cache/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.*
+.streamlit/secrets.toml
+.visor_anterior
+.DS_Store
+.vscode/
+.idea/
+tests/
+informes/
+docs/
+*.zip
+*.SAFE
+# Datos locales NO versionados ni embebidos en la imagen
+data/crudos/
+data/sar/
+data/analisis/
+data/nisar/
+data/trabajos/
+exportaciones/
+# Proyecto de investigación independiente: no se necesita para ejecutar el visor.
+VISOR-NISAR-Atrato/

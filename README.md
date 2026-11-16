@@ -1,5 +1,12 @@
 # V.I.S.O.R. · v1.1
 
+> **Desplegar V.I.S.O.R. fuera de Replit:** esta versión cuenta con
+> [Docker portable](Dockerfile), [guía de despliegue](docs/DESPLIEGUE_PORTABLE.md)
+> y [mapa del repositorio](docs/ORGANIZACION_REPOSITORIO.md).
+> La configuración del servicio web no incluye los GeoTIFF reales que están
+> fuera de Git. No presentar la publicación del código como verificación
+> de disponibilidad de datos NISAR o de inundaciones confirmadas.
+
 **Visualización Inteligente de Superficies y Observación por Radar** — NASA Space Apps Challenge 2026, reto *Dancing with the SARs*.
 
 Visor geoespacial que muestra productos de radar SAR **ya procesados** sobre un mapa interactivo de Antioquia, para tres fenómenos: inundaciones, deslizamientos y deforestación.
