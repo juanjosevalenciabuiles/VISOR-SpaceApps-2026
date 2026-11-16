@@ -17,6 +17,7 @@ de interfaz (un selector, como el texto de la opción) y el par parecería haber
 """
 from __future__ import annotations
 
+import math
 from datetime import date, datetime, timedelta, timezone
 
 import streamlit as st
@@ -48,6 +49,28 @@ def zona_confirmada() -> tuple[float, float, float, float] | None:
     return tuple(zona["limites"]) if zona else None
 
 
+def _centrar_vista_zona(limites: tuple[float, float, float, float]) -> None:
+    """Un AOI NUEVO invalida el destino de la búsqueda antigua.
+
+    La orden de navegación tiene secuencia propia para que streamlit-folium
+    aplique el nuevo encuadre. Un pan/zoom posterior no la vuelve a emitir.
+    """
+    oeste, sur, este, norte = limites
+    lado = max(este - oeste, norte - sur, 1e-6)
+    zoom = max(3, min(14, int(math.log2(360.0 / lado)) + 1))
+    anterior = st.session_state.get("vista") or {}
+    st.session_state["vista"] = {
+        "centro": [(sur + norte) / 2, (oeste + este) / 2],
+        "zoom": zoom,
+        "n": int(anterior.get("n", 0)) + 1,
+    }
+    # El viewport capturado de Leaflet y los bounds antiguos no pueden
+    # desplazar la AOI nueva al remontar el componente del mapa.
+    st.session_state.pop("mapa_encuadre_usuario", None)
+    st.session_state.pop("mapa_ultimo_destino", None)
+    st.session_state.pop("mapa_limites", None)
+
+
 def confirmar_zona(limites, origen: str, geometria: dict | None = None) -> None:
     """Confirma AOI y descarta la búsqueda anterior si queda fuera de ella.
 
@@ -56,6 +79,7 @@ def confirmar_zona(limites, origen: str, geometria: dict | None = None) -> None:
     apareciendo el marcador antiguo ni sesgar su contexto o el par NISAR.
     """
     nueva = sesion.validar_zona(limites)
+    anterior = zona_confirmada()
     lugar = st.session_state.get("lugar")
     if isinstance(lugar, dict):
         try:
@@ -70,6 +94,8 @@ def confirmar_zona(limites, origen: str, geometria: dict | None = None) -> None:
             st.session_state["lugar_texto"] = None
             st.session_state["lugares_encontrados"] = None
     st.session_state["zona"] = {"limites": nueva, "origen": origen, "geometria": geometria}
+    if anterior != nueva:
+        _centrar_vista_zona(nueva)
     st.session_state.update(sar_busqueda=None, sar_error_busqueda=None, mc_informe_sar=None, error_zona=None)
     st.session_state["sel_par"] = None
     # Las huellas CMR son de esta AOI y fechas, no datos globales. Un usuario
