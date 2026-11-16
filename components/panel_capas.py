@@ -30,6 +30,26 @@ def _inicializar() -> None:
     capas_ambientales.inicializar()
 
 
+def _ocultar_capas_al_publicar_resultado(activo) -> None:
+    """Tras un NUEVO resultado científico, dejar despejado el raster SAR.
+
+    Se ejecuta antes de registrar los widgets toggle. Nunca se aplica a un
+    histórico ni a un cálculo fallido, y no revierte después cambios manuales
+    de IDEAM/DANE en los reruns o al mover el mapa.
+    """
+    estado = st.session_state.get("resultado_activo") or {}
+    if activo is None or estado.get("origen") != sesion.ANALISIS:
+        return
+    identificador = (activo.id, estado.get("run_id"), estado.get("abierto"))
+    if st.session_state.get("visor_contexto_oculto_para") == identificador:
+        return
+    from components import capas_ambientales
+    st.session_state[capas_ambientales.CLAVES["ideam"]] = False
+    st.session_state[capas_ambientales.CLAVES["municipios"]] = False
+    st.session_state["visor_capa_resultado_visible"] = True
+    st.session_state["visor_contexto_oculto_para"] = identificador
+
+
 def _alternar_dock() -> None:
     st.session_state["ui_capas_abierto"] = not st.session_state["ui_capas_abierto"]
 
@@ -103,6 +123,7 @@ def _resultado(resultados: list, activo) -> None:
 def render(resultados: list, activo=None) -> None:
     """Este contenedor nunca depende de que Explorador/Información estén abiertos."""
     _inicializar()
+    _ocultar_capas_al_publicar_resultado(activo)
     from components import capas_ambientales
 
     with st.container(key="panel_capas"):
