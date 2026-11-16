@@ -9,6 +9,7 @@ import streamlit as st
 
 from components import flujo
 from utils import mapas_base, sesion
+from utils.i18n import tr
 from utils.capas_contexto import CAPAS_CONTEXTO, disponibles
 from utils.mapas_base import MAPAS_BASE
 
@@ -91,7 +92,7 @@ def _resultado(resultados: list, activo) -> None:
         st.session_state["visor_seleccion_resultado"] = actual
 
     st.selectbox(
-        "Resultado satelital en el mapa",
+        tr("Resultado satelital en el mapa", "Satellite result on the map"),
         options=identificadores,
         key="visor_seleccion_resultado",
         format_func=lambda id_: _etiqueta_resultado(id_, por_id),
@@ -101,15 +102,16 @@ def _resultado(resultados: list, activo) -> None:
              "NO VALIDADO no significa inundación confirmada.",
     )
     st.toggle(
-        "Mostrar resultado SAR",
+        tr("Mostrar resultado SAR", "Show SAR result"),
         key="visor_capa_resultado_visible",
         disabled=actual is None,
         help="Oculta o vuelve a mostrar la capa sobre el mapa sin borrar el resultado.",
     )
     if actual is not None:
-        st.slider("Opacidad SAR", 0.0, 1.0, 0.85, step=0.05, key="res_opacidad")
+        st.slider(tr("Opacidad SAR", "SAR opacity"), 0.0, 1.0, 0.85, step=0.05, key="res_opacidad")
     else:
-        st.caption("No hay GeoTIFF seleccionado. Puedes analizar una zona o abrir uno del historial.")
+        st.caption(tr("No hay GeoTIFF seleccionado. Puedes analizar una zona o abrir uno del historial.",
+                       "No GeoTIFF selected. Run an analysis or open a result from history."))
 
 
 def render(resultados: list, activo=None) -> None:
@@ -119,9 +121,9 @@ def render(resultados: list, activo=None) -> None:
 
     with st.container(key="panel_capas"):
         with st.container(horizontal=True, vertical_alignment="center", key="cabecera_capas"):
-            st.markdown('<div class="mc-titulo-panel">CAPAS DEL MAPA</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="mc-titulo-panel">{tr("CAPAS DEL MAPA", "MAP LAYERS")}</div>', unsafe_allow_html=True)
             st.button(
-                "Contraer" if st.session_state["ui_capas_abierto"] else "Expandir",
+                tr("Contraer", "Collapse") if st.session_state["ui_capas_abierto"] else tr("Expandir", "Expand"),
                 key="visor_capas_plegar",
                 icon=":material/layers:",
                 type="tertiary",
@@ -129,24 +131,24 @@ def render(resultados: list, activo=None) -> None:
                 help="El selector de capas permanece visible incluso al cerrar otros paneles.",
             )
         with st.container(key="panel_capas_body"):
-            st.caption("AMBIENTE · ACTIVAR / OCULTAR")
+            st.caption(tr("AMBIENTE · ACTIVAR / OCULTAR", "ENVIRONMENT · SHOW / HIDE"))
             st.toggle(
-                "IDEAM · Alertas hidrológicas",
+                tr("IDEAM · Alertas hidrológicas", "IDEAM · Hydrological alerts"),
                 key=capas_ambientales.CLAVES["ideam"],
                 help="Alertas actuales o consultadas; no equivalen a inundaciones detectadas.",
             )
             st.toggle(
-                "DANE · Municipios",
+                tr("DANE · Municipios", "DANE · Municipal boundaries"),
                 key=capas_ambientales.CLAVES["municipios"],
                 help="Límites y proporción del área estudiada, no clasificación de riesgo.",
             )
             st.toggle(
-                "NASA EONET · Eventos",
+                tr("NASA EONET · Eventos", "NASA EONET · Events"),
                 key=capas_ambientales.CLAVES["eonet"],
                 help="Eventos catalogados. No representan automáticamente áreas afectadas.",
             )
 
-            with st.expander("Cartografía y fondo", expanded=False):
+            with st.expander(tr("Cartografía y fondo", "Basemaps and cartography"), expanded=False):
                 opciones = mapas_base.ofrecidos()
                 if st.session_state.get("dock_mapa_base") not in opciones:
                     st.session_state["dock_mapa_base"] = mapas_base.predeterminado()
@@ -155,7 +157,7 @@ def render(resultados: list, activo=None) -> None:
                 if st.session_state.get("mapa_base") not in opciones:
                     st.session_state["mapa_base"] = st.session_state["dock_mapa_base"]
                 st.selectbox(
-                    "Mapa base",
+                    tr("Mapa base", "Basemap"),
                     options=opciones,
                     format_func=lambda k: MAPAS_BASE[k].nombre,
                     key="dock_mapa_base",
@@ -179,11 +181,12 @@ def render(resultados: list, activo=None) -> None:
                         help=capa.alcance if hay[clave] else "Archivo cartográfico no disponible.",
                     )
                 st.toggle(
-                    "Área de referencia",
+                    tr("Área de referencia", "Reference area"),
                     key="referencia",
                     help="Rectángulo ilustrativo de Antioquia, no es una observación SAR.",
                 )
 
-            with st.expander("Resultados SAR y opacidad", expanded=activo is not None):
+            with st.expander(tr("Resultados SAR y opacidad", "SAR results and opacity"), expanded=activo is not None):
                 _resultado(resultados, activo)
-            st.caption("El color SAR muestra cambio de señal; no confirma inundaciones.")
+            st.caption(tr("El color SAR muestra cambio de señal; no confirma inundaciones.",
+                          "SAR colors represent signal change; they do not confirm flooding."))
