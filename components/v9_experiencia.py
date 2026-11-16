@@ -14,7 +14,7 @@ import streamlit as st
 from utils.i18n import tr
 
 from components import flujo
-from utils import nisar_auto, nisar_catalogo as cat, nisar_descarga, sesion, trabajos
+from utils import nisar_auto, nisar_catalogo as cat, nisar_coberturas, nisar_descarga, sesion, trabajos
 from utils.config import DATA_DIR
 from utils.resultados import id_resultado, leer_resultado
 from utils.v9_nisar_puente import QAInsuficiente, escenas_preparadas, leer_preparacion
@@ -72,7 +72,8 @@ def _sugerencias_cercanas(pares, inicio: date, fin: date, limite: int = 3) -> li
 def _limpiar_v9(limpiar_fechas: bool = False) -> None:
     for clave in ("v9_firma", "v9_preparacion", "v9_mapa_job", "v9_publicado",
                   "v9_error", "v9_sugerencias", "v9_preflight_provisional",
-                  "nisar_auto_job"):
+                  "nisar_auto_job", "v9_coberturas", "v9_coberturas_error",
+                  "v9_pares_solapados", "v9_ultimo_click_par"):
         st.session_state.pop(clave, None)
     if limpiar_fechas:
         for clave in ("v9_inicio_periodo", "v9_fin_periodo"):
@@ -102,6 +103,118 @@ def _usar_fechas_sugeridas(inicio: date, fin: date) -> None:
 
 def _firma(zona, inicio: date, fin: date):
     return (tuple(zona), inicio.isoformat(), fin.isoformat())
+
+
+def _coberturas_actuales() -> dict | None:
+    """Rechazar las huellas de otra zona/fechas aun si Streamlit las conserva."""
+    estado = st.session_state.get("v9_coberturas")
+    zona = flujo.zona_confirmada()
+    inicio = st.session_state.get("v9_inicio_periodo")
+    fin = st.session_state.get("v9_fin_periodo")
+    if (not isinstance(estado, dict) or zona is None
+            or not isinstance(inicio, date) or not isinstance(fin, date)):
+        return None
+    return estado if estado.get("firma") == _firma(zona, inicio, fin) else None
+
+
+def grupos_mapa():
+    """Coberturas CMR calculadas: solo geometrías, nunca capas de agua observada."""
+    estado = _coberturas_actuales()
+    if not estado:
+        return []
+    from components import cobertura_nisar
+    return cobertura_nisar.grupos(estado, estado["firma"])
+
+
+def modo_seleccion_mapa() -> bool:
+    return bool(_coberturas_actuales() and _coberturas_actuales().get("opciones"))
+
+
+def seleccionar_desde_mapa(click: dict | None, clave_mapa: str) -> bool:
+    """Identifica el par por geometría; con solapamientos exige elección explícita."""
+    estado = _coberturas_actuales()
+    if not estado or not isinstance(click, dict):
+        return False
+    try:
+        lat, lon = float(click["lat"]), float(click["lng"])
+    except (KeyError, ValueError, TypeError):
+        return False
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return False
+    firma = (clave_mapa, round(lat, 7), round(lon, 7), estado["firma"])
+    if st.session_state.get("v9_ultimo_click_par") == firma:
+        return False
+    st.session_state["v9_ultimo_click_par"] = firma
+    from shapely.geometry import Point
+    punto = Point(lon, lat)
+    # Solo elegir entre los pares realmente dibujados en esta vista.
+    coincidencias = [
+        item for item in nisar_coberturas.opciones_mapa(estado, estado["firma"])
+        if item["geometria"].covers(punto)
+    ]
+    if not coincidencias:
+        return False
+    if len(coincidencias) > 1:
+        st.session_state["v9_pares_solapados"] = [item["id"] for item in coincidencias]
+        st.session_state["ui_sar"] = "abierto"
+        return True
+    estado["seleccionado"] = coincidencias[0]["id"]
+    st.session_state["v9_pares_solapados"] = None
+    return True
+
+
+def _elegir_par(identificador: str) -> None:
+    estado = _coberturas_actuales()
+    if estado and any(op["id"] == identificador for op in estado.get("opciones", [])):
+        estado["seleccionado"] = identificador
+        st.session_state["v9_pares_solapados"] = None
+
+
+def _punto_local(zona) -> tuple[float, float] | None:
+    lugar = st.session_state.get("lugar") or {}
+    try:
+        lon, lat = float(lugar["longitud"]), float(lugar["latitud"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return (lon, lat) if zona[0] <= lon <= zona[2] and zona[1] <= lat <= zona[3] else None
+
+
+def _consultar_coberturas(zona, inicio: date, fin: date) -> dict:
+    """Solo metadatos NASA CMR. No crea trabajos, descarga ni analiza."""
+    hoy = datetime.now(timezone.utc).date()
+    if inicio > fin or fin > hoy:
+        raise ValueError("El período debe estar ordenado y no contener fechas futuras.")
+    madurez = _madurez_del_periodo(inicio, fin)
+    desde, hasta = _limites_coleccion(madurez, inicio, fin)
+    resultado = cat.buscar(*zona, desde, hasta, madurez=madurez)
+    pares = _pares_del_periodo(resultado.pares, inicio, fin)
+    opciones = nisar_coberturas.opciones(
+        resultado, pares, max_gb=15.0, punto_prioritario=_punto_local(zona),
+    )
+    estado = {
+        "firma": _firma(zona, inicio, fin), "madurez": madurez,
+        "resultado": resultado, "opciones": opciones,
+        "seleccionado": next((op["id"] for op in opciones if op["plan"] is not None), 
+                            opciones[0]["id"] if opciones else None),
+    }
+    st.session_state["v9_coberturas"] = estado
+    st.session_state.pop("v9_coberturas_error", None)
+    st.session_state.pop("v9_pares_solapados", None)
+    st.session_state.pop("v9_ultimo_click_par", None)
+    if not pares:
+        amplia_desde, amplia_hasta = _limites_coleccion(
+            madurez, inicio, fin, margen=DISTANCIA_SUGERENCIAS_DIAS)
+        sugeridos = resultado.pares
+        if (amplia_desde, amplia_hasta) != (desde, hasta):
+            extra = cat.buscar(*zona, amplia_desde, amplia_hasta, madurez=madurez)
+            sugeridos = [*sugeridos, *extra.pares]
+        st.session_state["v9_sugerencias"] = {
+            "firma": estado["firma"], "madurez": madurez,
+            "pares": _sugerencias_cercanas(sugeridos, inicio, fin),
+        }
+    else:
+        st.session_state.pop("v9_sugerencias", None)
+    return estado
 
 
 def _fechas_de_preparacion(job_id: str):
