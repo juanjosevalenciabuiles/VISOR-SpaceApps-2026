@@ -241,6 +241,41 @@ class SelectorZonaUnica(MacroElement):
         self.lang = idioma()
 
 
+class RecordarVistaNavegador(MacroElement):
+    """Conservar pan/zoom entre remontajes Leaflet sin pedir reruns a Streamlit.
+
+    sessionStorage dura solo esta pestaña; no guarda ni transmite geometrías SAR.
+    El centro/zoom de una navegación explícita enviado por Python tiene prioridad.
+    """
+
+    _template = Template("""{% macro script(this, kwargs) %}
+(function(m) {
+  var clave = 'visor-mapa-vista';
+  try {
+    var guardada = JSON.parse(window.sessionStorage.getItem(clave) || 'null');
+    if (guardada && Number.isFinite(guardada.lat) && Number.isFinite(guardada.lon) &&
+        Number.isFinite(guardada.zoom) && Math.abs(guardada.lat) <= 90 &&
+        Math.abs(guardada.lon) <= 180 && guardada.zoom >= 2 && guardada.zoom <= 22) {
+      m.setView([guardada.lat, guardada.lon], guardada.zoom, {animate: false});
+    }
+  } catch (_) { /* sin almacenamiento: el mapa mantiene la vista normal */ }
+  function guardar() {
+    try {
+      var centro = m.getCenter(), zoom = m.getZoom();
+      if (Number.isFinite(centro.lat) && Number.isFinite(centro.lng) &&
+          Number.isFinite(zoom)) {
+        window.sessionStorage.setItem(clave, JSON.stringify({
+          lat: centro.lat, lon: centro.lng, zoom: zoom
+        }));
+      }
+    } catch (_) { /* almacenamiento deshabilitado: la navegación sigue funcionando */ }
+  }
+  m.on('moveend', guardar);
+  guardar();
+})({{ this._parent.get_name() }});
+{% endmacro %}""")
+
+
 def mapa_fijo() -> folium.Map:
     """Lienzo fijo. En Modo Colombia: centrado en el país, paneo limitado a su extensión con margen,
     velo exterior y contorno nacional. En GLOBAL: Antioquia y el mundo entero."""
@@ -272,6 +307,9 @@ def mapa_fijo() -> folium.Map:
     })
     if alcance_geografico.restringido():
         _modo_colombia(m)
+    # Vista por pestaña en el navegador: al cambiar de resultado SAR no saltar
+    # al último zoom registrado antes de la optimización.
+    RecordarVistaNavegador().add_to(m)
     m.get_root().header.add_child(folium.Element(ESTILO_LIENZO), name="visor_lienzo")
     # Dibujo de la zona de análisis: solo rectángulo y polígono. Lo dibujado es un borrador;
     # no se convierte en zona hasta confirmarlo en Herramientas SAR («Usar esta zona»).
@@ -622,10 +660,18 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
     sugerencia_version = int(st.session_state.get("visor_aoi_recomendacion_seq", 0))
     if sugerencia_version:
         clave_widget += f"__recomendacion_{sugerencia_version}"
-    if clave_widget != st.session_state.get("mapa_widget_key"):
+    clave_anterior = st.session_state.get("mapa_widget_key")
+    remontaje = clave_widget != clave_anterior
+    nueva_navegacion = vista is not None and vista.get("n") != st.session_state.get("mapa_ultimo_destino")
+    if remontaje:
         st.session_state["mapa_widget_key"] = clave_widget
         st.session_state["mapa_firma_dibujo"] = None
     centro, zoom = _centro_y_zoom_guardados(vista)
+    if remontaje and clave_anterior is not None and not nueva_navegacion:
+        # Un cambio de GeoTIFF/seguimiento remonta Leaflet. La vista actual
+        # permanece en sessionStorage del iframe y es más reciente que el
+        # último encuadre enviado al servidor (que ya no recibe cada pan).
+        centro, zoom = None, None
     salida = st_folium(
         mapa_fijo(),
         feature_group_to_add=[*construir_capas(fenomeno, capa, c, resultados), *extras],
