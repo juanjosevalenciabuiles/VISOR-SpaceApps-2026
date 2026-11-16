@@ -160,7 +160,7 @@ def test_no_se_descarga_par_antiguo_o_diferente(monkeypatch):
     assert llamadas[0][1].granules == ("T1", "T2")
     assert llamadas[0][1].resumen()["id_par_seleccionado"] == item["id"]
     assert llamadas[0][1].resumen()["criterio_seleccion"] == "PAR_CONFIRMADO_USUARIO_POR_COBERTURA_CMR"
-    with pytest.raises(ValueError, match="otra"):
+    with pytest.raises(ValueError, match="otro período o zona"):
         ui._solicitar_elegido((-76.7, 7.6, -76.6, 7.7), INI, FIN, estado, item)
     assert len(llamadas) == 1
 
