@@ -576,10 +576,8 @@ def _seguimiento(firma):
 def _panel_coberturas(estado: dict, zona, inicio: date, fin: date) -> None:
     """Elección visible; pulsar la tarjeta jamás inicia Harmony."""
     opciones = estado["opciones"]
-    st.caption(tr(
-        "NASA CMR / ASF · solo metadatos de huellas; NO son píxeles QA ni una inundación.",
-        "NASA CMR / ASF · footprint metadata only; NOT QA-verified pixels or flooding.",
-    ))
+    # El aviso técnico detallado se conserva en el desplegable inferior; el
+    # panel principal prioriza las acciones y la cobertura del par elegido.
     if not opciones:
         st.info(tr(
             "No hay pares NISAR con cobertura común para estas fechas. "
@@ -589,10 +587,8 @@ def _panel_coberturas(estado: dict, zona, inicio: date, fin: date) -> None:
         ))
         return
     st.caption(tr(
-        "Violeta: T1 · Cian: T2 · Verde: intersección seleccionada · "
-        "Gris: zona no cubierta por ambas fechas. Pulsa la región del mapa o un par.",
-        "Purple: T1 · Cyan: T2 · Green: selected overlap · "
-        "Grey: area not covered in both dates. Click a region on the map or choose a pair.",
+        "Verde: cobertura común · elige en el mapa o la lista.",
+        "Green: shared coverage · choose on the map or in the list.",
     ))
     seleccionado = nisar_coberturas.seleccion_actual(estado, estado["firma"])
     st.markdown(tr("**Pares NISAR compatibles**", "**Compatible NISAR pairs**"))
@@ -639,16 +635,17 @@ def _panel_coberturas(estado: dict, zona, inicio: date, fin: date) -> None:
         f"· **{seleccionado['cobertura']:.1%}** "
         f"{tr('cobertura estimada CMR', 'estimated CMR coverage')}"
     )
-    st.caption(
-        f"Track {par.antes.nombre.track} · Frame {par.antes.nombre.frame} · "
-        f"{'+'.join(par.polarizaciones_A)} · {estado['madurez']} · NASA/ASF"
-    )
-    st.caption(tr(
-        "Cobertura real de píxeles: pendiente de comprobar mask, numberOfLooks "
-        "y cuadrículas después del recorte Harmony.",
-        "Actual valid-pixel coverage: pending mask, numberOfLooks "
-        "and grid checks after the Harmony subset.",
-    ))
+    with st.expander(tr("Detalles científicos", "Scientific details"), expanded=False):
+        st.caption(
+            f"Track {par.antes.nombre.track} · Frame {par.antes.nombre.frame} · "
+            f"{'+'.join(par.polarizaciones_A)} · {estado['madurez']} · NASA/ASF"
+        )
+        st.caption(tr(
+            "Cobertura de huellas CMR, no píxeles comprobados. La validación "
+            "posterior usa mask, numberOfLooks y cuadrículas.",
+            "CMR footprints, not verified pixels. Later QA checks masks, "
+            "numberOfLooks and grid alignment.",
+        ))
     if not seleccionado["cubre_punto"]:
         st.warning(tr(
             "Las dos huellas no contienen el municipio/punto buscado. "
@@ -705,10 +702,10 @@ def _progreso_pie_sar() -> None:
 
 
 def accion_principal() -> None:
-    """CTA siempre visible al pie de SAR Tools; el panel y los datos comparten estado.
+    """Único botón Analizar, arriba de los controles, sin acciones duplicadas.
 
-    La barra no crea un segundo análisis: es la ÚNICA instancia de v9_analizar.
-    Antes de un par válido o sin aceptar cobertura parcial queda deshabilitada.
+    Se deshabilita cuando faltan un par válido, permiso de cobertura parcial
+    o un job de Harmony activo. La barra QA permanece junto al botón.
     """
     zona = flujo.zona_confirmada()
     estado = _coberturas_actuales()
@@ -730,11 +727,11 @@ def accion_principal() -> None:
         if job and job.get("estado") in (
             trabajos.ERROR, trabajos.BLOQUEADO, trabajos.CANCELADO,
         ):
-            mensaje = tr("El trabajo se detuvo. Revisa el error o reintenta en el panel.",
-                         "The job stopped. Review the error or retry above.")
+            mensaje = tr("Trabajo detenido: revisa el error.",
+                         "Job stopped: check the error.")
         else:
-            mensaje = tr("Análisis en curso. Sigue las etapas aquí abajo.",
-                         "Analysis running. Track its steps below.")
+            mensaje = tr("Procesando imágenes NISAR…",
+                         "Processing NISAR images…")
     elif item is None:
         mensaje = tr("Selecciona un par de imágenes compatible.",
                      "Select a compatible image pair.")
@@ -743,8 +740,8 @@ def accion_principal() -> None:
                      "This pair does not meet coverage or download limits.")
     elif item["cobertura"] < 0.90 or not item["cubre_punto"]:
         if not st.session_state.get(_clave_aceptacion(estado["firma"], item["id"]), False):
-            mensaje = tr("Confirma arriba que aceptas la cobertura parcial.",
-                         "Confirm partial-coverage acceptance above.")
+            mensaje = tr("Acepta la cobertura parcial en la selección de pares.",
+                         "Accept partial coverage in the pair selection.")
         else:
             habilitado = True
             mensaje = tr("Par seleccionado y cobertura parcial aceptada.",
@@ -809,11 +806,7 @@ def accion_principal() -> None:
 
 def render() -> None:
     """Panel principal PC, preserva el editor científico existente sin reemplazarlo."""
-    st.markdown(tr("### Analizar cambios en el agua", "### Analyze changes in surface water"))
-    st.caption(tr(
-        "1 · Define fechas  →  2 · Busca coberturas  →  3 · Elige un par  →  4 · Analiza.",
-        "1 · Set dates  →  2 · Find coverage  →  3 · Choose a pair  →  4 · Analyze.",
-    ))
+    st.markdown(tr("**NISAR · Cambios SAR**", "**NISAR · SAR changes**"))
     zona = flujo.zona_confirmada()
     if zona is None:
         st.info(tr("Elige otro lugar en el buscador y confirma su zona para empezar un nuevo análisis.",
@@ -825,14 +818,8 @@ def render() -> None:
                   on_click=_nuevo_analisis, args=(True,), use_container_width=True)
         c2.button(tr("Otro período", "Different period"), key="v9_otro_periodo",
                   on_click=_nuevo_analisis, args=(False,), use_container_width=True)
-        st.caption(tr(
-            "Los GeoTIFF originales se conservan, aunque ya no aparece un historial "
-            "en el flujo público.",
-            "Original GeoTIFF files remain intact, though the public flow no "
-            "longer exposes a history browser.",
-        ))
-    st.markdown(tr("**1 · Zona y fechas**", "**1 · Area and dates**"))
-    st.caption(tr("Zona seleccionada en el mapa.", "Study area selected on the map."))
+
+    st.markdown(tr("**Fechas**", "**Dates**"))
     hoy = datetime.now(timezone.utc).date()
     inicio_def = hoy - timedelta(days=23)
     fin_def = hoy - timedelta(days=16)
@@ -843,12 +830,9 @@ def render() -> None:
                            key="v9_fin_periodo", format="YYYY-MM-DD")
     firma = _firma(zona, inicio, fin)
     madurez = _madurez_del_periodo(inicio, fin)
-    st.caption(
-        tr("Colección NISAR seleccionada: ", "Selected NISAR collection: ") +
-        f"**{madurez}**"
-    )
-    st.markdown(tr("**2 · Buscar imágenes compatibles**",
-                   "**2 · Find compatible images**"))
+    # La colección se mantiene en la ficha técnica, no como texto secundario
+    # que interrumpe la acción principal.
+    st.markdown(tr("**Coberturas NISAR**", "**NISAR coverage**"))
     if st.button(
         tr("Mostrar coberturas NISAR", "Show NISAR coverage"),
         key="v9_buscar_coberturas", type="secondary",
@@ -875,37 +859,28 @@ def render() -> None:
         st.rerun(scope="app")
     estado = _coberturas_actuales()
     if estado and _resultado_sar_verificado(estado):
-        st.caption(tr(
-            "El resultado SAR verificado está visible. Las huellas de cobertura CMR "
-            "se ocultaron para no taparlo; sus metadatos siguen conservados.",
-            "The verified SAR result is displayed. CMR coverage footprints "
-            "are hidden so they do not obscure it; their metadata is retained.",
-        ))
+        st.caption(tr("Análisis listo · ver mapa.", "Analysis ready · see map."))
     elif estado:
-        st.markdown(tr("**3 · Elegir el mejor par**", "**3 · Choose the best pair**"))
+        st.markdown(tr("**Pares disponibles**", "**Available pairs**"))
         _panel_coberturas(estado, zona, inicio, fin)
     elif st.session_state.get("v9_coberturas_error"):
         st.warning(st.session_state["v9_coberturas_error"])
-    else:
-        st.caption(tr(
-            "Primero consulta las huellas para elegir dónde coinciden ambas fechas. "
-            "El análisis no se inicia hasta tu confirmación.",
-            "First inspect where both observations overlap. "
-            "Analysis will not start until you confirm a pair.",
-        ))
     if st.session_state.get("v9_error"):
         st.warning(st.session_state["v9_error"])
     _mostrar_sugerencias(firma)
     _seguimiento(firma)
-    if st.button(
-        tr("Ver GeoTIFF anteriores (sin volver a descargar)",
-           "View previous GeoTIFFs (without redownloading)"),
-        key="v9_ver_guardados",
-        on_click=_abrir_modo_jurado,
-        help="Archivos reales del historial; podrían ser de fechas distintas a las seleccionadas.",
-    ):
-        st.rerun(scope="app")
-    st.caption(tr("El producto inicial será ΔdB (cambio SAR real). No genera probabilidades, "
-               "clases de inundación ni predicciones de Machine Learning.",
-               "The initial output is ΔdB (actual SAR signal change). It does not produce flood "
-               "probabilities, flood classes or machine-learning predictions."))
+    # El acceso al histórico heredado es solo para regresión técnica.
+    # No volver a exponerlo en la versión pública que ya lo retiró.
+    if os.environ.get("VISOR_MOSTRAR_HISTORIAL") == "1":
+        if st.button(
+            tr("Ver GeoTIFF anteriores", "View previous GeoTIFFs"),
+            key="v9_ver_guardados", on_click=_abrir_modo_jurado,
+        ):
+            st.rerun(scope="app")
+    with st.expander(tr("Nota científica", "Scientific note"), expanded=False):
+        st.caption(tr(
+            "El resultado ΔdB describe cambios de señal radar, no inundaciones "
+            "confirmadas ni predicciones del modelo de IA.",
+            "The ΔdB result shows radar-signal changes, not confirmed floods "
+            "or machine-learning predictions.",
+        ))
