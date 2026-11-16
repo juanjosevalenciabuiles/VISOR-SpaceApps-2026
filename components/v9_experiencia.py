@@ -782,7 +782,14 @@ def render() -> None:
                 )
         st.rerun(scope="app")
     estado = _coberturas_actuales()
-    if estado:
+    if estado and _resultado_sar_verificado(estado):
+        st.caption(tr(
+            "El resultado SAR verificado está visible. Las huellas de cobertura CMR "
+            "se ocultaron para no taparlo; sus metadatos siguen conservados.",
+            "The verified SAR result is displayed. CMR coverage footprints "
+            "are hidden so they do not obscure it; their metadata is retained.",
+        ))
+    elif estado:
         _panel_coberturas(estado, zona, inicio, fin)
     elif st.session_state.get("v9_coberturas_error"):
         st.warning(st.session_state["v9_coberturas_error"])
