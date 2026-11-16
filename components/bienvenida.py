@@ -20,7 +20,7 @@ ESTILO = """
   position: fixed !important; inset: 0 !important; z-index: 90 !important;
   background: rgba(1, 9, 20, .75) !important;
   backdrop-filter: blur(4px) !important;
-  pointer-events: auto !important;
+  pointer-events: none !important;
 }
 .st-key-visor_guia_panel {
   position: fixed !important; z-index: 110 !important;
@@ -465,7 +465,7 @@ def render() -> None:
             "Esta ventana solo se cierra al pulsar «Cerrar». Puedes volver a abrirla desde 📖.",
             "This window closes only when you press «Close». Reopen it any time using 📖."
         ))
-        st.button("×", key="visor_guia_cerrar", icon=":material/close:",
+        st.button("✕", key="visor_guia_cerrar",
                   on_click=cerrar,
                   help=tr("Cerrar bienvenida", "Close welcome window"))
         consulta = st.text_input(
