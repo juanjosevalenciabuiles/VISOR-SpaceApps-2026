@@ -163,5 +163,6 @@ def test_progreso_sar_se_muestra_en_el_pie_fijo_sin_duplicacion():
     assert "if st.session_state.get(\"v9_preparacion\")" in accion, (
         "no agregar un polling permanente cuando el análisis está inactivo"
     )
-    assert "position: sticky !important" in css
+    assert "position: sticky !important" not in css
+    assert ".st-key-sar_accion_fija" in css
     assert "El porcentaje indica etapas, no tiempo restante." in codigo
