@@ -233,7 +233,8 @@ def _ampliar_area_recomendada(limites) -> tuple[float, float, float, float]:
         factor_x = math.sqrt(aspecto)
         for fraccion_x in (0.2, 0.5, 0.8):
             for fraccion_y in (0.2, 0.5, 0.8):
-                def candidato(escala):
+                def candidato(escala, *, factor_x=factor_x,
+                              fraccion_x=fraccion_x, fraccion_y=fraccion_y):
                     w = ancho * escala * factor_x
                     h = alto * escala / factor_x
                     return (
