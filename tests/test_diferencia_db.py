@@ -85,9 +85,11 @@ def test_mapa_ficha_y_leyenda(motor):
     grupos = mapa.construir_capas(FENOMENOS["inundacion"], None, c, [res])
     assert grupos[-1].layer_name == "Resultado · Diferencia de retrodispersión (dB)"
     html = ui.ficha_html(res)
-    for frase in ("Estadísticas de Δ", "No aplica: dato continuo sin umbral", "No es una inundación confirmada",
-                  "PROCEDENCIA NO DECLARADA", "−20,00 dB", "sin filtro de speckle"):
+    for frase in ("Estadísticas de Δ", "−20,00 dB", "sin filtro de speckle"):
         assert frase in html, frase
+    assert "Not applicable to continuous data" in html or "No aplica: dato continuo sin umbral" in html
+    assert "SOURCE UNVERIFIED" in html or "PROCEDENCIA NO DECLARADA" in html
+    assert "not confirmed flooding" in html or "No es una inundación confirmada" in html
     assert "<th>Clase</th>" not in html
     leyenda = ui.leyenda_html(res)
     assert "linear-gradient" in leyenda and "#0A84FF" in leyenda and "−10" in leyenda and "(transparente)" in leyenda
