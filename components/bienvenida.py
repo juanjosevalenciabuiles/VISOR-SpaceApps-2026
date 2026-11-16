@@ -66,6 +66,24 @@ ESTILO = """
   .st-key-visor_guia_launcher { bottom: 5px !important; left: 5px !important; }
   .st-key-visor_guia_launcher button { padding: 3px 6px !important; }
 }
+
+/* El único cierre de la bienvenida es una X discreta arriba a la derecha. */
+.st-key-visor_guia_cerrar {
+  position: sticky !important;
+  top: 0 !important;
+  float: right !important;
+  width: 40px !important;
+  z-index: 115 !important;
+  margin: 0 0 4px 8px !important;
+}
+.st-key-visor_guia_cerrar button {
+  width: 38px !important; height: 38px !important;
+  min-height: 38px !important; padding: 0 !important;
+  border-radius: 50% !important;
+  background: rgba(255,255,255,.09) !important;
+  border: 1px solid rgba(255,255,255,.22) !important;
+  color: white !important;
+}
 </style>
 """
 CAPITULOS = {
@@ -447,8 +465,9 @@ def render() -> None:
             "Esta ventana solo se cierra al pulsar «Cerrar». Puedes volver a abrirla desde 📖.",
             "This window closes only when you press «Close». Reopen it any time using 📖."
         ))
-        st.button(tr("✕ Cerrar", "✕ Close"), key="visor_guia_cerrar",
-                  on_click=cerrar, use_container_width=True)
+        st.button("×", key="visor_guia_cerrar", icon=":material/close:",
+                  on_click=cerrar,
+                  help=tr("Cerrar bienvenida", "Close welcome window"))
         consulta = st.text_input(
             tr("🔎 Buscar en el manual", "🔎 Search this guide"),
             key="visor_guia_busqueda",
