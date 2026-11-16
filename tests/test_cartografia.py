@@ -307,6 +307,9 @@ def test_capa_de_contexto_sin_datos_no_agrega_nada(monkeypatch, capa):
 def test_app_cambia_de_fondo_y_de_capas_sin_errores(monkeypatch):
     from streamlit.testing.v1 import AppTest
 
+    # Solo QA: conservar selectores de fenómenos DEMO que la entrega pública oculta.
+    monkeypatch.setenv("VISOR_MOSTRAR_DEMO", "1")
+    monkeypatch.setenv("VISOR_FENOMENOS_LEGACY", "1")
     monkeypatch.chdir(RAIZ)
     at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=60).run()
     assert not at.exception
