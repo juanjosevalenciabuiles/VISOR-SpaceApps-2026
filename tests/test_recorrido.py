@@ -239,7 +239,7 @@ def test_app_arranca_vacia_aunque_haya_resultados_en_disco(tmp_path, monkeypatch
         assert at.session_state["resultado_activo"] is None and at.session_state["zona"] is None
         assert not at.session_state.get("capa_sar", False)
         texto = " ".join(m.value for m in at.markdown)
-        assert "SIN RESULTADO" in texto and ("Welcome to V.I.S.O.R." in texto or "Bienvenido a V.I.S.O.R." in texto)
+        assert ("SIN RESULTADO" in texto or "NO RESULT" in texto) and ("Welcome to V.I.S.O.R." in texto or "Bienvenido a V.I.S.O.R." in texto)
         assert not any(k.startswith("qgis_") for k in (b.key or "" for b in at.get("download_button")))
         # Ni el mapa base ni la búsqueda de un lugar ponen nada en el mapa.
         at.selectbox(key="dock_mapa_base").set_value("calles").run()
