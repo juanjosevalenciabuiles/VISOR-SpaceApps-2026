@@ -8,7 +8,7 @@ def test_guia_sobrevive_pan_zoom_cambios_y_se_puede_reabrir(abrir):
     boton.click()
     panel = p.page.locator(".st-key-visor_guia_panel")
     panel.wait_for(state="visible", timeout=15_000)
-    assert "Manual V.I.S.O.R." in panel.inner_text()
+    assert "Bienvenido a V.I.S.O.R." in panel.inner_text()
 
     p.mapa.evaluate("()=>{map.panBy([45, 30]);map.setZoom(map.getZoom()+1)}")
     p.esperar(1300)
@@ -17,14 +17,14 @@ def test_guia_sobrevive_pan_zoom_cambios_y_se_puede_reabrir(abrir):
 
     p.page.locator(".st-key-visor_idioma_en button").click()
     p.esperar(400)
-    assert panel.is_visible() and "User Guide" in panel.inner_text()
+    assert panel.is_visible() and "Welcome to V.I.S.O.R." in panel.inner_text()
     assert "Explorer" in p.page.locator(".st-key-barra_superior").inner_text()
 
     p.page.locator(".st-key-visor_guia_cerrar button").click()
     panel.wait_for(state="hidden", timeout=15_000)
     p.page.locator(".st-key-visor_guia_toggle button").click()
     panel.wait_for(state="visible", timeout=15_000)
-    assert "User Guide" in panel.inner_text()
+    assert "Welcome to V.I.S.O.R." in panel.inner_text()
     assert p.mapa_intacto()
 
 
@@ -45,5 +45,5 @@ def test_idiomas_y_busqueda_sin_navegacion_ni_sar(abrir):
     assert panel.is_visible()
     p.page.locator(".st-key-visor_idioma_es button").click()
     p.esperar(450)
-    assert "Manual V.I.S.O.R." in panel.inner_text()
+    assert "Bienvenido a V.I.S.O.R." in panel.inner_text()
     assert p.mapa_intacto()
