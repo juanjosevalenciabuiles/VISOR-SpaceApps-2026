@@ -5,6 +5,15 @@ documentado, se usan las coordenadas del centro del GeoTIFF (AOI).
 """
 from __future__ import annotations
 
+from datetime import date
+import re
+
+
+def _texto_seguro(valor: str) -> str:
+    """Texto breve de metadatos no fiables sin marcado HTML ni control."""
+    sin_html = re.sub(r"<[^>]*>", "", valor)
+    return " ".join(sin_html.replace("<", "").replace(">", "").split())[:65]
+
 
 def _zona(res) -> str:
     ficha = getattr(res, "ficha", None) or {}
@@ -15,11 +24,11 @@ def _zona(res) -> str:
                       procedencia.get("zona"), procedencia.get("municipio"),
                       ficha.get("aoi") if isinstance(ficha, dict) else None):
         if isinstance(candidato, str) and candidato.strip():
-            return candidato.strip()[:65]
+            return _texto_seguro(candidato) or "AOI"
         if isinstance(candidato, dict):
             nombre = candidato.get("municipio") or candidato.get("nombre") or candidato.get("etiqueta")
             if isinstance(nombre, str) and nombre.strip():
-                return nombre.strip()[:65]
+                return _texto_seguro(nombre) or "AOI"
     capa = getattr(res, "capa", None)
     limites = getattr(capa, "limites", None)
     if limites is not None and len(limites) == 4:
@@ -38,8 +47,16 @@ def _fechas(res) -> str:
     procedencia = ficha.get("procedencia") if isinstance(ficha, dict) else {}
     procedencia = procedencia if isinstance(procedencia, dict) else {}
     fechas = procedencia.get("fechas") or ficha.get("fechas")
-    if isinstance(fechas, (tuple, list)) and len(fechas) >= 2 and fechas[0] and fechas[1]:
-        return f"{str(fechas[0])[:10]} → {str(fechas[1])[:10]}"
+    if isinstance(fechas, (tuple, list)) and len(fechas) >= 2:
+        # Las fechas proceden de JSON/GeoTIFF no fiables. Solo aceptamos
+        # ISO YYYY-MM-DD reales y evitamos inyección de marcado por historial.
+        try:
+            primero, segundo = str(fechas[0])[:10], str(fechas[1])[:10]
+            if (date.fromisoformat(primero).isoformat() == primero and
+                    date.fromisoformat(segundo).isoformat() == segundo):
+                return f"{primero} → {segundo}"
+        except (TypeError, ValueError):
+            pass
     return "date unknown"
 
 
