@@ -531,3 +531,23 @@ a.mc-ficha-credito:hover { text-decoration: underline; }
     max-height: 30vh !important; }
 }
 
+
+/* Leyenda corta vinculada exclusivamente al GeoTIFF activo. Se coloca encima
+   de la ficha técnica del panel derecho, sin ocultar el mapa ni sus controles. */
+.visor-color-resumen {
+  display: grid; gap: .42rem; padding: 11px 12px; margin: .35rem 0 .7rem;
+  border: 1px solid rgba(69,228,244,.48); border-radius: 12px;
+  background: rgba(4,17,32,.88);
+}
+.visor-color-resumen > strong {
+  font-size: .78rem; color: #a9edfa; letter-spacing: .025em;
+}
+.visor-color-fila {
+  display: flex; align-items: center; gap: 9px;
+  color: #e5f1fb; font-size: .75rem; line-height: 1.32;
+}
+.visor-color-muestra {
+  display: inline-block; flex: 0 0 17px; width: 17px; height: 17px;
+  border-radius: 4px;
+}
+.visor-color-resumen small { color: #c6d7e9; font-size: .68rem; line-height: 1.3; }
