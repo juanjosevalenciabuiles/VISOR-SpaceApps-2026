@@ -95,6 +95,7 @@ def test_nueva_zona_preserva_historial_y_limpia_sesion(monkeypatch):
 
 
 def test_progreso_se_basa_en_fases_no_en_tiempo(monkeypatch):
+    monkeypatch.setenv("VISOR_IDIOMA_DEFECTO", "es")
     valores = []
     monkeypatch.setattr(ui.st, "progress", lambda n, text: valores.append((n, text)))
     monkeypatch.setattr(ui.st, "caption", lambda *_: None)
