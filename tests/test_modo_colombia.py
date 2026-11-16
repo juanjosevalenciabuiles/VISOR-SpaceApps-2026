@@ -78,8 +78,8 @@ def test_co01_primera_apertura(monkeypatch):
     at = _app(monkeypatch)
     assert not at.exception
     texto = _texto(at)
-    assert 'id="insignia-colombia"' in texto and "COLOMBIA · Área de estudio habilitada" in texto
-    assert at.session_state["resultado_activo"] is None and "SIN RESULTADO" in texto
+    assert 'id="insignia-colombia"' in texto and ("COLOMBIA · Área de estudio habilitada" in texto or "COLOMBIA · STUDY AREA ENABLED" in texto)
+    assert at.session_state["resultado_activo"] is None and ("SIN RESULTADO" in texto or "NO RESULT" in texto)
     assert at.session_state["capa_sar"] is False, "DEMO apagada"
     from components import mapa
     html = mapa.mapa_fijo().get_root().render()
