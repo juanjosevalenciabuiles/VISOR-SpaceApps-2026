@@ -415,7 +415,10 @@ def test_recomendacion_un_click_confirma_zona_muestra_ficha_y_no_lanza_sar(monke
     assert "v9_mapa_job" not in estado and "v9_publicado" not in estado
     assert estado["trabajo_activo"] is None and estado["trabajo_publicado"] is None
     assert estado["mapa_dibujo"] is None
-    assert estado["ui_info"] is True and estado["ui_sar"] == "cerrado"
+    assert estado["ui_info"] is True and estado["ui_sar"] == "abierto"
+    assert estado["ui_explorador"] is False
+    assert estado["ui_explorador_previo"] is True
+    assert "nisar_auto_job" not in estado, "seleccionar zona no inicia la descarga"
     assert estado["lugar"]["etiqueta"].startswith("Chigorodó")
     assert estado["visor_aoi_recomendacion_seq"] == 1
     assert estado["recomendacion_aoi_actual"] == "chigorodo"
@@ -424,7 +427,9 @@ def test_recomendacion_un_click_confirma_zona_muestra_ficha_y_no_lanza_sar(monke
     assert tuple(estado["zona"]["limites"]) == barra_lateral.RECOMENDACIONES_AOI["choco_atrato"]["limites"]
     assert estado["lugar"]["etiqueta"].startswith("Quibdó")
     assert estado["visor_aoi_recomendacion_seq"] == 2
-    assert estado["ui_info"] is True
+    assert estado["ui_info"] is True and estado["ui_sar"] == "abierto"
+    assert estado["ui_explorador"] is False
+    assert "nisar_auto_job" not in estado
 
 
 def test_recomendacion_invalida_no_borra_zona_ni_resultado(monkeypatch):
