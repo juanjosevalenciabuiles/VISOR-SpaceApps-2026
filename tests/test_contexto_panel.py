@@ -232,7 +232,7 @@ def test_app_al_confirmar_la_zona_aparece_el_contexto_sin_pulsar_nada(monkeypatc
     assert at.session_state["ui_info"] is False, "el contexto no debe tapar el mapa al confirmar una AOI"
     texto = _texto(at)
     # La interfaz pública no carga la ficha repetitiva ni la foto en cada zona.
-    assert 'id="ctx-foto"' not in texto and "Conozcamos esta zona" not in texto
+    assert 'id="ctx-foto"' not in texto and 'id="ctx-ficha"' not in texto
     assert "CHIGORODÓ" not in texto.upper() or "HISTÓRICO" not in texto
     # El adaptador de contexto conserva su caché: nunca multiplicar consultas.
     assert len(llamadas) <= 1
