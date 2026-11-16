@@ -256,9 +256,11 @@ def test_app_activa_resultado_sin_perder_controles(tmp_path, monkeypatch):
     assert at.session_state["resultado_activo"]["id"] == "coincidencia_vv_vh_chigorodo"
     assert at.slider(key="res_opacidad").value == 0.5 and at.toggle(key="capa_sar").value is False
 
-    # Abrir otro lo sustituye (no se acumulan) y la línea temporal muestra sus fechas.
+    # Abrir otro lo sustituye (no se acumulan): las fechas se consultan
+    # en Information, sin línea temporal flotante sobre la leyenda.
     at.button(key="hist_ver_coincidencia_vv_vh_20260924_20261006").click().run()
     assert at.session_state["resultado_activo"]["id"] == "coincidencia_vv_vh_20260924_20261006"
+    at.button(key="btn_info").click().run()
     texto = " ".join(m.value for m in at.markdown)
-    assert "T₁ · 2026-09-24" in texto and "T₂ · 2026-10-06" in texto
+    assert "2026-09-24" in texto and "2026-10-06" in texto
     assert "REAL · UNVALIDATED" in texto or "REAL SIN VALIDAR" in texto
