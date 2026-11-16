@@ -385,15 +385,19 @@ def herramientas_sar() -> None:
         import os
         modo_legado = os.environ.get("VISOR_SENSOR_DEFECTO") == "SENTINEL"
         if modo_legado:
-            st.caption("Sentinel-1 requiere RTC locales para el diagnóstico avanzado; no es un análisis automático.")
+            st.caption(tr("Sentinel-1 requiere RTC locales; solo diagnóstico avanzado.",
+                          "Sentinel-1 requires local RTC scenes; advanced diagnostics only."))
         else:
-            st.caption("Selecciona el área y las fechas: V.I.S.O.R. gestiona la búsqueda NISAR "
-                       "sin pedirte escoger satélite. Sentinel-1 automático sigue en validación.")
+            st.caption(tr("Selecciona el área y las fechas para analizar NISAR. "
+                          "Esta versión no integra Sentinel-1 automático.",
+                          "Select an area and date range to analyze NISAR. "
+                          "This release does not integrate automatic Sentinel-1."))
             v9_experiencia.render()
         herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
         st.html(SUBIR_AL_CAMBIAR_DE_PASO, unsafe_allow_javascript=True)
     with st.container(key="sar_minimizado"):
-        st.button("Herramientas SAR · restaurar", key="restaurar_sar", icon=":material/open_in_full:",
+        st.button(tr("Herramientas SAR · restaurar", "Restore SAR tools"), key="restaurar_sar",
+                  icon=":material/open_in_full:",
                   on_click=abrir_sar)
 
 
@@ -401,9 +405,11 @@ def linea_temporal(fechas: list[str] | None = None) -> None:
     """Línea temporal de solo lectura. Con un resultado activo cuya ficha válida
     declara dos fechas, las muestra; nunca interpola ni sugiere estados intermedios."""
     if fechas:
-        titulo = "LÍNEA TEMPORAL · FECHAS DEL RESULTADO ACTIVO"
+        titulo = tr("LÍNEA TEMPORAL · FECHAS DEL RESULTADO ACTIVO",
+                    "TIMELINE · ACTIVE RESULT DATES")
         t1, t2 = f"T₁ · {escape(fechas[0])}", f"T₂ · {escape(fechas[1])}"
-        nota = "Comparación de dos fechas. No hay observaciones intermedias en este producto."
+        nota = tr("Comparación de dos fechas; no incluye observaciones intermedias.",
+                  "Two-date comparison; no intermediate observations are included.")
         clase = " mc-linea-fechada"
     else:
         return          # sin resultado no hay fechas que mostrar: no ocupa sitio sobre el mapa
