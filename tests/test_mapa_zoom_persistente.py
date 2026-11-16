@@ -62,3 +62,55 @@ def test_fallback_a_bounds_mercator_y_valores_invalidos(monkeypatch):
     estado["mapa"] = {"zoom": None}
     mapa._guardar_encuadre_usuario()
     assert mapa._centro_y_zoom_guardados(None) == ([7.65, -76.6], 12.0)
+
+
+
+def test_regresion_dos_geotiff_y_zoom_no_reactivan_historial(monkeypatch):
+    """Folium debe recrearse al elegir otro GeoTIFF, pero no al hacer zoom."""
+    from types import SimpleNamespace
+    import inspect
+
+    assert "st.fragment" not in inspect.getsource(mapa.render), (
+        "Un fragmento del mapa reutiliza el GeoTIFF de una ejecución anterior"
+    )
+    estado = {"visor_idioma": "en"}
+    monkeypatch.setattr(mapa.st, "session_state", estado)
+    monkeypatch.setattr(mapa, "mapa_fijo", lambda: object())
+    monkeypatch.setattr(mapa, "construir_capas", lambda *_: [])
+    monkeypatch.setattr(mapa, "_centro_y_zoom_guardados", lambda *_: (None, None))
+    claves = []
+
+    def mapa_simulado(*args, **kwargs):
+        claves.append(kwargs["key"])
+        return {"all_drawings": [], "bounds": None}
+
+    monkeypatch.setattr(mapa, "st_folium", mapa_simulado)
+
+    def dibujar(id_resultado):
+        controles = SimpleNamespace(resultados={id_resultado: 0.85})
+        mapa.render(None, None, controles)
+
+    dibujar("chigorodo")
+    dibujar("otra_zona")
+    dibujar("otra_zona")   # zoom: debe conservar el mismo componente/capa
+    dibujar("chigorodo")   # cambio explícito: debe cambiar otra vez el componente
+
+    assert claves == [
+        "mapa__chigorodo__en", "mapa__otra_zona__en",
+        "mapa__otra_zona__en", "mapa__chigorodo__en",
+    ]
+
+
+def test_resultado_nuevo_no_elimina_aoi_al_remontar_mapa(monkeypatch):
+    from types import SimpleNamespace
+    estado = {"visor_idioma": "en", "zona": {"limites": (-77, 7, -76, 8)},
+              "mapa_firma_dibujo": "rectangulo_anterior"}
+    monkeypatch.setattr(mapa.st, "session_state", estado)
+    monkeypatch.setattr(mapa, "mapa_fijo", lambda: object())
+    monkeypatch.setattr(mapa, "construir_capas", lambda *_: [])
+    monkeypatch.setattr(mapa, "_centro_y_zoom_guardados", lambda *_: (None, None))
+    monkeypatch.setattr(mapa, "st_folium",
+                        lambda *args, **kwargs: {"all_drawings": [], "bounds": None})
+    mapa.render(None, None, SimpleNamespace(resultados={"resultado_nuevo": 0.85}))
+    assert estado["zona"]["limites"] == (-77, 7, -76, 8)
+    assert estado["mapa_firma_dibujo"] is None
