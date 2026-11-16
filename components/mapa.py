@@ -527,7 +527,7 @@ def _centro_y_zoom_guardados(vista: dict | None):
 
 def _guardar_encuadre_usuario() -> None:
     """Captura el viewport desde el widget ANTES de reconstruir el mapa."""
-    datos = st.session_state.get("mapa")
+    datos = st.session_state.get(st.session_state.get("mapa_widget_key", "mapa"))
     if not isinstance(datos, dict):
         return
     zoom = datos.get("zoom")
