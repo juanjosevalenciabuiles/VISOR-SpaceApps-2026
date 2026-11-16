@@ -302,9 +302,13 @@ def _mostrar_progreso(trabajo: dict, fase: str) -> None:
     st.progress(min(100, max(0, porcentaje)),
                 text=f"{porcentaje}% {tr('de etapas', 'of steps')} · "
                      f"{tr(detalle, fase_en)}")
+    estado_en = {
+        "EN_CURSO": "RUNNING", "APTO": "COMPLETE", "PENDIENTE": "PENDING",
+        "ERROR": "FAILED", "CANCELADO": "CANCELLED",
+    }.get(str(trabajo["estado"]), str(trabajo["estado"]))
     st.caption(tr("El porcentaje indica etapas, no tiempo restante.",
                   "Progress is based on completed steps, not remaining time.") +
-               f" · {tr('Estado', 'Status')}: {trabajo['estado']}")
+               f" · {tr('Estado', 'Status')}: {tr(str(trabajo['estado']), estado_en)}")
 
 
 @st.fragment(run_every=2.0)
