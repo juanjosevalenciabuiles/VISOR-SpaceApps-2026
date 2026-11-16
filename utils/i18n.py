@@ -5,14 +5,19 @@ Los nombres de misiones, archivos, unidades y etiquetas científicas no se tradu
 """
 from __future__ import annotations
 
+import os
+
 import streamlit as st
 
 IDIOMAS = ("es", "en")
 
 
 def idioma() -> str:
-    """Idioma activo (español por defecto)."""
-    valor = st.session_state.get("visor_idioma", "es")
+    """Idioma activo (English por defecto; ES opt-in)."""
+    predeterminado = os.environ.get("VISOR_IDIOMA_DEFECTO", "en").strip().lower()
+    if predeterminado not in IDIOMAS:
+        predeterminado = "en"
+    valor = st.session_state.get("visor_idioma", predeterminado)
     return valor if valor in IDIOMAS else "es"
 
 
