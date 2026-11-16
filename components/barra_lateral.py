@@ -13,7 +13,8 @@ from html import escape
 
 import streamlit as st
 
-from components import flujo, leyenda
+from components import flujo
+from utils.i18n import tr, leyenda
 from components.panel_info import insignia
 from utils import alcance_geografico, lugares, sesion
 from utils import mapas_base
@@ -128,10 +129,10 @@ def buscador_lugar(ir_a, inicio=None) -> None:
                   "(7.67, -76.68) y pulsar Enter. " +
                   ("Modo Colombia: búsqueda y análisis limitados al país. Municipios y contorno: DANE, MGN 2025; "
                    "datos derivados por ytolosa/mapas-colombia, CC BY 4.0." if colombia else "")))
-        st.button("Buscar", key="lugar_buscar", icon=":material/search:", type="primary", on_click=_buscar_lugar,
+        st.button(tr("Buscar", "Search"), key="lugar_buscar", icon=":material/search:", type="primary", on_click=_buscar_lugar,
                   args=(ir_a,), help="Buscar lo escrito (o unas coordenadas: 7.67, -76.68)")
         if inicio is not None:
-            st.button("Vista inicial", key="btn_inicio", icon=":material/home:", on_click=inicio,
+            st.button(tr("Vista inicial", "Initial view"), key="btn_inicio", icon=":material/home:", on_click=inicio,
                       help="Volver a la vista general")
     hallazgo = st.session_state.get("lugares_encontrados")
     if not hallazgo:
@@ -163,7 +164,7 @@ def lugar_ubicado(abrir_zona=None) -> None:
         st.markdown(f'<div class="mc-resultado"><span class="mc-insignia mc-insignia-tenue">UBICADO</span>'
                     f'{escape(lugar["etiqueta"])}</div>{_nota_fuente(lugar["fuente"])}', unsafe_allow_html=True)
     if abrir_zona is not None:
-        st.button("Definir la zona de análisis", key="lugar_definir_zona", icon=":material/crop_free:",
+        st.button(tr("Definir la zona de análisis", "Define study area"), key="lugar_definir_zona", icon=":material/crop_free:",
                   on_click=abrir_zona, help="Abre Herramientas SAR en el paso 1: dibuja la zona sobre el mapa.")
 
 
@@ -174,7 +175,7 @@ def _ver_historico(id_resultado: str) -> None:
 def _controles_resultados(resultados: list, centrar=None, activo=None) -> dict[str, float]:
     """Un único resultado en el mapa: el del último análisis de esta sesión o el que se abra a
     propósito desde el historial. Lo que hay en data/analisis/ NO se dibuja por existir."""
-    st.caption("RESULTADO EN EL MAPA")
+    st.caption(tr("RESULTADO EN EL MAPA", "MAP RESULT"))
     activos: dict[str, float] = {}
     if st.session_state.get("aviso_resultado"):
         st.markdown(f'<div class="mc-aviso">{escape(st.session_state["aviso_resultado"])}</div>',
@@ -191,17 +192,17 @@ def _controles_resultados(resultados: list, centrar=None, activo=None) -> dict[s
         if st.session_state.get("visor_capa_resultado_visible", True):
             activos[activo.id] = float(st.session_state.get("res_opacidad", 0.85))
         else:
-            st.caption("Resultado oculto desde «Capas del mapa». No se borró.")
+            st.caption(tr("Resultado oculto desde «Capas del mapa». No se borró.", "Result hidden using Map Layers; it was not deleted."))
         with st.container(horizontal=True):
             if centrar is not None:
-                st.button("Centrar", key="res_centrar", icon=":material/center_focus_strong:", type="tertiary",
+                st.button(tr("Centrar", "Center"), key="res_centrar", icon=":material/center_focus_strong:", type="tertiary",
                           on_click=centrar, args=(activo.capa.limites,))
-            st.button("Limpiar resultado", key="res_limpiar", icon=":material/layers_clear:", type="tertiary",
+            st.button(tr("Limpiar resultado", "Clear result"), key="res_limpiar", icon=":material/layers_clear:", type="tertiary",
                       on_click=flujo.limpiar_resultado,
                       help="Lo quita del mapa. No borra ningún archivo: sigue en el historial.")
     dibujables = [r for r in resultados if r.dibujable]
     ocultos = [r for r in resultados if not r.dibujable]
-    with st.expander(f"Historial ({len(dibujables)})", expanded=False, key="historial"):
+    with st.expander(f"{tr('Historial', 'History')} ({len(dibujables)})", expanded=False, key="historial"):
         st.markdown('<div class="visor-leyenda-nota">Resultados guardados en <code>data/analisis/</code> por '
                     "análisis anteriores. Ninguno se muestra hasta que pulses «Ver»; abrirlo no ejecuta un "
                     "análisis nuevo.</div>", unsafe_allow_html=True)
@@ -218,7 +219,7 @@ def _controles_resultados(resultados: list, centrar=None, activo=None) -> dict[s
                         f'<code>{escape(res.ruta.name)}</code></div>'
                         f'<div class="visor-leyenda-nota">{escape(res.nombre)} · {escape(_fecha_archivo(res))}</div>',
                         unsafe_allow_html=True)
-            st.button("Ver", key=f"hist_ver_{res.id}", icon=":material/history:", type="tertiary",
+            st.button(tr("Ver", "View"), key=f"hist_ver_{res.id}", icon=":material/history:", type="tertiary",
                       on_click=_ver_historico, args=(res.id,), disabled=activo is not None and activo.id == res.id,
                       help="Lo muestra en el mapa rotulado como HISTÓRICO.")
         if ocultos:
@@ -256,7 +257,7 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None,
         # El dock persistente es el ÚNICO lugar con widgets de capas.
         # Aquí solo leemos su estado para construir Controles; el explorador
         # nunca duplica claves Streamlit ni altera el mapa por sí solo.
-        st.caption("CAPAS DEL MAPA")
+        st.caption(tr("CAPAS DEL MAPA", "MAP LAYERS"))
         st.caption("Activa y cambia tus capas en «CAPAS DEL MAPA», visible sobre el mapa "
                    "aunque cierres el Explorador.")
         mapa_base = st.session_state.get("mapa_base") or mapas_base.predeterminado()
@@ -272,26 +273,26 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None,
             limites, zoom = vista_actual(st.session_state.get("vista"))
 
         from components import sistema
-        with st.expander("Estado del sistema", expanded=False, key="sistema"):
+        with st.expander(tr("Estado del sistema", "System status"), expanded=False, key="sistema"):
             sistema.render()
 
         # Las capas DEMO son sintéticas: apagadas por defecto y solo visibles si se piden a propósito.
-        with st.expander("Demostración (datos sintéticos)", expanded=False, key="demo"):
+        with st.expander(tr("Demostración (datos sintéticos)", "Demonstration (synthetic data)"), expanded=False, key="demo"):
             st.markdown('<div class="visor-leyenda-nota">Capas generadas por computador para probar la interfaz. '
                         "No son observaciones de satélite ni resultados de un análisis.</div>",
                         unsafe_allow_html=True)
-            mostrar_capa = st.toggle("Mostrar capa DEMO", value=False, key="capa_sar")
+            mostrar_capa = st.toggle(tr("Mostrar capa DEMO", "Show DEMO layer"), value=False, key="capa_sar")
             solo_inundaciones = os.environ.get("VISOR_FENOMENOS_LEGACY") != "1"
             if solo_inundaciones and st.session_state.get("fenomeno") not in (None, "inundacion"):
                 st.session_state["fenomeno"] = "inundacion"
             clave = st.radio(
-                "Fenómeno",
+                tr("Fenómeno", "Phenomenon"),
                 options=["inundacion"] if solo_inundaciones else list(FENOMENOS),
                 format_func=lambda k: f"{FENOMENOS[k].icono}  {FENOMENOS[k].nombre}",
                 key="fenomeno",
             )
-            opacidad = st.slider("Opacidad DEMO", 0.0, 1.0, 0.85, 0.05, disabled=not mostrar_capa, key="opacidad_sar")
-            mostrar_huella = st.toggle("Cobertura de la capa DEMO", value=True, disabled=not mostrar_capa,
+            opacidad = st.slider(tr("Opacidad DEMO", "DEMO opacity"), 0.0, 1.0, 0.85, 0.05, disabled=not mostrar_capa, key="opacidad_sar")
+            mostrar_huella = st.toggle(tr("Cobertura de la capa DEMO", "DEMO layer footprint"), value=True, disabled=not mostrar_capa,
                                        key="huella")
 
     return Controles(
@@ -319,12 +320,12 @@ def _creditos(fenomeno: Fenomeno, capa: Capa | None, c: Controles) -> str:
 def render_leyenda(fenomeno: Fenomeno, capa: Capa | None, c: Controles, contenedor=None) -> None:
     """Leyendas, créditos y estado del mapa base. Va aparte porque necesita la capa ya cargada."""
     with contenedor if contenedor is not None else st.sidebar:
-        st.caption("LEYENDA")
+        st.caption(tr("LEYENDA", "LEGEND"))
         if capa is not None:
             leyenda.render(fenomeno, capa)
         leyenda.render_contexto([k for k, activa in (("hidrografia", c.hidrografia), ("vias", c.vias)) if activa])
 
-        st.caption("CRÉDITOS Y FUENTES")
+        st.caption(tr("CRÉDITOS Y FUENTES", "CREDITS AND SOURCES"))
         st.markdown(_creditos(fenomeno, capa, c), unsafe_allow_html=True)
 
         estado = carto_estado()
