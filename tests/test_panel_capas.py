@@ -192,3 +192,46 @@ def test_abrir_historico_reubica_el_mapa_y_cancela_jobs(monkeypatch):
     assert estado["trabajo_activo"] is None and estado["trabajo_publicado"] is None
     assert estado["ui_sar"] == "cerrado"
     assert estado["visor_capa_resultado_visible"] is True
+
+
+def test_al_publicar_nuevo_resultado_sar_oculta_ideam_y_dane_una_sola_vez(monkeypatch):
+    from components import capas_ambientales
+    claves = capas_ambientales.CLAVES
+    estado = {}
+    monkeypatch.setattr(panel_capas.st, "session_state", estado)
+    panel_capas._inicializar()
+    assert estado[claves["ideam"]] and estado[claves["municipios"]]
+    estado["resultado_activo"] = {"id": "nisar_a", "origen": sesion.ANALISIS,
+                                 "run_id": "job_1", "abierto": "2026-11-16T10:00:00Z"}
+    panel_capas._ocultar_capas_al_publicar_resultado(_res("nisar_a"))
+    assert not estado[claves["ideam"]] and not estado[claves["municipios"]]
+    assert estado["visor_capa_resultado_visible"] is True
+    # Un cambio manual del visitante no debe revertirse en cada rerun/pan/zoom.
+    estado[claves["ideam"]] = True
+    panel_capas._ocultar_capas_al_publicar_resultado(_res("nisar_a"))
+    assert estado[claves["ideam"]] is True
+    # Solo al publicarse otro resultado válido vuelve a despejarse el mapa.
+    estado["resultado_activo"].update(id="nisar_b", run_id="job_2")
+    panel_capas._ocultar_capas_al_publicar_resultado(_res("nisar_b"))
+    assert not estado[claves["ideam"]] and not estado[claves["municipios"]]
+
+
+def test_sin_resultado_apto_o_historico_no_cambia_visibilidad_ambiental(monkeypatch):
+    from components import capas_ambientales
+    claves = capas_ambientales.CLAVES
+    estado = {"resultado_activo": None}
+    monkeypatch.setattr(panel_capas.st, "session_state", estado)
+    panel_capas._inicializar()
+    panel_capas._ocultar_capas_al_publicar_resultado(None)
+    assert estado[claves["ideam"]] and estado[claves["municipios"]]
+    estado["resultado_activo"] = {"id": "antiguo", "origen": sesion.HISTORICO,
+                                 "run_id": None, "abierto": "2026-11-16T10:00:00Z"}
+    panel_capas._ocultar_capas_al_publicar_resultado(_res("antiguo"))
+    assert estado[claves["ideam"]] and estado[claves["municipios"]]
+
+
+def test_no_hay_linea_temporal_flotante_en_app():
+    from pathlib import Path
+    main = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
+    assert "interfaz.linea_temporal(" not in main
+    assert "interfaz.panel_informacion(" in main
