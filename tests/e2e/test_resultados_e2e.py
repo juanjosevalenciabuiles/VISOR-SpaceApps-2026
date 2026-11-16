@@ -158,8 +158,18 @@ def test_recomendaciones_fluviales_un_click_crea_zona_y_muestra_info(abrir):
     p.clic("recom_chigorodo")
     p.esperar_mapa()
     zoom, lat, lon = p.vista()
-    # Rectángulo mayor de la captura Turbo/Chigorodó; no el antiguo preset urbano.
-    assert abs(lat - 7.622) < 0.02 and abs(lon + 76.7365) < 0.02
+    # El centro cambia con la ampliación segura, pero incluye la AOI aprobada.
+    bounds = p.mapa.evaluate("""() => {
+        const r = Object.values(map._layers).find(l => l instanceof L.Rectangle &&
+            String(l.options.color).toLowerCase() === '#ffffff');
+        if (!r) return null;
+        const b = r.getBounds();
+        return {o:b.getWest(), s:b.getSouth(), e:b.getEast(), n:b.getNorth()};
+    }""")
+    assert bounds and bounds["o"] <= -76.825 and bounds["s"] <= 7.568
+    assert bounds["e"] >= -76.648 and bounds["n"] >= 7.676
+    assert abs(lat - (bounds["s"] + bounds["n"]) / 2) < 0.03
+    assert abs(lon - (bounds["o"] + bounds["e"]) / 2) < 0.03
     assert p.visible("panel_info") and "Chigorodó" in p.texto("panel_info")
     assert p.visible("panel_sar"), "la recomendación debe abrir las herramientas SAR"
     assert p.page.locator("#zona-confirmada").count() == 1
@@ -175,7 +185,16 @@ def test_recomendaciones_fluviales_un_click_crea_zona_y_muestra_info(abrir):
     p.clic("recom_choco_atrato")
     p.esperar_mapa()
     zoom, lat, lon = p.vista()
-    assert abs(lat - 5.695) < 0.02 and abs(lon + 76.66) < 0.02
+    bounds = p.mapa.evaluate("""() => {
+        const r = Object.values(map._layers).find(l => l instanceof L.Rectangle &&
+            String(l.options.color).toLowerCase() === '#ffffff');
+        const b = r.getBounds();
+        return {o:b.getWest(), s:b.getSouth(), e:b.getEast(), n:b.getNorth()};
+    }""")
+    assert bounds["o"] <= -76.70 and bounds["s"] <= 5.66
+    assert bounds["e"] >= -76.62 and bounds["n"] >= 5.73
+    assert abs(lat - (bounds["s"] + bounds["n"]) / 2) < 0.03
+    assert abs(lon - (bounds["o"] + bounds["e"]) / 2) < 0.03
     assert p.visible("panel_info") and "Quibdó" in p.texto("panel_info")
     assert p.visible("panel_sar")
     assert capas_imagen(p) == []
@@ -197,17 +216,14 @@ def test_boton_analizar_sar_sigue_visible_al_desplazarse_por_panel(abrir):
     boton = barra.locator("button").first
     assert panel.is_visible() and barra.is_visible()
     assert boton.count() == 1 and boton.is_disabled(), "sin par no debe iniciar Harmony"
+    # El botón está ARRIBA, inmediatamente después de la cabecera, sin scroll.
+    panel.evaluate("el => { el.scrollTop = 0; }")
     info = barra.evaluate("""el => ({
         css: getComputedStyle(el).position,
-        panel: el.closest('.st-key-panel_sar') !== null
+        panel: el.closest('.st-key-panel_sar') !== null,
+        visible: el.getBoundingClientRect().top >=
+                 el.closest('.st-key-panel_sar').getBoundingClientRect().top &&
+                 el.getBoundingClientRect().bottom <=
+                 el.closest('.st-key-panel_sar').getBoundingClientRect().bottom
     })""")
-    assert info == {"css": "sticky", "panel": True}
-    panel.evaluate("el => { el.scrollTop = 0; }")
-    p.page.wait_for_timeout(250)
-    limites = barra.evaluate("""el => {
-        const a = el.getBoundingClientRect();
-        const b = el.closest('.st-key-panel_sar').getBoundingClientRect();
-        return { visible: a.top < b.bottom && a.bottom <= b.bottom + 7 &&
-                  a.bottom > b.top };
-    }""")
-    assert limites["visible"], "la barra debe quedar visible sin scroll hasta el final"
+    assert info == {"css": "static", "panel": True, "visible": True}
