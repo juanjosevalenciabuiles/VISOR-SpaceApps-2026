@@ -168,3 +168,27 @@ def test_etiqueta_historial_bloquea_html_no_confiable():
     assert "Chigorodó" in etiqueta and "date unknown" in etiqueta
     r.ficha["procedencia"]["fechas"] = ["2026-10-22", "2026-11-03"]
     assert "2026-10-22 → 2026-11-03" in nombre_resultado(r)
+
+
+
+def test_abrir_historico_reubica_el_mapa_y_cancela_jobs(monkeypatch):
+    from components import barra_lateral, interfaz, flujo, v9_experiencia
+    estado = {"visor_idioma": "en", "ui_sar": "abierto",
+              "trabajo_activo": "legacy_chigorodo",
+              "trabajo_publicado": "legacy_chigorodo"}
+    monkeypatch.setattr(barra_lateral.st, "session_state", estado)
+    eventos = []
+    monkeypatch.setattr(v9_experiencia, "_limpiar_v9", lambda: eventos.append("v9_stop"))
+    monkeypatch.setattr(flujo, "quitar_zona", lambda: eventos.append("aoi_clear"))
+    monkeypatch.setattr(flujo, "activar",
+                        lambda id_, origen: eventos.append(("selected", id_, origen)))
+    monkeypatch.setattr(interfaz, "centrar_en", lambda bounds: eventos.append(("center", tuple(bounds))))
+    limites = (-76.9, 7.5, -76.6, 7.8)
+    barra_lateral._ver_historico("resultado_otro", limites)
+    assert eventos == [
+        "v9_stop", "aoi_clear", ("selected", "resultado_otro", sesion.HISTORICO),
+        ("center", limites),
+    ]
+    assert estado["trabajo_activo"] is None and estado["trabajo_publicado"] is None
+    assert estado["ui_sar"] == "cerrado"
+    assert estado["visor_capa_resultado_visible"] is True
