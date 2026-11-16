@@ -222,15 +222,12 @@ class Pagina:
         page.goto(url)
         self.esperar_mapa()
         page.locator(".st-key-barra_superior").wait_for(timeout=60_000)
-        # Streamlit monta el modal DESPUÉS del mapa: contar botones sin esperar
-        # creaba una carrera y dejaba la guía tapando toda la interfaz.
-        # Cada prueba usa un contexto nuevo, así que la bienvenida debe aparecer.
-        dialogo = page.locator('[data-testid="stDialog"]')
-        dialogo.wait_for(state="visible", timeout=30_000)
-        guia = dialogo.get_by_role("button", name="Comenzar a explorar")
-        guia.wait_for(state="visible", timeout=15_000)
-        guia.click()
-        dialogo.wait_for(state="hidden", timeout=15_000)
+        # La guía NO es un diálogo: es un panel persistente controlado por el
+        # visitante. Al empezar cada escenario E2E se cierra explícitamente.
+        guia = page.locator(".st-key-visor_guia_panel")
+        guia.wait_for(state="visible", timeout=30_000)
+        page.locator(".st-key-visor_guia_empezar button").click()
+        guia.wait_for(state="hidden", timeout=15_000)
         self.esperar(350)
 
     @property
