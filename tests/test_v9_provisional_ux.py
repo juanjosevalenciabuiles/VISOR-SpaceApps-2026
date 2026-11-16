@@ -139,3 +139,29 @@ def test_preparar_harmony_no_mezcla_madureces(monkeypatch, tmp_path):
     plan = nisar_auto.Plan("PAR", (a, b), AOI, 1.0, 2000, "HHHH", ())
     with pytest.raises(nisar_auto.ErrorAutoNISAR, match="madurez distinta"):
         nisar_auto.preparar_harmony(plan, carpeta=tmp_path)
+
+
+def test_progreso_sar_se_muestra_en_el_pie_fijo_sin_duplicacion():
+    """Las fases QA reales acompañan el CTA, no quedan ocultas arriba."""
+    import ast
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parents[1]
+    codigo = (raiz / "components/v9_experiencia.py").read_text(encoding="utf-8")
+    css = (raiz / "assets/mission_control.css").read_text(encoding="utf-8")
+    arbol = ast.parse(codigo)
+    funciones = {n.name: n for n in arbol.body if isinstance(n, ast.FunctionDef)}
+    assert "_progreso_pie_sar" in funciones
+    pie = ast.get_source_segment(codigo, funciones["_progreso_pie_sar"])
+    seguimiento = ast.get_source_segment(codigo, funciones["_seguimiento"])
+    accion = ast.get_source_segment(codigo, funciones["accion_principal"])
+    assert "_mostrar_progreso(prep, \"preparacion\")" in pie
+    assert "_mostrar_progreso(cambio, \"calculo\")" in pie
+    assert "_mostrar_progreso(" not in seguimiento, "no duplicar la barra en medio del panel"
+    assert "with st.container(key=\"sar_accion_fija\")" in accion
+    assert "_progreso_pie_sar()" in accion
+    assert "if st.session_state.get(\"v9_preparacion\")" in accion, (
+        "no agregar un polling permanente cuando el análisis está inactivo"
+    )
+    assert "position: sticky !important" in css
+    assert "El porcentaje indica etapas, no tiempo restante." in codigo
