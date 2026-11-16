@@ -108,6 +108,7 @@ class Servidor:
                    "VISOR_TRABAJOS_DIR": str(datos / "trabajos"), "VISOR_DIAGNOSTICO": "desactivado",
                    "VISOR_CONTEXTO_EXTERNO": "desactivado", "VISOR_CONTEXTO_SINCRONO": "0",
                    "VISOR_IDIOMA_DEFECTO": "es", "VISOR_MOSTRAR_DEMO": "1",
+                    "VISOR_MOSTRAR_HISTORIAL": "1",
                    **(entorno_extra or {})}
         entorno = {k: v for k, v in entorno.items() if v is not None}   # None = quitar la variable
         self.registro = open(datos.parent / f"streamlit_{self.puerto}.log", "w")
