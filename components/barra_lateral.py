@@ -300,6 +300,7 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None,
             clave = st.session_state.get("fenomeno", "inundacion")
             if clave not in FENOMENOS:
                 clave = "inundacion"
+            st.session_state["fenomeno"] = clave
             # Se conserva la configuración de las capas reales, sin exponer widgets DEMO.
     return Controles(
         clave, mostrar_capa, opacidad, mostrar_huella and mostrar_capa, mostrar_referencia,
