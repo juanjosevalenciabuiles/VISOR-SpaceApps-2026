@@ -92,6 +92,7 @@ def _sugerencias_validas_cmr(resultado, pares, zona, inicio: date, fin: date) ->
     return sorted(
         unicas.values(),
         key=lambda op: (
+            not op["cubre_punto"],  # priorizar el lugar consultado si existe
             _distancia_fechas(op["par"], inicio, fin),
             -op["cobertura"],
         ),
@@ -264,10 +265,16 @@ def _consultar_coberturas(zona, inicio: date, fin: date) -> dict:
         amplia_desde, amplia_hasta = _limites_coleccion(
             madurez, inicio, fin, margen=DISTANCIA_SUGERENCIAS_DIAS)
         catalogo_sugerido = resultado
+        consulta_incompleta = False
         if (amplia_desde, amplia_hasta) != (desde, hasta):
-            catalogo_sugerido = cat.buscar(
-                *zona, amplia_desde, amplia_hasta, madurez=madurez
-            )
+            try:
+                catalogo_sugerido = cat.buscar(
+                    *zona, amplia_desde, amplia_hasta, madurez=madurez
+                )
+            except (cat.ErrorConexion, cat.ErrorServicio):
+                # La búsqueda principal sí funcionó; no descartar sus huellas
+                # por un fallo temporal de la consulta adicional de fechas.
+                consulta_incompleta = True
         sugeridos = _sugerencias_validas_cmr(
             catalogo_sugerido,
             [*resultado.pares, *catalogo_sugerido.pares],
@@ -275,7 +282,7 @@ def _consultar_coberturas(zona, inicio: date, fin: date) -> dict:
         )
         st.session_state["v9_sugerencias"] = {
             "firma": estado["firma"], "madurez": madurez,
-            "opciones": sugeridos,
+            "opciones": sugeridos, "consulta_incompleta": consulta_incompleta,
         }
     else:
         st.session_state.pop("v9_sugerencias", None)
@@ -492,12 +499,20 @@ def _mostrar_sugerencias(firma) -> None:
         return
     opciones = estado.get("opciones") or []
     if not opciones:
-        st.info(tr(
-            "No hay fechas alternativas con cobertura CMR suficiente en la "
-            "búsqueda disponible. Reduce la zona o amplía el período.",
-            "No alternative dates with sufficient CMR coverage were found "
-            "in the available search. Shrink the area or expand the date range.",
-        ))
+        if estado.get("consulta_incompleta"):
+            st.warning(tr(
+                "No se pudo completar la búsqueda de fechas alternativas "
+                "en NASA CMR. Intenta nuevamente.",
+                "The alternative-date search could not be completed "
+                "through NASA CMR. Please try again.",
+            ))
+        else:
+            st.info(tr(
+                "No hay fechas alternativas con cobertura CMR suficiente en la "
+                "búsqueda disponible. Reduce la zona o amplía el período.",
+                "No alternative dates with sufficient CMR coverage were found "
+                "in the available search. Shrink the area or expand the date range.",
+            ))
         return
     st.warning(tr(
         "No hay pares aptos para estas fechas. NASA CMR encontró este "
