@@ -155,13 +155,18 @@ def buscador_lugar(ir_a, inicio=None) -> None:
 
 # Presets exploratorios sobre corredores fluviales urbanos. Son rectángulos
 # aproximados para escoger una AOI, NO huellas de inundación ni cobertura NISAR.
+# Chigorodó: extensión estimada de la captura aprobada por el usuario
+# (Turbo / Chigorodó, 32,6 % / 66,4 % visibles en la captura). La imagen
+# carece de coordenadas impresas; no presentar estos límites como exactos.
+# NO reemplazar AOI_CHIGORODO de utils/config.py: es un AOI científico
+# histórico distinto, utilizado por pruebas y archivos ya generados.
 # Río Chigorodó: CORPOURABA; río Atrato en Quibdó: Gobierno del Chocó.
 # https://corpouraba.gov.co/2026/06/02/corpouraba-participo-en-jornada-de-revision-e-inspeccion-en-la-parte-baja-del-rio-chigorodo/
 # https://turismo.choco.gov.co/subregion-atrato/
 RECOMENDACIONES_AOI = {
     "chigorodo": {
         "municipio": "Chigorodó",
-        "limites": (-76.71, 7.64, -76.63, 7.71),
+        "limites": (-76.825, 7.568, -76.648, 7.676),
         "nombre_es": "Chigorodó · río Chigorodó",
         "nombre_en": "Chigorodó · Chigorodó River",
     },
