@@ -260,3 +260,42 @@ def test_no_descarga_anonima_si_falta_cliente(tmp_path):
     with pytest.raises(h.ErrorHarmony, match="cliente Harmony autenticado"):
         h._descargar_cota("https://harmony.earthdata.nasa.gov/a.tif",
                           tmp_path / "a.tif", 1024**2)
+
+
+
+def test_modo_cambio_solicita_solo_tres_capas_de_uso_real():
+    """V9: gamma0 copolar y las dos QA; HV/HVHV no se usa para ΔdB."""
+    spec = h.especificar(candidato(), AOI, caps(), solo_cambio=True)
+    assert spec.capas == ("HHHH", "mask", "numberOfLooks")
+    assert len(spec.variables) == 3
+    assert all("HVHV" not in item for item in spec.variables)
+    assert h.especificar(candidato(), AOI, caps()).capas == CAPAS
+    vv = candidato(pols=("VV", "VH"))
+    vv_caps = {"coleccion": "C3622241360-ASF",
+               "variables": {"/science/LSAR/GCOV/grids/frequencyA/" + c
+                             for c in ("VVVV", "VHVH", "mask", "numberOfLooks")}}
+    assert h.especificar(vv, AOI, vv_caps, solo_cambio=True).capas == (
+        "VVVV", "mask", "numberOfLooks",
+    )
+
+
+def test_cog_grande_se_rechaza_antes_de_transferir_y_sin_fugar_url(tmp_path):
+    """No solicitar bytes enormes ni exponer parámetros firmados de NASA."""
+    url = "https://harmony.earthdata.nasa.gov/frequencyA_HHHH.tif?secret=NO_MOSTRAR"
+    contenido = tiff()
+    class COGGigante(Respuesta):
+        def __init__(self):
+            super().__init__(contenido, url)
+            self.headers["Content-Length"] = str(300 * 1024**2)
+    destino = tmp_path / "HHHH.tif"
+    llamados = []
+    def abrir(req, timeout):
+        llamados.append(req)
+        return COGGigante()
+    with pytest.raises(h.ErrorHarmony, match="COG_DEMASIADO_GRANDE") as exc:
+        h._descargar_cota(url, destino, max_bytes=100 * 1024**2, abrir=abrir)
+    assert "300.0 MiB" in str(exc.value)
+    assert "100.0 MiB" in str(exc.value)
+    assert "NO_MOSTRAR" not in str(exc.value)
+    assert len(llamados) == 1
+    assert not destino.exists() and not destino.with_suffix(".tif.part").exists()
