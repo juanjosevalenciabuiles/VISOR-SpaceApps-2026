@@ -370,3 +370,73 @@ def test_abrir_info_al_confirmar_y_respetar_cierre_manual_en_reruns(monkeypatch,
     confirmar_zona(at, (-74.10, 4.68, -74.05, 4.72))
     assert at.session_state["ui_info"] is True, "otro AOI siempre muestra su propia información"
     assert "Bogotá" in _texto(at)
+
+
+def test_recomendaciones_fluviales_son_aoi_validas_y_no_pretenden_cobertura_nisar():
+    from components import barra_lateral
+    from utils import lugares, sesion
+    casos = barra_lateral.RECOMENDACIONES_AOI
+    assert set(casos) == {"chigorodo", "choco_atrato"}
+    for caso in casos.values():
+        assert sesion.validar_zona(caso["limites"]) == caso["limites"]
+        ciudades = lugares.buscar_local(caso["municipio"])
+        assert any(
+            x.nombre == caso["municipio"]
+            and caso["limites"][0] < x.longitud < caso["limites"][2]
+            and caso["limites"][1] < x.latitud < caso["limites"][3]
+            for x in ciudades
+        ), "La AOI recomendada debe incluir el municipio identificado"
+    assert "Chigorodó" in casos["chigorodo"]["nombre_es"]
+    assert "Atrato" in casos["choco_atrato"]["nombre_en"]
+
+
+def test_recomendacion_un_click_confirma_zona_muestra_ficha_y_no_lanza_sar(monkeypatch):
+    from components import barra_lateral
+    from utils import sesion
+    estado = {
+        "visor_idioma": "en", "zona": {"limites": [-76.1, 7.2, -76, 7.3]},
+        "resultado_activo": {"id": "anterior", "origen": sesion.ANALISIS},
+        "v9_preparacion": "cog_preparado_para_otra_zona",
+        "v9_mapa_job": "mapa_viejo", "v9_publicado": "mapa_viejo",
+        "trabajo_activo": "analisis_anterior", "trabajo_publicado": "analisis_anterior",
+        "mapa_dibujo": {"type": "Feature"}, "ui_info": False,
+    }
+    monkeypatch.setattr(barra_lateral.st, "session_state", estado)
+    vistas = []
+    barra_lateral._seleccionar_recomendacion("chigorodo", lambda zona: vistas.append(zona))
+    aoi = barra_lateral.RECOMENDACIONES_AOI["chigorodo"]["limites"]
+    assert tuple(estado["zona"]["limites"]) == aoi and vistas == [aoi]
+    assert estado["resultado_activo"] is None
+    assert "v9_preparacion" not in estado
+    assert "v9_mapa_job" not in estado and "v9_publicado" not in estado
+    assert estado["trabajo_activo"] is None and estado["trabajo_publicado"] is None
+    assert estado["mapa_dibujo"] is None
+    assert estado["ui_info"] is True and estado["ui_sar"] == "cerrado"
+    assert estado["lugar"]["etiqueta"].startswith("Chigorodó")
+    assert estado["visor_aoi_recomendacion_seq"] == 1
+    assert estado["recomendacion_aoi_actual"] == "chigorodo"
+    # Cambiar a Chocó usa la misma operación, sin intentar preparar ni analizar.
+    barra_lateral._seleccionar_recomendacion("choco_atrato", lambda zona: vistas.append(zona))
+    assert tuple(estado["zona"]["limites"]) == barra_lateral.RECOMENDACIONES_AOI["choco_atrato"]["limites"]
+    assert estado["lugar"]["etiqueta"].startswith("Quibdó")
+    assert estado["visor_aoi_recomendacion_seq"] == 2
+    assert estado["ui_info"] is True
+
+
+def test_recomendacion_invalida_no_borra_zona_ni_resultado(monkeypatch):
+    from components import barra_lateral
+    from utils import sesion
+    estado = {"resultado_activo": {"id": "validado"}, "zona": {"limites": [-76.1, 7.2, -76, 7.3]},
+              "visor_aoi_recomendacion_seq": 4}
+    monkeypatch.setattr(barra_lateral.st, "session_state", estado)
+
+    def no_valida(_):
+        raise sesion.ErrorZona("AOI fuera de alcance")
+
+    monkeypatch.setattr(barra_lateral.sesion, "validar_zona", no_valida)
+    vistas = []
+    barra_lateral._seleccionar_recomendacion("chigorodo", lambda zona: vistas.append(zona))
+    assert estado["error_recomendacion"] == "AOI fuera de alcance"
+    assert estado["resultado_activo"]["id"] == "validado"
+    assert estado["zona"]["limites"] == [-76.1, 7.2, -76, 7.3]
+    assert estado["visor_aoi_recomendacion_seq"] == 4 and not vistas
