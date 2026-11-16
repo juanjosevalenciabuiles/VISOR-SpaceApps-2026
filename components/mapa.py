@@ -636,7 +636,7 @@ def _sincronizar_zona_dibujada(dibujos: list | None) -> bool:
 
 def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | None = None,
            resultados: list[ResultadoSAR] | tuple = (), extras: list[folium.FeatureGroup] | tuple = (),
-           seguir_vista: bool = False) -> None:
+           seguir_vista: bool = False, seleccionar_par: bool = False) -> None:
     """`extras`: grupos adicionales encima de todo (zona, marcador del lugar y huellas de entrada).
 
     El mapa devuelve el borrador de zona dibujado y su encuadre (para recortar ríos y carreteras a lo
@@ -656,11 +656,17 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
                            or getattr(c, "vias", False))
     objetos_devuelto = (["all_drawings", "bounds", "zoom", "center"]
                          if seguir_encuadre else ["all_drawings"])
+    # Un clic en una huella selecciona el par, pero pan/zoom no vuelve a
+    # consultar NASA ni necesita reejecutar Python. Solo activar en este modo.
+    if seleccionar_par:
+        objetos_devuelto.append("last_object_clicked")
     # streamlit-folium fija returned_objects al montar su iframe: entrar
     # o salir del modo de seguimiento requiere UNA nueva instancia, no un
     # remontaje por cada cambio de centro/zoom.
     if seguir_encuadre:
         clave_widget += "__seguir_vista"
+    if seleccionar_par:
+        clave_widget += "__pares_nisar"
     # Solo un clic en una recomendación recrea el componente para limpiar dibujos
     # antiguos de Leaflet. La clave permanece estable durante pan/zoom.
     sugerencia_version = int(st.session_state.get("visor_aoi_recomendacion_seq", 0))
@@ -706,6 +712,12 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
         st.session_state.setdefault("mapa_limites", None)
     if nueva_seleccion:
         st.rerun()  # Nueva AOI: refresca también los controles externos al mapa.
+    if seleccionar_par and salida.get("last_object_clicked") is not None:
+        from components import v9_experiencia
+        if v9_experiencia.seleccionar_desde_mapa(
+            salida["last_object_clicked"], clave_widget
+        ):
+            st.rerun()  # Solo selección explícita; nunca pan/zoom.
 
 
 def limites_de_vista(bounds) -> tuple[float, float, float, float] | None:
