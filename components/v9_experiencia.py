@@ -20,7 +20,9 @@ from utils.resultados import id_resultado, leer_resultado
 from utils.v9_nisar_puente import QAInsuficiente, escenas_preparadas, leer_preparacion
 from utils.v9_trabajo_mapa import iniciar
 
-MAX_HARMONY_MB = 384
+# Presupuesto total de LAS DOS fechas; no afecta el tamaño de GeoTIFF de
+# salida, la resolución nativa ni las comprobaciones QA.
+MAX_HARMONY_MB = 1024
 MARGEN_DIAS = 45
 INICIO_PROVISIONAL = date(2026, 6, 17)
 FIN_PROVISIONAL = date(2026, 10, 23)
@@ -438,7 +440,8 @@ def _solicitar(zona, inicio: date, fin: date):
     plan = nisar_auto.planear(
         replace(resultado, pares=candidatos), max_gb=15.0, aceptar_escena_unica=False,
     )
-    # Un clic autoriza recortes auténticos de hasta 384 MiB, nunca HDF5 completos.
+    # Solo un clic explícito autoriza hasta 1 GiB para AMBAS fechas
+    # en COG auténticos; nunca HDF5 completos.
     from components import nisar_auto_ui
     preparado = nisar_auto_ui._ejecutar_en_cola(
         resultado, plan, nisar_auto_ui.METODOS[0], MAX_HARMONY_MB,
