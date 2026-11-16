@@ -206,60 +206,76 @@ RECOMENDACIONES_AOI = {
 
 
 def _ampliar_area_recomendada(limites) -> tuple[float, float, float, float]:
-    """Amplía la AOI hasta ~87 % del máximo admitido, sin salir de Colombia.
+    """AOI recomendada compacta y cuadrada EN KM, dentro de Colombia.
 
-    Conserva íntegro el rectángulo de referencia, incluido el sector que
-    funcionó en Chigorodó/Turbo. Prueba varias proporciones y desplazamientos
-    hacia el interior: una ampliación centrada puede cruzar costas/fronteras.
-    Solo se ejecuta al hacer clic en una recomendación, nunca por pan/zoom.
-    No garantiza que exista un par NISAR que cubra toda la AOI resultante.
+    El antiguo objetivo de 87 % del máximo producía rectángulos extensos
+    poco útiles al elegir pares CMR. Se limita a un 40 % del presupuesto
+    estimado (lado ~76 km a 30 m), sin tocar el tope científico. La zona
+    fluvial original queda completamente dentro, y los desplazamientos
+    permiten acercar el cuadrado al interior desde costas/fronteras.
+    Solo se calcula al pulsar la recomendación, nunca al mover el mapa.
     """
     import math
 
     from utils.analisis_sar import MAX_PIXELES
-    base = sesion.validar_zona(limites)  # fallo temprano; no borrar sesión anterior
-    objetivo = int(MAX_PIXELES * 0.87)  # margen para redondeo y consumo de RAM
-    pix_base = sesion.pixeles_estimados(base)
-    if pix_base >= objetivo:
-        return base
-    o, sur, e, n = base
-    centro_x, centro_y = (o + e) / 2, (sur + n) / 2
-    ancho, alto = e - o, n - sur
-    mejor = base
-    pix_mejor = pix_base
-    max_escala = math.sqrt(objetivo / max(pix_base, 1)) * 2
-    # La AOI inicial siempre queda contenida, nunca cambia de río ni de lugar.
-    for aspecto in (0.7, 1.0, 1.42):
-        factor_x = math.sqrt(aspecto)
-        for fraccion_x in (0.2, 0.5, 0.8):
-            for fraccion_y in (0.2, 0.5, 0.8):
-                def candidato(escala, *, factor_x=factor_x,
-                              fraccion_x=fraccion_x, fraccion_y=fraccion_y):
-                    w = ancho * escala * factor_x
-                    h = alto * escala / factor_x
-                    return (
-                        round(min(o, centro_x - fraccion_x * w), 5),
-                        round(min(sur, centro_y - fraccion_y * h), 5),
-                        round(max(e, centro_x + (1 - fraccion_x) * w), 5),
-                        round(max(n, centro_y + (1 - fraccion_y) * h), 5),
-                    )
 
-                bajo, alto_escala = 1.0, max_escala
-                for _ in range(13):
-                    medio = (bajo + alto_escala) / 2
-                    prueba = candidato(medio)
-                    if sesion.pixeles_estimados(prueba) > objetivo:
-                        alto_escala = medio
-                        continue
-                    try:
-                        valido = sesion.validar_zona(prueba)
-                    except sesion.ErrorZona:
-                        alto_escala = medio
-                        continue
-                    bajo = medio
-                    pix = sesion.pixeles_estimados(valido)
-                    if pix > pix_mejor:
-                        mejor, pix_mejor = valido, pix
+    base = sesion.validar_zona(limites)  # no cambiar estado si falla
+    o, sur, e, n = base
+    lat_ref = (sur + n) / 2
+    km_lon = 111.32 * math.cos(math.radians(lat_ref))
+    km_lat = 111.32
+    ancho_km, alto_km = sesion.dimensiones_km(base)
+    lado_min = max(ancho_km, alto_km)
+    objetivo = int(MAX_PIXELES * 0.40)
+    # Un margen para redondeos geográficos y estimaciones discretas de píxel.
+    lado_max = math.sqrt(objetivo) * sesion.RESOLUCION_ESTIMADA_M / 1000 * 0.995
+    if lado_min >= lado_max:
+        return base
+
+    mejor = base
+    mejor_lado = 0.0
+
+    # 0.5 centra el rectángulo; las demás posiciones lo desplazan hacia
+    # tierra firme SIN recortar ningún extremo del corredor original.
+    desplazamientos = (0.5, 0.25, 0.75, 0.0, 1.0)
+    for fx in desplazamientos:
+        for fy in desplazamientos:
+            def cuadrado(lado_km, fx=fx, fy=fy):
+                extra_lon = max(0.0, lado_km - ancho_km) / km_lon
+                extra_lat = max(0.0, lado_km - alto_km) / km_lat
+                return (
+                    round(o - fx * extra_lon, 5),
+                    round(sur - fy * extra_lat, 5),
+                    round(e + (1 - fx) * extra_lon, 5),
+                    round(n + (1 - fy) * extra_lat, 5),
+                )
+
+            # Si ni el cuadrado mínimo cabe en Colombia, ampliar solo
+            # empeoraría el problema: explorar otra posición.
+            try:
+                sesion.validar_zona(cuadrado(lado_min))
+            except sesion.ErrorZona:
+                continue
+            bajo, alto = lado_min, lado_max
+            for _ in range(12):
+                medio = (bajo + alto) / 2
+                posible = cuadrado(medio)
+                if sesion.pixeles_estimados(posible) > objetivo:
+                    alto = medio
+                    continue
+                try:
+                    valido = sesion.validar_zona(posible)
+                except sesion.ErrorZona:
+                    alto = medio
+                    continue
+                bajo = medio
+                if medio > mejor_lado:
+                    mejor_lado, mejor = medio, valido
+            if mejor_lado >= lado_max * 0.995:
+                return mejor
+
+    # La geometría científica prevalece sobre una estética cuadrada si el
+    # litoral/una frontera impide contener íntegro el sector original.
     return mejor
 
 
@@ -330,10 +346,10 @@ def recomendaciones_analisis(centrar) -> None:
         unsafe_allow_html=True,
     )
     st.caption(tr(
-        "Áreas fluviales amplias, ajustadas al máximo seguro del motor. "
-        "Pulsa una zona y comprueba después la cobertura real de NISAR.",
-        "Larger riverside areas, within the analysis engine's safe size limit. "
-        "Choose one, then check actual NISAR coverage.",
+        "Zonas fluviales casi cuadradas y de tamaño moderado. "
+        "Comprueba siempre la cobertura NISAR antes de analizar.",
+        "Compact, nearly square riverside areas. "
+        "Always check NISAR coverage before analyzing.",
     ))
     principales = ("chigorodo", "choco_atrato")
     for clave in principales:
