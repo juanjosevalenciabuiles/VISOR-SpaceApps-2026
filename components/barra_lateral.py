@@ -213,7 +213,34 @@ def _controles_resultados(resultados: list, centrar=None, activo=None) -> dict[s
                       on_click=flujo.limpiar_resultado,
                       help=tr("Retira el resultado del mapa sin borrar archivos.",
                                   "Removes the result from the map without deleting files."))
-    # Sin selector histórico. Los GeoTIFF originales y sus fichas se conservan.
+    # Solo QA explícita puede recuperar históricos de datos sintéticos.
+    # Jamás se muestra este selector en la experiencia pública por defecto.
+    if os.environ.get("VISOR_MOSTRAR_HISTORIAL") == "1":
+        dibujables = [r for r in resultados if r.dibujable]
+        ocultos = [r for r in resultados if not r.dibujable]
+        with st.expander(f"{tr('Historial', 'History')} ({len(dibujables)})", expanded=False, key="historial"):
+            # Elegir un resultado histórico siempre exige pulsar View.
+            if not dibujables:
+                st.caption(tr("No hay resultados guardados.", "No saved results."))
+            if st.session_state.get("resultados_fuera_de_alcance"):
+                st.markdown(f'<div class="visor-leyenda-nota" id="historial-fuera">'
+                            f'{st.session_state["resultados_fuera_de_alcance"]} resultado(s) guardado(s) de zonas fuera de '
+                            "Colombia no se muestran en esta versión (los archivos no se tocan).</div>",
+                            unsafe_allow_html=True)
+            for res in dibujables:
+                st.markdown(f'<div class="mc-resultado">{insignia(res.capa.procedencia)}'
+                            f'<span>{escape(nombre_resultado(res, idioma()))}</span></div>',
+                            unsafe_allow_html=True)
+                st.button(tr("Ver", "View"), key=f"hist_ver_{res.id}", icon=":material/history:", type="tertiary",
+                          on_click=_ver_historico, args=(res.id, res.capa.limites),
+                          disabled=activo is not None and activo.id == res.id,
+                          help=tr("Abrir explícitamente este GeoTIFF anterior.", "Explicitly open this historical GeoTIFF."))
+            if ocultos:
+                st.markdown(
+                    f'<details class="mc-detalles mc-resultado-off"><summary>{len(ocultos)} archivo(s) no se muestran'
+                    "</summary>" + "".join(f'<div class="visor-leyenda-nota"><code>{escape(r.ruta.name)}</code> · '
+                                           f"{escape(r.error or 'No se puede mostrar.')}</div>" for r in ocultos)
+                    + "</details>", unsafe_allow_html=True)
     return activos
 
 
