@@ -184,3 +184,30 @@ def test_recomendaciones_fluviales_un_click_crea_zona_y_muestra_info(abrir):
         l.getTooltip()?.getContent()?.includes('Zona de análisis confirmada')
     ).length""")
     assert n == 1, "la segunda AOI sustituye la primera sin capas residuales"
+
+
+
+def test_boton_analizar_sar_sigue_visible_al_desplazarse_por_panel(abrir):
+    """CTA accesible sin recorrer listas largas de huellas y controles de NISAR."""
+    p = abrir()
+    p.clic("btn_sar")
+    p.esperar()
+    panel = p.page.locator(".st-key-panel_sar").first
+    barra = panel.locator(".st-key-sar_accion_fija").first
+    boton = barra.locator("button").first
+    assert panel.is_visible() and barra.is_visible()
+    assert boton.count() == 1 and boton.is_disabled(), "sin par no debe iniciar Harmony"
+    info = barra.evaluate("""el => ({
+        css: getComputedStyle(el).position,
+        panel: el.closest('.st-key-panel_sar') !== null
+    })""")
+    assert info == {"css": "sticky", "panel": True}
+    panel.evaluate("el => { el.scrollTop = 0; }")
+    p.page.wait_for_timeout(250)
+    limites = barra.evaluate("""el => {
+        const a = el.getBoundingClientRect();
+        const b = el.closest('.st-key-panel_sar').getBoundingClientRect();
+        return { visible: a.top < b.bottom && a.bottom <= b.bottom + 7 &&
+                  a.bottom > b.top };
+    }""")
+    assert limites["visible"], "la barra debe quedar visible sin scroll hasta el final"
