@@ -107,6 +107,18 @@ def ficha_html(res: ResultadoSAR) -> str:
                                        if estado.faltantes else "")
     alto, ancho = capa.forma_original
     madurez = d["madurez"][0]
+    qa = (res.ficha or {}).get("qa") or {}
+    fraccion_qa = qa.get("cobertura_qa_aoi_fraccion")
+    nota_qa = (
+        '<div class="visor-leyenda-nota">' +
+        tr("Píxeles válidos de ambas fechas dentro del AOI: ",
+           "Valid pixels from both dates inside the AOI: ") +
+        f"<strong>{float(fraccion_qa):.1%}</strong>. " +
+        tr("Cobertura QA del análisis, distinta de la huella estimada NASA CMR.",
+           "Analysis QA coverage, distinct from NASA CMR estimated footprint.") +
+        '</div>'
+        if isinstance(fraccion_qa, (int, float)) and 0 <= fraccion_qa <= 1 else ""
+    )
     aviso_madurez = (
         '<div class="visor-aviso">' +
         tr("NISAR PROVISIONAL: datos calibrados parcialmente; no confirma inundaciones.",
@@ -121,6 +133,7 @@ def ficha_html(res: ResultadoSAR) -> str:
         f'<div class="visor-procedencia">{insignia(estado)}'
         f'<p class="visor-nota-procedencia">{detalle}</p></div>',
         aviso_madurez,
+        nota_qa,
         f'<p class="visor-texto">{escape(descripcion_visible(perfil))}</p>',
         '<details class="mc-detalles"><summary>' + tr("Leyenda científica detallada", "Detailed scientific legend") +
         '</summary>' + leyenda_html(res) + '</details>',
