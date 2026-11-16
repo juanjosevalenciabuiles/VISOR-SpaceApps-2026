@@ -194,9 +194,17 @@ def _app(monkeypatch, tmp_path, ideam=None, eonet=None):
     from streamlit.testing.v1 import AppTest
 
     from components import contexto_zona
+    from utils import wikipedia_lugar
     contexto_zona._local.cache_clear()
     monkeypatch.setenv("VISOR_REGION_MODE", "CO")
     monkeypatch.setenv("VISOR_CONTEXTO_EXTERNO", "activo")
+    monkeypatch.setenv("VISOR_CONTEXTO_SINCRONO", "1")  # pruebas deterministas, nunca llamadas a Wikipedia
+    monkeypatch.setattr(wikipedia_lugar, "consultar", lambda municipio, depto: {
+        "estado": "CON_RESULTADOS", "items": [{
+            "title": municipio, "extract": "Municipio de Colombia, descripción histórica de prueba.",
+            "url": "https://es.wikipedia.org/wiki/Ejemplo", "imagen": None, "credito": None,
+        }],
+    })
     monkeypatch.setattr(ca, "consultar_ideam", ideam or (lambda g, abrir=None: {"estado": "SIN_COINCIDENCIAS",
                                                                               "items": [], "retrieved_at": None}))
     monkeypatch.setattr(ca, "consultar_eonet", eonet or (lambda g, a, b, abrir=None: {"estado": "SIN_COINCIDENCIAS",
@@ -229,11 +237,13 @@ def test_app_al_confirmar_la_zona_aparece_el_contexto_sin_pulsar_nada(monkeypatc
     at.button(key="btn_sar").click().run()
     datos_antes = sorted(p.name for p in (RAIZ / "data").rglob("*"))
     confirmar_zona(at)
-    assert at.session_state["ui_info"] is False, "el contexto no debe tapar el mapa al confirmar una AOI"
+    assert at.session_state["ui_info"] is True, "la información debe abrirse al confirmar el área"
     texto = _texto(at)
-    # La interfaz pública no carga la ficha repetitiva ni la foto en cada zona.
-    assert 'id="ctx-foto"' not in texto and 'id="ctx-ficha"' not in texto
-    assert "CHIGORODÓ" not in texto.upper() or "HISTÓRICO" not in texto
+    # La ficha breve muestra fotografía atribuida o satelital, y Wikipedia sin repetir alertas ni SAR.
+    assert 'id="ctx-foto"' in texto and 'id="ctx-ficha"' in texto
+    assert "Chigorodó" in texto and "Wikipedia (ES)" in texto
+    assert 'id="ctx-zona"' not in texto and 'id="ctx-ideam"' not in texto
+    assert 'id="ctx-eonet"' not in texto and 'id="ctx-radar"' not in texto
     # El adaptador de contexto conserva su caché: nunca multiplicar consultas.
     assert len(llamadas) <= 1
     for _ in range(3):                                # reruns: no se vuelve a consultar
@@ -252,12 +262,13 @@ def test_app_fuente_caida_y_cambio_de_zona(monkeypatch, tmp_path):
     at.button(key="btn_sar").click().run()
     confirmar_zona(at)
     texto = _texto(at)
-    assert 'id="ctx-foto"' not in texto and not at.exception  # no repetir fallos remotos sobre el mapa
+    assert at.session_state["ui_info"] and 'id="ctx-foto"' in texto and not at.exception
     zona_a = at.session_state["zona"]["limites"]
     confirmar_zona(at, (-74.10, 4.68, -74.05, 4.72))      # Bogotá
     texto = _texto(at)
     assert at.session_state["zona"]["limites"] != zona_a
-    assert 'id="ctx-foto"' not in texto and not at.exception  # zona actualizada sin foto automática
+    assert at.session_state["ui_info"] and 'id="ctx-foto"' in texto and not at.exception
+    assert "Bogotá" in texto  # la nueva área reemplaza los datos visibles de la anterior
 
 
 def test_app_contexto_desactivado_lo_dice(monkeypatch, tmp_path):
@@ -267,7 +278,8 @@ def test_app_contexto_desactivado_lo_dice(monkeypatch, tmp_path):
     at.button(key="btn_sar").click().run()
     confirmar_zona(at)
     texto = _texto(at)
-    assert 'id="ctx-foto"' not in texto and not at.exception  # contexto externo apagado y UI limpia
+    assert at.session_state["ui_info"] and 'id="ctx-foto"' in texto and not at.exception
+    assert "No verified Wikipedia summary" in texto or "No hay una descripción" in texto
 
 
 def test_busqueda_rionegro_no_se_renombra_san_carlos_por_fraccion():
@@ -340,3 +352,21 @@ def test_ficha_breve_sin_wikipedia_usa_imagen_satelital_sin_inventar_descripcion
     assert 'data-origen="satelite"' in html
     assert "EOX" in html and "Wikipedia" in html
     assert "No verified Wikipedia summary" in html or "No hay una descripción" in html
+
+
+def test_abrir_info_al_confirmar_y_respetar_cierre_manual_en_reruns(monkeypatch, tmp_path):
+    """Se abre en cada AOI nueva; zoom y reruns no deshacen el cierre voluntario."""
+    from tests.test_flujo_sar import confirmar_zona
+    at = _app(monkeypatch, tmp_path)
+    at.button(key="btn_sar").click().run()
+    confirmar_zona(at)
+    assert at.session_state["ui_info"] is True
+    assert 'id="ctx-ficha"' in _texto(at)
+    at.button(key="cerrar_info").click().run()
+    assert at.session_state["ui_info"] is False
+    for _ in range(2):
+        at.run()
+    assert at.session_state["ui_info"] is False, "ningún rerun reabre la ficha"
+    confirmar_zona(at, (-74.10, 4.68, -74.05, 4.72))
+    assert at.session_state["ui_info"] is True, "otro AOI siempre muestra su propia información"
+    assert "Bogotá" in _texto(at)
