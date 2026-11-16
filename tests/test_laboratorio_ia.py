@@ -52,3 +52,17 @@ def test_acceso_ia_sin_tapar_controles_del_mapa():
     main = (ROOT / "app.py").read_text(encoding="utf-8")
     assert "interfaz.acceso_laboratorio_ia()" not in main
     assert 'label=tr("🧪 Abrir Laboratorio IA", "🧪 Open AI Laboratory")' in inspect.getsource(interfaz.panel_explorador)
+
+
+def test_laboratorio_muestra_solo_dos_modelos_ml_y_oculta_navegacion_antigua():
+    """La página del laboratorio no expone módulos legados ni ejecuta SAR operativo."""
+    codigo = PAGINA.read_text(encoding="utf-8")
+    assert 'initial_sidebar_state="collapsed"' in codigo
+    assert '[data-testid="stSidebarNav"]' in codigo
+    assert 'cuando, donde = st.tabs(' in codigo
+    assert "Modelo A · Random Forest" in codigo
+    assert "Modelo B · XGBoost" in codigo
+    assert "cuando, donde, confianza = st.tabs(" not in codigo
+    assert "Evaluación, confiabilidad y límites del Modelo B" in codigo
+    assert "PROTOTIPO.read_text" in codigo
+    assert "app.py" in codigo
