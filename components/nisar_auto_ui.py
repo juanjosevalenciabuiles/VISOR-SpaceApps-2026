@@ -32,6 +32,14 @@ def _huella(plan, metodo, max_mb, madurez="VALIDATED"):
 
 def _ejecutar_en_cola(resultado, plan, metodo, max_mb):
     registro = cat.registro_json(resultado)
+    # Permite auditar la decisión del usuario sin alterar granules ni GeoTIFF.
+    registro["seleccion_par"] = {
+        "granules": list(plan.granules),
+        "id": plan.id_par_seleccionado,
+        "criterio": plan.criterio_seleccion,
+        "cobertura_cmr_fraccion": round(plan.cobertura, 6),
+        "nota": "Cobertura geométrica estimada; píxeles QA no verificados",
+    }
     carpeta = DATA_DIR / "nisar" / "catalogo"
     carpeta.mkdir(parents=True, exist_ok=True)
     ruta = carpeta / f"auto_{uuid.uuid4().hex}.json"
