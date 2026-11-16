@@ -37,6 +37,8 @@ class Plan:
     termino: str
     avisos: tuple[str, ...]
     punto_prioritario: tuple[float, float] | None = None  # longitud, latitud WGS84
+    id_par_seleccionado: str | None = None
+    criterio_seleccion: str = "MAYOR_COBERTURA_COMUN"
 
     @property
     def granules(self) -> tuple[str, ...]:
@@ -47,6 +49,8 @@ class Plan:
             "tipo": self.tipo, "sensor": "NISAR", "banda": "L",
             "aoi": list(self.aoi), "granules": list(self.granules),
             "cobertura_catalogo_fraccion": round(self.cobertura, 4),
+            "id_par_seleccionado": self.id_par_seleccionado,
+            "criterio_seleccion": self.criterio_seleccion,
             "tamano_total_gb": round(self.tamano_bytes / 1e9, 3),
             "frecuencia": "A", "termino": self.termino,
             "avisos": list(self.avisos), "estado": "PLAN_NO_DESCARGADO",
