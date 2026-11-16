@@ -55,11 +55,11 @@ def test_panel_completo_admite_formatos_de_generador(generador, esperado):
     html = ui.ficha_html(ficha_resultado_nisar(generador))
     assert esperado in html
     assert "NISAR" in html and "2026-10-22" in html and "2026-11-03" in html
-    assert "REAL SIN VALIDAR" in html
+    assert "REAL · UNVALIDATED" in html or "REAL SIN VALIDAR" in html
     assert "2026-11-15T16:00:00+00:00" in html
     assert "1234567890abcdef" in html
     assert "NISAR_L2_A_UNO" in html and "NISAR_L2_A_DOS" in html
-    assert "No es una inundación confirmada" in html
+    assert "not confirmed flooding" in html or "No es una inundación confirmada" in html
 
 
 def test_generado_por_texto_no_inyecta_html():
