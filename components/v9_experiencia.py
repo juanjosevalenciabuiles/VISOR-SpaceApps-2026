@@ -517,7 +517,6 @@ def _seguimiento(firma):
         return
     if preparacion["estado"] in trabajos.ACTIVOS:
         st.info(tr("Preparando observaciones NISAR reales…", "Preparing real NISAR observations…"))
-        _mostrar_progreso(preparacion, "preparacion")
         return
     if preparacion["estado"] != trabajos.APTO:
         st.warning(tr("La preparación NISAR falló", "NISAR preparation failed") + ": " +
@@ -543,7 +542,6 @@ def _seguimiento(firma):
         return
     if cambio["estado"] in trabajos.ACTIVOS:
         st.info(tr("Calculando el cambio SAR de ambas fechas…", "Calculating two-date SAR change…"))
-        _mostrar_progreso(cambio, "calculo")
         return
     if cambio["estado"] != trabajos.APTO:
         st.warning(tr("No se pudo construir el mapa", "Could not generate map") + ": " +
@@ -563,7 +561,6 @@ def _seguimiento(firma):
         st.warning(tr("El mapa no supera los controles de procedencia y QA.",
                           "The map did not pass provenance and QA checks."))
         return
-    _mostrar_progreso(cambio, "calculo")
     st.success(tr("Cambio NISAR preparado: señales, no inundaciones confirmadas.",
                   "NISAR change map ready: signal differences, not confirmed floods."))
     st.caption(tr("Colección", "Collection") + ": " +
@@ -677,6 +674,36 @@ def _panel_coberturas(estado: dict, zona, inicio: date, fin: date) -> None:
         )
 
 
+@st.fragment(run_every=2.0)
+def _progreso_pie_sar() -> None:
+    """Indicador en pie fijo: seguimiento de fases REALES sin rerun del mapa.
+
+    Solo lee el estado persistido de la AOI actual; NO inicia trabajos,
+    descargas, ni actualiza fechas/selecciones. Se actualiza cada 2 segundos.
+    """
+    zona = flujo.zona_confirmada()
+    inicio = st.session_state.get("v9_inicio_periodo")
+    fin = st.session_state.get("v9_fin_periodo")
+    if zona is None or not isinstance(inicio, date) or not isinstance(fin, date):
+        return
+    firma = _firma(zona, inicio, fin)
+    if st.session_state.get("v9_firma") != firma:
+        return
+    prep_id = st.session_state.get("v9_preparacion")
+    if not prep_id:
+        return
+    prep = trabajos.leer(prep_id)
+    if not prep or prep.get("estado") not in (*trabajos.ACTIVOS, trabajos.APTO):
+        return
+    job_mapa = st.session_state.get("v9_mapa_job")
+    if prep.get("estado") == trabajos.APTO and job_mapa:
+        cambio = trabajos.leer(job_mapa)
+        if cambio and cambio.get("estado") in (*trabajos.ACTIVOS, trabajos.APTO):
+            _mostrar_progreso(cambio, "calculo")
+            return
+    _mostrar_progreso(prep, "preparacion")
+
+
 def accion_principal() -> None:
     """CTA siempre visible al pie de SAR Tools; el panel y los datos comparten estado.
 
@@ -732,6 +759,7 @@ def accion_principal() -> None:
             mensaje = tr("Par preparado: se reutilizarán sus COG verificados.",
                          "Pair already prepared: existing verified COGs will be reused.")
     with st.container(key="sar_accion_fija"):
+        _progreso_pie_sar()
         st.caption(mensaje)
         if st.button(
             tr("Analizar con este par", "Analyze with this pair"),
