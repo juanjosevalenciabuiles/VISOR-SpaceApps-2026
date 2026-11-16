@@ -545,6 +545,153 @@ def _seguimiento(firma):
         st.rerun(scope="app")
 
 
+def _panel_coberturas(estado: dict, zona, inicio: date, fin: date) -> None:
+    """Elección visible; pulsar la tarjeta jamás inicia Harmony."""
+    from hashlib import sha256
+
+    opciones = estado["opciones"]
+    st.caption(tr(
+        "NASA CMR / ASF · solo metadatos de huellas; NO son píxeles QA ni una inundación.",
+        "NASA CMR / ASF · footprint metadata only; NOT QA-verified pixels or flooding.",
+    ))
+    if not opciones:
+        st.info(tr(
+            "No hay pares NISAR con cobertura común para estas fechas. "
+            "Amplía el período o define un rectángulo más pequeño.",
+            "No NISAR pairs share coverage for these dates. "
+            "Expand the date range or choose a smaller study area.",
+        ))
+        return
+    st.caption(tr(
+        "Violeta: T1 · Cian: T2 · Verde: intersección seleccionada · "
+        "Gris: zona no cubierta por ambas fechas. Pulsa la región del mapa o un par.",
+        "Purple: T1 · Cyan: T2 · Green: selected overlap · "
+        "Grey: area not covered in both dates. Click a region on the map or choose a pair.",
+    ))
+    seleccionado = nisar_coberturas.seleccion_actual(estado, estado["firma"])
+    st.markdown(tr("**Pares NISAR compatibles**", "**Compatible NISAR pairs**"))
+    for indice, item in enumerate(opciones[:nisar_coberturas.MAX_PARES_VISIBLES], 1):
+        par = item["par"]
+        rotulo = (f"{indice}. {par.antes.nombre.inicio:%Y-%m-%d} → "
+                  f"{par.despues.nombre.inicio:%Y-%m-%d} · "
+                  f"{item['cobertura']:.0%} CMR")
+        st.button(rotulo, key=f"v9_elegir_par_{item['id']}", use_container_width=True,
+                  type="primary" if seleccionado and seleccionado["id"] == item["id"] else "secondary",
+                  on_click=_elegir_par, args=(item["id"],),
+                  help=tr("Seleccionar sin descargar.", "Select without downloading."))
+    if len(opciones) > nisar_coberturas.MAX_PARES_VISIBLES:
+        with st.expander(tr("Otros pares compatibles", "More compatible pairs"), expanded=False):
+            for indice, item in enumerate(opciones[nisar_coberturas.MAX_PARES_VISIBLES:], 4):
+                par = item["par"]
+                st.button(
+                    f"{indice}. {par.antes.nombre.inicio:%Y-%m-%d} → "
+                    f"{par.despues.nombre.inicio:%Y-%m-%d} · {item['cobertura']:.0%} CMR",
+                    key=f"v9_elegir_par_{item['id']}",
+                    on_click=_elegir_par, args=(item["id"],), use_container_width=True,
+                )
+    solapados = st.session_state.get("v9_pares_solapados") or []
+    if solapados:
+        st.warning(tr(
+            "El punto pulsado pertenece a varios pares. Elige uno explícitamente:",
+            "The clicked area belongs to several pairs. Choose one explicitly:",
+        ))
+        for item in opciones:
+            if item["id"] in solapados:
+                par = item["par"]
+                st.button(
+                    f"{par.antes.nombre.inicio:%Y-%m-%d} → "
+                    f"{par.despues.nombre.inicio:%Y-%m-%d} · {item['cobertura']:.0%}",
+                    key=f"v9_solapado_{item['id']}", on_click=_elegir_par,
+                    args=(item["id"],), use_container_width=True,
+                )
+    if not seleccionado:
+        return
+    par = seleccionado["par"]
+    st.markdown(
+        f"**{tr('Par seleccionado', 'Selected pair')}:** "
+        f"{par.antes.nombre.inicio:%Y-%m-%d} → {par.despues.nombre.inicio:%Y-%m-%d} "
+        f"· **{seleccionado['cobertura']:.1%}** "
+        f"{tr('cobertura estimada CMR', 'estimated CMR coverage')}"
+    )
+    st.caption(
+        f"Track {par.antes.nombre.track} · Frame {par.antes.nombre.frame} · "
+        f"{'+'.join(par.polarizaciones_A)} · {estado['madurez']} · NASA/ASF"
+    )
+    st.caption(tr(
+        "Cobertura real de píxeles: pendiente de comprobar mask, numberOfLooks "
+        "y cuadrículas después del recorte Harmony.",
+        "Actual valid-pixel coverage: pending mask, numberOfLooks "
+        "and grid checks after the Harmony subset.",
+    ))
+    if not seleccionado["cubre_punto"]:
+        st.warning(tr(
+            "Las dos huellas no contienen el municipio/punto buscado. "
+            "La parte del AOI sin cobertura quedará sin análisis.",
+            "The two footprints do not contain the searched town/point. "
+            "Uncovered parts of the AOI will remain unanalyzed.",
+        ))
+    if seleccionado["plan"] is None:
+        st.warning(tr(
+            "Este par no supera los límites de cobertura mínima o presupuesto; "
+            "puedes verlo, pero no analizarlo. Selecciona otro o ajusta AOI/fechas.",
+            "This pair does not meet the minimum coverage or size limits; "
+            "you can inspect it but not analyze it. Choose another or adjust the AOI/dates.",
+        ))
+        return
+    if seleccionado["cobertura"] < 0.90 or not seleccionado["cubre_punto"]:
+        clave = sha256(repr((estado["firma"], seleccionado["id"])).encode()).hexdigest()[:12]
+        aceptado = st.checkbox(
+            tr("Entiendo que el análisis será parcial y que el área no observada "
+               "NO puede considerarse inundada.",
+               "I understand that coverage is partial and that unobserved areas "
+               "CANNOT be classified as flooded."),
+            key=f"v9_aceptar_parcial_{clave}",
+        )
+    else:
+        aceptado = True
+    granules = seleccionado["plan"].granules
+    preparado = _preparacion_existente(zona, inicio, fin, granules)
+    if preparado:
+        st.caption(tr(
+            "Este mismo par, AOI y período ya tienen COG Harmony preparados: se reutilizarán.",
+            "Matching Harmony COGs for this exact pair, area and dates are already prepared.",
+        ))
+    if not preparado and not os.environ.get(nisar_descarga.VARIABLE_TOKEN, "").strip():
+        st.info(tr(
+            "Para descargar al confirmar, configura EARTHDATA_TOKEN en Replit Secrets.",
+            "To download after confirmation, configure EARTHDATA_TOKEN in Replit Secrets.",
+        ))
+    if st.button(
+        tr("Analizar con este par", "Analyze with this pair"),
+        key="v9_analizar", type="primary", use_container_width=True,
+        disabled=not aceptado,
+    ):
+        for clave_estado in ("v9_firma", "v9_preparacion", "v9_mapa_job",
+                             "v9_publicado", "v9_error", "nisar_auto_job"):
+            st.session_state.pop(clave_estado, None)
+        flujo.limpiar_resultado()
+        if preparado:
+            st.session_state.update(
+                v9_firma=estado["firma"], v9_preparacion=preparado["job_id"],
+                nisar_auto_job=preparado["job_id"],
+            )
+        else:
+            try:
+                job_id = _solicitar_elegido(zona, inicio, fin, estado, seleccionado)
+                st.session_state.update(
+                    v9_firma=estado["firma"], v9_preparacion=job_id,
+                    nisar_auto_job=job_id,
+                )
+            except (ValueError, nisar_auto.ErrorAutoNISAR) as exc:
+                st.session_state["v9_error"] = str(exc)
+            except Exception:
+                st.session_state["v9_error"] = tr(
+                    "No se pudo iniciar la preparación del par. Comprueba Harmony.",
+                    "Could not start pair preparation. Check Harmony.",
+                )
+        st.rerun(scope="app")
+
+
 def render() -> None:
     """Panel principal PC, preserva el editor científico existente sin reemplazarlo."""
     st.markdown(tr("### Analizar cambios en el agua", "### Analyze changes in surface water"))
@@ -578,43 +725,46 @@ def render() -> None:
     fin = col_b.date_input(tr("Fin del periodo", "End date"), value=fin_def,
                            key="v9_fin_periodo", format="YYYY-MM-DD")
     firma = _firma(zona, inicio, fin)
-    # Priorizar los recortes aptos ya guardados, incluso si se prepararon
-    # en una sesión anterior. No descargar el mismo par una segunda vez.
-    preparado_prev = _preparacion_existente(zona, inicio, fin)
-    if preparado_prev:
-        st.caption(tr("Ya hay un par NISAR preparado para esta zona y periodo. "
-                   "Se reutilizará sin repetir descargas de NASA Harmony.",
-                   "A prepared NISAR pair already exists for this area and period. "
-                   "It will be reused without repeating NASA Harmony downloads."))
     madurez = _madurez_del_periodo(inicio, fin)
-    if madurez == "PROVISIONAL":
-        st.caption(tr("Fuente seleccionada automáticamente: **NISAR PROVISIONAL** "
-                   "(calibración parcial; visible en la ficha, no es inundación confirmada).",
-                   "Automatically selected collection: **NISAR PROVISIONAL** "
-                   "(partial calibration, reported in metadata; not a confirmed flood)."))
+    st.caption(
+        tr("Colección NISAR seleccionada: ", "Selected NISAR collection: ") +
+        f"**{madurez}**"
+    )
+    if st.button(
+        tr("Mostrar coberturas NISAR", "Show NISAR coverage"),
+        key="v9_buscar_coberturas", type="primary", use_container_width=True,
+        help=tr("Solo consulta metadatos CMR; no descarga archivos.",
+                "Queries CMR metadata only; downloads nothing."),
+    ):
+        with st.spinner(tr(
+            "Buscando huellas y pares comparables en NASA CMR…",
+            "Searching NASA CMR for comparable observation footprints…",
+        )):
+            try:
+                _consultar_coberturas(zona, inicio, fin)
+            except (ValueError, nisar_auto.ErrorAutoNISAR,
+                    cat.ErrorConexion, cat.ErrorServicio) as exc:
+                st.session_state.pop("v9_coberturas", None)
+                st.session_state["v9_coberturas_error"] = str(exc)
+            except Exception:
+                st.session_state.pop("v9_coberturas", None)
+                st.session_state["v9_coberturas_error"] = tr(
+                    "No se pudo consultar NASA CMR. Revisa la conexión o las fechas.",
+                    "Could not query NASA CMR. Check your connection or dates.",
+                )
+        st.rerun(scope="app")
+    estado = _coberturas_actuales()
+    if estado:
+        _panel_coberturas(estado, zona, inicio, fin)
+    elif st.session_state.get("v9_coberturas_error"):
+        st.warning(st.session_state["v9_coberturas_error"])
     else:
-        st.caption(tr("Fuente seleccionada automáticamente: **NISAR VALIDATED**.",
-                  "Automatically selected collection: **NISAR VALIDATED**."))
-    if st.button(tr("Buscar y analizar cambios", "Find and analyze changes"), key="v9_analizar", type="primary",
-                 use_container_width=True):
-        _limpiar_v9()
-        flujo.limpiar_resultado()
-        if preparado_prev:
-            st.session_state.update(v9_firma=firma, v9_preparacion=preparado_prev["job_id"],
-                                    nisar_auto_job=preparado_prev["job_id"])
-        else:
-            with st.spinner(tr("Consultando NASA CMR para elegir un par comparable…",
-                            "Querying NASA CMR for a comparable image pair…")):
-                try:
-                    job_id = _solicitar(zona, inicio, fin)
-                    st.session_state.update(v9_firma=firma, v9_preparacion=job_id,
-                                            nisar_auto_job=job_id)
-                except (ValueError, nisar_auto.ErrorAutoNISAR) as exc:
-                    st.session_state["v9_error"] = str(exc)
-                except Exception:
-                    st.session_state["v9_error"] = tr(
-                        "No se pudo consultar el catálogo ni preparar las imágenes. Revisa Harmony.",
-                        "Could not query the catalog or prepare imagery. Check Harmony.")
+        st.caption(tr(
+            "Primero consulta las huellas para elegir dónde coinciden ambas fechas. "
+            "El análisis no se inicia hasta tu confirmación.",
+            "First inspect where both observations overlap. "
+            "Analysis will not start until you confirm a pair.",
+        ))
     if st.session_state.get("v9_error"):
         st.warning(st.session_state["v9_error"])
     _mostrar_sugerencias(firma)
