@@ -112,7 +112,12 @@ def procesar_preparacion(job_id: str) -> dict:
             raise QAInsuficiente("El archivo previo no superó la verificación de procedencia")
         return {"estado": "CAMBIO_DB_EXPLORATORIO", "raster": str(ruta), "ficha": str(ficha),
                 "reutilizado": True, "advertencia": "Cambio SAR, no mapa de inundación"}
-    resultado = procesar_par(escenas[0], escenas[1], ruta, minimo_looks=1.0, minimo_validos=1)
+    aoi = (manifiesto.get("plan") or {}).get("aoi")
+    # Los manifiestos nuevos llevan el AOI real; los anteriores se verifican
+    # sin inventar un porcentaje de cobertura que no fue registrado.
+    limites = tuple(aoi) if isinstance(aoi, (list, tuple)) and len(aoi) == 4 else None
+    resultado = procesar_par(escenas[0], escenas[1], ruta,
+                            minimo_looks=1.0, minimo_validos=1, aoi=limites)
     if ruta.stat().st_size > MAX_BYTES_RESULTADO:
         raise QAInsuficiente("Mapa de cambio demasiado grande para el visor (max. 200 MB)")
     verificado = leer_resultado(ruta)
