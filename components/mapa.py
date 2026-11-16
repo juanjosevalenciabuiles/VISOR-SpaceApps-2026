@@ -588,7 +588,6 @@ def _sincronizar_zona_dibujada(dibujos: list | None) -> bool:
     return True
 
 
-@st.fragment
 def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | None = None,
            resultados: list[ResultadoSAR] | tuple = (), extras: list[folium.FeatureGroup] | tuple = (),
            seguir_vista: bool = False) -> None:
@@ -596,6 +595,8 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
 
     El mapa devuelve el borrador de zona dibujado y su encuadre (para recortar ríos y carreteras a lo
     que se ve y para «usar el área visible»). Nada de lo que devuelve el mapa lanza un análisis."""
+    # Cada rerun debe recibir resultados, controles y overlays actualizados.
+    # Con @st.fragment el pan/zoom usaba argumentos obsoletos y restauraba el histórico.
     centro, zoom = _centro_y_zoom_guardados(vista)
     salida = st_folium(
         mapa_fijo(),
@@ -619,7 +620,7 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
     limites = limites_de_vista(salida.get("bounds"))
     st.session_state["mapa_limites"] = limites if limites is not None and limites[0] < limites[2] else None
     if nueva_seleccion:
-        st.rerun(scope="app")  # Nueva AOI: refresca también los controles externos al mapa.
+        st.rerun()  # Nueva AOI: refresca también los controles externos al mapa.
 
 
 def limites_de_vista(bounds) -> tuple[float, float, float, float] | None:
