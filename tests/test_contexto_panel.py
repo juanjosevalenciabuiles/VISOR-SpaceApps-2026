@@ -544,14 +544,15 @@ def test_cuadrados_recomendados_son_deterministas_y_no_modifican_preset():
 
 
 
-def test_wikipedia_no_desplaza_resultado_sar_y_solo_aparece_si_usuario_la_abre(monkeypatch):
-    """Tras analizar, Information prioriza SAR; Wikipedia no invade el panel izquierdo."""
+def test_wikipedia_sigue_visible_a_la_derecha_despues_del_analisis(monkeypatch):
+    """Information: la foto y Wikipedia siguen visibles aun con resultado SAR."""
     from contextlib import nullcontext
     from types import SimpleNamespace as NS
     from components import interfaz
 
     estado = {"ui_info": True, "visor_idioma": "es"}
     eventos = []
+    llamadas_wiki = []
     monkeypatch.setattr(interfaz.st, "session_state", estado)
     monkeypatch.setattr(interfaz.st, "container", lambda **kw: nullcontext())
     monkeypatch.setattr(interfaz.st, "expander", lambda *args, **kw: nullcontext())
@@ -568,34 +569,75 @@ def test_wikipedia_no_desplaza_resultado_sar_y_solo_aparece_si_usuario_la_abre(m
                         lambda *args, **kw: None)
     monkeypatch.setattr(interfaz.contexto_zona, "zona_actual",
                         lambda: {"clave": "municipio_prueba"})
+    monkeypatch.setattr(interfaz.contexto_zona, "local_de",
+                        lambda zona: NS())
+    monkeypatch.setattr(interfaz.contexto_zona, "municipio_de_busqueda",
+                        lambda *args: None)
     monkeypatch.setattr(interfaz.contexto_zona, "wikipedia_zona",
-                        lambda *args: pytest.fail(
-                            "Wikipedia no debe consultarse al publicar un análisis"
-                        ))
-    monkeypatch.setattr(interfaz.st, "toggle",
-                        lambda *args, **kw: eventos.append(("toggle", kw.get("key")))
-                        or False)
+                        lambda *args: llamadas_wiki.append(True) or
+                        {"estado": "CON_RESULTADOS", "items": []})
+    monkeypatch.setattr(interfaz.contexto_zona, "ficha_breve_html",
+                        lambda *args: '<div id="ctx-ficha">Wikipedia complementaria</div>')
     controles = NS(mostrar_capa=False, resultados={"res_sar": 1.0})
     res = NS(id="res_sar", dibujable=True)
 
     interfaz.panel_informacion(None, None, None, controles, [res])
     html = " ".join(texto for tipo, texto in eventos if tipo == "html")
-    assert 'id="resultado-sar"' in html and "Wikipedia" not in html
-    assert ("toggle", "info_lugar_municipio_prueba") in eventos
-    assert not any(tipo == "html" and "ctx-ficha" in texto for tipo, texto in eventos)
+    assert llamadas_wiki == [True], "Wikipedia debe seguir consultándose a la derecha"
+    assert 'id="ctx-ficha"' in html
+    assert 'id="resultado-sar"' in html
+    assert html.index('id="ctx-ficha"') < html.index('id="resultado-sar"')
+    assert not any(tipo == "toggle" for tipo, _ in eventos)
 
     eventos.clear()
-    monkeypatch.setattr(interfaz.st, "toggle", lambda *args, **kw: True)
-    monkeypatch.setattr(interfaz.contexto_zona, "local_de", lambda zona: NS())
-    monkeypatch.setattr(interfaz.contexto_zona, "municipio_de_busqueda",
-                        lambda *args: None)
-    monkeypatch.setattr(interfaz.contexto_zona, "wikipedia_zona",
-                        lambda *args: {"estado": "CON_RESULTADOS", "items": []})
-    monkeypatch.setattr(interfaz.contexto_zona, "ficha_breve_html",
-                        lambda *args: '<div id="ctx-ficha">Wikipedia complementaria</div>')
-    interfaz.panel_informacion(None, None, None, controles, [res])
+    controles.resultados.clear()
+    interfaz.panel_informacion(None, None, None, controles, [])
     html = " ".join(texto for tipo, texto in eventos if tipo == "html")
-    assert html.index('id="resultado-sar"') < html.index('id="ctx-ficha"')
+    assert 'id="ctx-ficha"' in html and 'id="resultado-sar"' not in html
+
+
+def test_ubicacion_izquierda_no_reaparece_con_sar_o_resultado(monkeypatch):
+    """Evita la ficha LOCATED que asomaba debajo de SAR Tools tras analizar."""
+    from contextlib import nullcontext
+    from components import barra_lateral
+
+    estado = {
+        "ui_explorador": True, "ui_sar": "cerrado",
+        "lugar": {"etiqueta": "Quibdó, Chocó, Colombia"},
+    }
+    eventos = []
+    monkeypatch.setenv("VISOR_MOSTRAR_DEMO", "0")
+    monkeypatch.setattr(barra_lateral.st, "session_state", estado)
+    monkeypatch.setattr(barra_lateral.st, "expander",
+                        lambda *args, **kw: nullcontext())
+    monkeypatch.setattr(barra_lateral, "lugar_ubicado",
+                        lambda _: eventos.append("ubicacion"))
+    monkeypatch.setattr(barra_lateral, "recomendaciones_analisis",
+                        lambda _: None)
+    monkeypatch.setattr(barra_lateral, "_controles_resultados",
+                        lambda *args: {})
+    from components import sistema
+    monkeypatch.setattr(sistema, "render", lambda: None)
+
+    def pintar(activo):
+        barra_lateral.render(
+            contenedor=nullcontext(), titulo=False, resultados=[],
+            centrar=lambda *_: None, activo=activo,
+            abrir_zona=lambda: None,
+        )
+
+    pintar(None)
+    assert eventos == ["ubicacion"], "mantener lugar mientras se explora"
+    estado["ui_sar"] = "abierto"
+    pintar(None)
+    assert eventos == ["ubicacion"], "no mostrar LOCATED detrás de SAR Tools"
+    estado["ui_sar"] = "cerrado"
+    pintar(object())
+    assert eventos == ["ubicacion"], "no mostrar LOCATED tras publicar SAR"
+    estado["ui_explorador"] = False
+    pintar(None)
+    assert eventos == ["ubicacion"], "panel no visible no debe pintar lugar"
+
 
 
 def test_wikipedia_no_se_renderiza_en_panel_sar_ni_explorador():
