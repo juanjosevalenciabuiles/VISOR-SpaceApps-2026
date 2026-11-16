@@ -325,6 +325,9 @@ class Pagina:
         boton.scroll_into_view_if_needed()
         boton.click()
         self.esperar()
+        # Elegir un GeoTIFF remonta el mapa para eliminar overlays del histórico.
+        self.esperar_mapa()
+        self.marcar_mapa()  # A partir de ahora pan/zoom NO deben desmontarlo.
 
     def demo(self, fenomeno: str | None = None):
         """Enciende a propósito la capa DEMO (y, si se indica, cambia de fenómeno)."""
