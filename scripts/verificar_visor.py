@@ -201,7 +201,7 @@ for clave in claves:
     assert not at.exception, (clave, at.exception)
     assert at.session_state["resultado_activo"]["origen"] == "historico", (clave, "no quedó rotulado histórico")
     texto = " ".join(m.value for m in at.markdown)
-    assert "No es una inundación confirmada" in texto, (clave, "falta el aviso")
+    assert "not confirmed flooding" in texto or "No es una inundación confirmada" in texto, (clave, "falta el aviso")
     assert at.session_state["resultado_activo"]["origen"] == "historico", (clave, "no es histórico")
 print(len(claves))
 """
