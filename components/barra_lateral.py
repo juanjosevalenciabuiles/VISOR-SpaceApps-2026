@@ -97,7 +97,7 @@ def _ir_a_lugar(lugar, ir_a) -> None:
         dentro = zona is not None and zona[0] <= lugar.longitud <= zona[2] and zona[1] <= lugar.latitud <= zona[3]
         if not dentro:
             flujo.limpiar_resultado(f"Se retiró el resultado del mapa al ir a {lugar.etiqueta}: corresponde a otra "
-                                    "zona. Sigue disponible en el Historial.")
+                                    "zona. El archivo original se conserva.")
     ir_a(lugar.latitud, lugar.longitud, lugar.zoom)
 
 
@@ -211,33 +211,9 @@ def _controles_resultados(resultados: list, centrar=None, activo=None) -> dict[s
                           on_click=centrar, args=(activo.capa.limites,))
             st.button(tr("Limpiar resultado", "Clear result"), key="res_limpiar", icon=":material/layers_clear:", type="tertiary",
                       on_click=flujo.limpiar_resultado,
-                      help=tr("Solo oculta el resultado. Permanece en el historial.",
-                                  "Only removes the result from the map; it remains in History."))
-    dibujables = [r for r in resultados if r.dibujable]
-    ocultos = [r for r in resultados if not r.dibujable]
-    with st.expander(f"{tr('Historial', 'History')} ({len(dibujables)})", expanded=False, key="historial"):
-        # Elegir un resultado histórico siempre exige pulsar View.
-        if not dibujables:
-            st.caption(tr("No hay resultados guardados.", "No saved results."))
-        if st.session_state.get("resultados_fuera_de_alcance"):
-            st.markdown(f'<div class="visor-leyenda-nota" id="historial-fuera">'
-                        f'{st.session_state["resultados_fuera_de_alcance"]} resultado(s) guardado(s) de zonas fuera de '
-                        "Colombia no se muestran en esta versión (los archivos no se tocan).</div>",
-                        unsafe_allow_html=True)
-        for res in dibujables:
-            st.markdown(f'<div class="mc-resultado">{insignia(res.capa.procedencia)}'
-                        f'<span>{escape(nombre_resultado(res, idioma()))}</span></div>',
-                        unsafe_allow_html=True)
-            st.button(tr("Ver", "View"), key=f"hist_ver_{res.id}", icon=":material/history:", type="tertiary",
-                      on_click=_ver_historico, args=(res.id, res.capa.limites),
-                      disabled=activo is not None and activo.id == res.id,
-                      help=tr("Abrir explícitamente este GeoTIFF anterior.", "Explicitly open this historical GeoTIFF."))
-        if ocultos:
-            st.markdown(
-                f'<details class="mc-detalles mc-resultado-off"><summary>{len(ocultos)} archivo(s) no se muestran'
-                "</summary>" + "".join(f'<div class="visor-leyenda-nota"><code>{escape(r.ruta.name)}</code> · '
-                                       f"{escape(r.error or 'No se puede mostrar.')}</div>" for r in ocultos)
-                + "</details>", unsafe_allow_html=True)
+                      help=tr("Retira el resultado del mapa sin borrar archivos.",
+                                  "Removes the result from the map without deleting files."))
+    # Sin selector histórico. Los GeoTIFF originales y sus fichas se conservan.
     return activos
 
 
