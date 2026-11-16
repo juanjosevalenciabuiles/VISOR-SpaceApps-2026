@@ -15,8 +15,14 @@ def test_guia_sobrevive_pan_zoom_cambios_y_se_puede_reabrir(abrir):
     assert panel.is_visible(), "el mapa nunca puede cerrar la guía"
     assert p.mapa_intacto(), "mover el mapa no debe recrear Folium"
 
+    vista_antes = p.vista()
     p.page.locator(".st-key-visor_idioma_en button").first.click()
     p.esperar(400)
+    p.esperar_mapa()
+    vista_despues = p.vista()
+    assert abs(vista_despues[1] - vista_antes[1]) < 0.1
+    assert abs(vista_despues[2] - vista_antes[2]) < 0.1
+    p.marcar_mapa()
     assert panel.is_visible() and "Welcome to V.I.S.O.R." in panel.inner_text()
     assert "Explorer" in p.page.locator(".st-key-barra_superior").inner_text()
 
@@ -31,8 +37,14 @@ def test_guia_sobrevive_pan_zoom_cambios_y_se_puede_reabrir(abrir):
 def test_idiomas_y_busqueda_sin_navegacion_ni_sar(abrir):
     p = abrir(390, 844, movil=True)
     p.marcar_mapa()
+    vista_antes = p.vista()
     p.page.locator(".st-key-visor_idioma_en button").first.click()
     p.esperar(400)
+    p.esperar_mapa()
+    vista_despues = p.vista()
+    assert abs(vista_despues[1] - vista_antes[1]) < 0.1
+    assert abs(vista_despues[2] - vista_antes[2]) < 0.1
+    p.marcar_mapa()
     assert "Explorer" in p.page.locator(".st-key-barra_superior").inner_text()
     p.page.locator(".st-key-visor_guia_toggle button").first.click()
     panel = p.page.locator(".st-key-visor_guia_panel")
@@ -45,5 +57,7 @@ def test_idiomas_y_busqueda_sin_navegacion_ni_sar(abrir):
     assert panel.is_visible()
     p.page.locator(".st-key-visor_idioma_es button").first.click()
     p.esperar(450)
+    p.esperar_mapa()
+    p.marcar_mapa()
     assert "Bienvenido a V.I.S.O.R." in panel.inner_text()
     assert p.mapa_intacto()
