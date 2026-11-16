@@ -123,18 +123,17 @@ def buscador_lugar(ir_a, inicio=None) -> None:
     with st.container(horizontal=True, vertical_alignment="center", key="buscador", gap="small"):
         # Las sugerencias son una lista local. Otro texto o unas coordenadas también valen: Enter.
         st.selectbox(
-            "¿Qué lugar quieres analizar?", options=list(lugares.sugerencias()), index=None, key="lugar_texto",
+            tr("¿Qué lugar quieres analizar?", "Where would you like to explore?"), options=list(lugares.sugerencias()), index=None, key="lugar_texto",
             accept_new_options=True, on_change=_buscar_lugar, args=(ir_a,), label_visibility="collapsed",
-            placeholder="Busca un municipio o lugar en Colombia" if colombia else "Busca una ciudad o un lugar",
-            help=("Escribe y elige una sugerencia; también puedes escribir otro lugar o unas coordenadas "
-                  "(7.67, -76.68) y pulsar Enter. " +
-                  ("Modo Colombia: búsqueda y análisis limitados al país. Municipios y contorno: DANE, MGN 2025; "
-                   "datos derivados por ytolosa/mapas-colombia, CC BY 4.0." if colombia else "")))
+            placeholder=(tr("Busca un municipio o lugar en Colombia", "Search for a place in Colombia") if colombia
+                         else tr("Busca una ciudad o un lugar", "Search for a city or place")),
+            help=tr("Escribe un lugar o coordenadas (7.67, -76.68) y pulsa Enter.",
+                    "Type a place or coordinates (7.67, -76.68) and press Enter."))
         st.button(tr("Buscar", "Search"), key="lugar_buscar", icon=":material/search:", type="primary", on_click=_buscar_lugar,
-                  args=(ir_a,), help="Buscar lo escrito (o unas coordenadas: 7.67, -76.68)")
+                  args=(ir_a,), help=tr("Buscar un lugar o coordenadas.", "Search for a place or coordinates."))
         if inicio is not None:
             st.button(tr("Vista inicial", "Initial view"), key="btn_inicio", icon=":material/home:", on_click=inicio,
-                      help="Volver a la vista general")
+                      help=tr("Volver a la vista general", "Return to overview"))
     hallazgo = st.session_state.get("lugares_encontrados")
     if not hallazgo:
         return
@@ -158,15 +157,15 @@ def buscador_lugar(ir_a, inicio=None) -> None:
 def lugar_ubicado(abrir_zona=None) -> None:
     """En el Explorador: dónde quedó el mapa tras la búsqueda y el paso siguiente (definir la zona)."""
     if alcance_geografico.restringido():
-        st.markdown('<div class="visor-leyenda-nota" id="nota-modo-colombia">Modo Colombia · solo territorio '
-                    "colombiano</div>", unsafe_allow_html=True)
+        st.caption(tr("Solo territorio colombiano", "Colombia only"))
     lugar = st.session_state.get("lugar")
     if lugar:
-        st.markdown(f'<div class="mc-resultado"><span class="mc-insignia mc-insignia-tenue">UBICADO</span>'
-                    f'{escape(lugar["etiqueta"])}</div>{_nota_fuente(lugar["fuente"])}', unsafe_allow_html=True)
+        st.markdown(f'<div class="mc-resultado"><span class="mc-insignia mc-insignia-tenue">'
+                    f'{tr("UBICADO", "LOCATED")}</span>{escape(lugar["etiqueta"])}</div>',
+                    unsafe_allow_html=True)
     if abrir_zona is not None:
         st.button(tr("Definir la zona de análisis", "Define study area"), key="lugar_definir_zona", icon=":material/crop_free:",
-                  on_click=abrir_zona, help="Abre Herramientas SAR en el paso 1: dibuja la zona sobre el mapa.")
+                  on_click=abrir_zona, help=tr("Dibuja la zona en el mapa.", "Draw your study area on the map."))
 
 
 def _ver_historico(id_resultado: str) -> None:
@@ -206,7 +205,8 @@ def _controles_resultados(resultados: list, centrar=None, activo=None) -> dict[s
                           on_click=centrar, args=(activo.capa.limites,))
             st.button(tr("Limpiar resultado", "Clear result"), key="res_limpiar", icon=":material/layers_clear:", type="tertiary",
                       on_click=flujo.limpiar_resultado,
-                      help="Lo quita del mapa. No borra ningún archivo: sigue en el historial.")
+                      help=tr("Solo oculta el resultado. Permanece en el historial.",
+                                  "Only removes the result from the map; it remains in History."))
     dibujables = [r for r in resultados if r.dibujable]
     ocultos = [r for r in resultados if not r.dibujable]
     with st.expander(f"{tr('Historial', 'History')} ({len(dibujables)})", expanded=False, key="historial"):
