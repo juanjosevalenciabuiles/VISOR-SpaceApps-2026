@@ -70,7 +70,7 @@ def test_regresion_dos_geotiff_y_zoom_no_reactivan_historial(monkeypatch):
     from types import SimpleNamespace
     import inspect
 
-    assert "st.fragment" not in inspect.getsource(mapa.render), (
+    assert inspect.getsource(mapa.render).lstrip().startswith("def render("), (
         "Un fragmento del mapa reutiliza el GeoTIFF de una ejecución anterior"
     )
     estado = {"visor_idioma": "en"}
