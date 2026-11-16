@@ -188,6 +188,15 @@ def _elegir_par(identificador: str) -> None:
         st.session_state["v9_pares_solapados"] = None
 
 
+def _clave_aceptacion(firma, identificador: str) -> str:
+    """Misma confirmación de cobertura parcial para el formulario y el botón fijo."""
+    from hashlib import sha256
+
+    return "v9_aceptar_parcial_" + sha256(
+        repr((firma, identificador)).encode("utf-8")
+    ).hexdigest()[:12]
+
+
 def _punto_local(zona) -> tuple[float, float] | None:
     lugar = st.session_state.get("lugar") or {}
     try:
@@ -569,8 +578,6 @@ def _seguimiento(firma):
 
 def _panel_coberturas(estado: dict, zona, inicio: date, fin: date) -> None:
     """Elección visible; pulsar la tarjeta jamás inicia Harmony."""
-    from hashlib import sha256
-
     opciones = estado["opciones"]
     st.caption(tr(
         "NASA CMR / ASF · solo metadatos de huellas; NO son píxeles QA ni una inundación.",
@@ -661,69 +668,110 @@ def _panel_coberturas(estado: dict, zona, inicio: date, fin: date) -> None:
         ))
         return
     if seleccionado["cobertura"] < 0.90 or not seleccionado["cubre_punto"]:
-        clave = sha256(repr((estado["firma"], seleccionado["id"])).encode()).hexdigest()[:12]
-        aceptado = st.checkbox(
-            tr("Entiendo que el análisis será parcial y que el área no observada "
-               "NO puede considerarse inundada.",
-               "I understand that coverage is partial and that unobserved areas "
-               "CANNOT be classified as flooded."),
-            key=f"v9_aceptar_parcial_{clave}",
+        st.checkbox(
+            tr("Acepto analizar solo la parte cubierta. El área no observada "
+               "NO se considera inundada.",
+               "I accept analyzing only the covered area. Unobserved land "
+               "is NOT considered flooded."),
+            key=_clave_aceptacion(estado["firma"], seleccionado["id"]),
         )
-    else:
-        aceptado = True
-    granules = seleccionado["plan"].granules
-    preparado = _preparacion_existente(zona, inicio, fin, granules)
-    if preparado:
-        st.caption(tr(
-            "Este mismo par, AOI y período ya tienen COG Harmony preparados: se reutilizarán.",
-            "Matching Harmony COGs for this exact pair, area and dates are already prepared.",
-        ))
-    if not preparado and not os.environ.get(nisar_descarga.VARIABLE_TOKEN, "").strip():
-        st.info(tr(
-            "Para descargar al confirmar, configura EARTHDATA_TOKEN en Replit Secrets.",
-            "To download after confirmation, configure EARTHDATA_TOKEN in Replit Secrets.",
-        ))
-    if st.button(
-        tr("Analizar con este par", "Analyze with this pair"),
-        key="v9_analizar", type="primary", use_container_width=True,
-        disabled=not aceptado,
-    ):
-        for clave_estado in ("v9_firma", "v9_preparacion", "v9_mapa_job",
-                             "v9_publicado", "v9_error", "nisar_auto_job"):
-            st.session_state.pop(clave_estado, None)
-        flujo.limpiar_resultado()
-        if preparado:
-            st.session_state.update(
-                v9_firma=estado["firma"], v9_preparacion=preparado["job_id"],
-                nisar_auto_job=preparado["job_id"],
-            )
+
+
+def accion_principal() -> None:
+    """CTA siempre visible al pie de SAR Tools; el panel y los datos comparten estado.
+
+    La barra no crea un segundo análisis: es la ÚNICA instancia de v9_analizar.
+    Antes de un par válido o sin aceptar cobertura parcial queda deshabilitada.
+    """
+    zona = flujo.zona_confirmada()
+    estado = _coberturas_actuales()
+    item = nisar_coberturas.seleccion_actual(estado, estado["firma"]) if estado else None
+    inicio = st.session_state.get("v9_inicio_periodo")
+    fin = st.session_state.get("v9_fin_periodo")
+    preparado = None
+    habilitado = False
+    if zona is None:
+        mensaje = tr("Primero selecciona una zona.", "First select a study area.")
+    elif not estado:
+        mensaje = tr("Paso 1: busca las coberturas NISAR.", "Step 1: find NISAR coverage.")
+    elif _resultado_sar_verificado(estado):
+        mensaje = tr("Análisis verificado y visible en el mapa.",
+                     "Verified analysis is visible on the map.")
+    elif st.session_state.get("v9_preparacion"):
+        mensaje = tr("Preparación o análisis en curso. Consulta el progreso arriba.",
+                     "Preparation or analysis in progress. See progress above.")
+    elif item is None:
+        mensaje = tr("Selecciona un par de imágenes compatible.",
+                     "Select a compatible image pair.")
+    elif item.get("plan") is None:
+        mensaje = tr("Este par no cumple la cobertura mínima o el presupuesto.",
+                     "This pair does not meet coverage or download limits.")
+    elif item["cobertura"] < 0.90 or not item["cubre_punto"]:
+        if not st.session_state.get(_clave_aceptacion(estado["firma"], item["id"]), False):
+            mensaje = tr("Confirma arriba que aceptas la cobertura parcial.",
+                         "Confirm partial-coverage acceptance above.")
         else:
-            try:
-                job_id = _solicitar_elegido(zona, inicio, fin, estado, seleccionado)
+            habilitado = True
+            mensaje = tr("Par seleccionado y cobertura parcial aceptada.",
+                         "Pair selected and partial coverage accepted.")
+    else:
+        habilitado = True
+        mensaje = tr("Par compatible seleccionado. Listo para analizar.",
+                     "Compatible pair selected. Ready to analyze.")
+    if habilitado and (not isinstance(inicio, date) or not isinstance(fin, date)):
+        habilitado = False
+        mensaje = tr("Selecciona el período de observación.",
+                     "Select the observation date range.")
+    if habilitado:
+        preparado = _preparacion_existente(zona, inicio, fin, item["plan"].granules)
+        if not preparado and not os.environ.get(nisar_descarga.VARIABLE_TOKEN, "").strip():
+            habilitado = False
+            mensaje = tr("Configura EARTHDATA_TOKEN en Replit Secrets para descargar.",
+                         "Set EARTHDATA_TOKEN in Replit Secrets to download.")
+        elif preparado:
+            mensaje = tr("Par preparado: se reutilizarán sus COG verificados.",
+                         "Pair already prepared: existing verified COGs will be reused.")
+    with st.container(key="sar_accion_fija"):
+        st.caption(mensaje)
+        if st.button(
+            tr("Analizar con este par", "Analyze with this pair"),
+            key="v9_analizar", type="primary", icon=":material/play_arrow:",
+            use_container_width=True, disabled=not habilitado,
+            help=tr("Inicia Harmony y el análisis solo después de tu confirmación.",
+                    "Starts Harmony and analysis only after your confirmation."),
+        ):
+            for clave_estado in ("v9_firma", "v9_preparacion", "v9_mapa_job",
+                                 "v9_publicado", "v9_error", "nisar_auto_job"):
+                st.session_state.pop(clave_estado, None)
+            flujo.limpiar_resultado()
+            if preparado:
                 st.session_state.update(
-                    v9_firma=estado["firma"], v9_preparacion=job_id,
-                    nisar_auto_job=job_id,
+                    v9_firma=estado["firma"], v9_preparacion=preparado["job_id"],
+                    nisar_auto_job=preparado["job_id"],
                 )
-            except (ValueError, nisar_auto.ErrorAutoNISAR) as exc:
-                st.session_state["v9_error"] = str(exc)
-            except Exception:
-                st.session_state["v9_error"] = tr(
-                    "No se pudo iniciar la preparación del par. Comprueba Harmony.",
-                    "Could not start pair preparation. Check Harmony.",
-                )
-        st.rerun(scope="app")
+            else:
+                try:
+                    job_id = _solicitar_elegido(zona, inicio, fin, estado, item)
+                    st.session_state.update(
+                        v9_firma=estado["firma"], v9_preparacion=job_id,
+                        nisar_auto_job=job_id,
+                    )
+                except (ValueError, nisar_auto.ErrorAutoNISAR) as exc:
+                    st.session_state["v9_error"] = str(exc)
+                except Exception:
+                    st.session_state["v9_error"] = tr(
+                        "No se pudo iniciar la preparación del par. Comprueba Harmony.",
+                        "Could not start pair preparation. Check Harmony.",
+                    )
+            st.rerun(scope="app")
 
 
 def render() -> None:
     """Panel principal PC, preserva el editor científico existente sin reemplazarlo."""
     st.markdown(tr("### Analizar cambios en el agua", "### Analyze changes in surface water"))
     st.caption(tr(
-        "Elige la zona y las fechas, visualiza las huellas NISAR y confirma el par "
-        "recomendado o selecciona otro. Buscar coberturas no descarga datos; "
-        "el cambio SAR es exploratorio, no una inundación confirmada.",
-        "Choose an area and dates, inspect NISAR footprints, then confirm the "
-        "recommended pair or choose another. Coverage search downloads no data; "
-        "SAR changes are exploratory, not confirmed flooding.",
+        "1 · Define fechas  →  2 · Busca coberturas  →  3 · Elige un par  →  4 · Analiza.",
+        "1 · Set dates  →  2 · Find coverage  →  3 · Choose a pair  →  4 · Analyze.",
     ))
     zona = flujo.zona_confirmada()
     if zona is None:
@@ -742,8 +790,8 @@ def render() -> None:
             "Original GeoTIFF files remain intact, though the public flow no "
             "longer exposes a history browser.",
         ))
-    st.caption(tr("Área confirmada en el mapa; no necesitas copiar coordenadas.",
-                  "Your study area is confirmed on the map; no need to copy coordinates."))
+    st.markdown(tr("**1 · Zona y fechas**", "**1 · Area and dates**"))
+    st.caption(tr("Zona seleccionada en el mapa.", "Study area selected on the map."))
     hoy = datetime.now(timezone.utc).date()
     inicio_def = hoy - timedelta(days=23)
     fin_def = hoy - timedelta(days=16)
@@ -758,9 +806,12 @@ def render() -> None:
         tr("Colección NISAR seleccionada: ", "Selected NISAR collection: ") +
         f"**{madurez}**"
     )
+    st.markdown(tr("**2 · Buscar imágenes compatibles**",
+                   "**2 · Find compatible images**"))
     if st.button(
         tr("Mostrar coberturas NISAR", "Show NISAR coverage"),
-        key="v9_buscar_coberturas", type="primary", use_container_width=True,
+        key="v9_buscar_coberturas", type="secondary",
+        icon=":material/travel_explore:", use_container_width=True,
         help=tr("Solo consulta metadatos CMR; no descarga archivos.",
                 "Queries CMR metadata only; downloads nothing."),
     ):
@@ -790,6 +841,7 @@ def render() -> None:
             "are hidden so they do not obscure it; their metadata is retained.",
         ))
     elif estado:
+        st.markdown(tr("**3 · Elegir el mejor par**", "**3 · Choose the best pair**"))
         _panel_coberturas(estado, zona, inicio, fin)
     elif st.session_state.get("v9_coberturas_error"):
         st.warning(st.session_state["v9_coberturas_error"])
