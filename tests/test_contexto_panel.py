@@ -409,6 +409,7 @@ def test_recomendacion_un_click_confirma_zona_muestra_ficha_y_no_lanza_sar(monke
         "v9_mapa_job": "mapa_viejo", "v9_publicado": "mapa_viejo",
         "trabajo_activo": "analisis_anterior", "trabajo_publicado": "analisis_anterior",
         "mapa_dibujo": {"type": "Feature"}, "ui_info": False,
+        "lugar_texto": "Quibdó, Chocó", "lugares_encontrados": {"consulta": "Quibdó"},
     }
     monkeypatch.setattr(barra_lateral.st, "session_state", estado)
     vistas = []
@@ -429,6 +430,8 @@ def test_recomendacion_un_click_confirma_zona_muestra_ficha_y_no_lanza_sar(monke
     assert estado["ui_explorador_previo"] is True
     assert "nisar_auto_job" not in estado, "seleccionar zona no inicia la descarga"
     assert estado["lugar"]["etiqueta"].startswith("Chigorodó")
+    assert estado["lugar_texto"] is None
+    assert estado["lugares_encontrados"] is None
     assert estado["visor_aoi_recomendacion_seq"] == 1
     assert estado["recomendacion_aoi_actual"] == "chigorodo"
     # Cambiar a Chocó usa la misma operación, sin intentar preparar ni analizar.
