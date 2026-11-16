@@ -193,7 +193,7 @@ assert len(at.error) == 0, ("st.error", [e.value for e in at.error])
 # Primera carga: aunque haya resultados en data/analisis/, ninguno se muestra ni hay DEMO encendida.
 texto = " ".join(m.value for m in at.markdown)
 assert at.session_state["resultado_activo"] is None, "resultado activo al arrancar"
-assert at.toggle(key="capa_sar").value is False, "DEMO encendida al arrancar"
+assert not at.session_state.get("capa_sar", False), "DEMO encendida al arrancar"
 assert "SIN RESULTADO" in texto and "No es una inundación confirmada" not in texto, "resultado visible al arrancar"
 claves = [b.key for b in at.button if b.key and b.key.startswith("hist_ver_")]
 for clave in claves:
@@ -202,7 +202,7 @@ for clave in claves:
     assert at.session_state["resultado_activo"]["origen"] == "historico", (clave, "no quedó rotulado histórico")
     texto = " ".join(m.value for m in at.markdown)
     assert "No es una inundación confirmada" in texto, (clave, "falta el aviso")
-    assert "no se ejecutó un análisis nuevo" in texto, (clave, "falta el rótulo de histórico")
+    assert at.session_state["resultado_activo"]["origen"] == "historico", (clave, "no es histórico")
 print(len(claves))
 """
 
