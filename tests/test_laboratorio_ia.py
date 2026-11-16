@@ -66,3 +66,47 @@ def test_laboratorio_muestra_solo_dos_modelos_ml_y_oculta_navegacion_antigua():
     assert "Evaluación, confiabilidad y límites del Modelo B" in codigo
     assert "PROTOTIPO.read_text" in codigo
     assert "app.py" in codigo
+
+
+def test_lab_bilingue_por_defecto_y_selector_en_es_sin_modelos_nuevos():
+    codigo = PAGINA.read_text(encoding="utf-8")
+    arbol = ast.parse(codigo)
+    assert "from utils.i18n import idioma, seleccionar, tr" in codigo
+    assert 'on_click=seleccionar, args=("en",)' in codigo
+    assert 'on_click=seleccionar, args=("es",)' in codigo
+    assert "Model A · Random Forest" in codigo and "Model B · XGBoost" in codigo
+    assert "High Atrato River levels" in codigo and "NISAR-derived labels" in codigo
+    assert "82.6%" in codigo and "69.7%" in codigo
+    assert "Balanced accuracy" in codigo and "False positives" not in codigo
+    assert any(isinstance(n, ast.FunctionDef) and n.name == "html_mapa_por_idioma"
+               for n in arbol.body)
+
+
+def test_lab_mapa_folium_traduce_etiquetas_en_memoria_sin_alterar_archivo():
+    import hashlib
+    import re
+
+    codigo = PAGINA.read_text(encoding="utf-8")
+    arbol = ast.parse(codigo)
+    seleccion = [n for n in arbol.body if (
+        isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and
+                                           t.id == "ETIQUETAS_MAPA_EN" for t in n.targets)
+    ) or (isinstance(n, ast.FunctionDef) and n.name == "html_mapa_por_idioma")]
+    assert len(seleccion) == 2
+    espacio = {}
+    exec(compile(ast.Module(body=seleccion, type_ignores=[]), str(PAGINA), "exec"), espacio)
+
+    antes = MAPA.read_bytes()
+    mapa_es = antes.decode("utf-8")
+    traducir = espacio["html_mapa_por_idioma"]
+    mapa_en = traducir(mapa_es, "en")
+    assert traducir(mapa_es, "es") == mapa_es
+    assert "NISAR labels · 04 Sep (classes)" in mapa_en
+    assert "2 km priority zones (Model B)" in mapa_en
+    assert "Permanent water" in mapa_en
+    assert "Mean probability (%)" in mapa_en
+    assert "Etiquetado NISAR 04-sep (clases)" not in mapa_en
+    # The embedded PNG overlays remain byte-for-byte identical.
+    pngs = r"data:image/png;base64,[A-Za-z0-9+/=]+"
+    assert re.findall(pngs, mapa_es) == re.findall(pngs, mapa_en)
+    assert hashlib.sha256(MAPA.read_bytes()).digest() == hashlib.sha256(antes).digest()
