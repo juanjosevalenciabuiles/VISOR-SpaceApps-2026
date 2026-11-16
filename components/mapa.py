@@ -290,9 +290,14 @@ class RecordarVistaNavegador(MacroElement):
         self.clave_storage = f"visor-mapa-vista:{identificador_zona}"
 
 
-def mapa_fijo(identificador_zona: str = "sin_zona") -> folium.Map:
-    """Lienzo fijo. En Modo Colombia: centrado en el país, paneo limitado a su extensión con margen,
-    velo exterior y contorno nacional. En GLOBAL: Antioquia y el mundo entero."""
+def mapa_fijo() -> folium.Map:
+    """Lienzo fijo, con memoria de viewport aislada a la AOI de la sesión.
+
+    Mantener la firma sin argumentos: los renderizadores de Folium y las
+    pruebas del mapa usan mapa_fijo() como factoría estable.
+    """
+    zona = st.session_state.get("zona") if st.runtime.exists() else None
+    identificador_zona = _identificador_vista_zona(zona)
     centro, zoom = vista_inicio()
     if alcance_geografico.restringido():
         o, s, e, n = alcance_geografico.EXTENSION_NAVEGACION
@@ -705,7 +710,7 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
         # último encuadre enviado al servidor (que ya no recibe cada pan).
         centro, zoom = None, None
     salida = st_folium(
-        mapa_fijo(identificador_zona),
+        mapa_fijo(),
         feature_group_to_add=[*construir_capas(fenomeno, capa, c, resultados), *extras],
         height=720,                   # inicial; ESTILO_LIENZO lo lleva a pantalla completa
         use_container_width=True,
