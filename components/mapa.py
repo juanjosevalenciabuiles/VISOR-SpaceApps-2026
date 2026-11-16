@@ -35,6 +35,7 @@ from utils.geotiff import Capa, a_web_mercator, colorizar_capa, colorizar_catego
 from utils.mapas_base import MapaBase, obtener, url_teselas
 from utils.diferencia_db import UMBRAL_TRANSPARENCIA_VISUAL_DB, colorizar_diferencia
 from utils.resultados import ResultadoSAR, _firma
+from utils.i18n import idioma, tr
 
 
 # Estilo que viaja dentro del marco del mapa. Debe ser constante: si cambiara,
@@ -142,8 +143,8 @@ class AvisoTeselas(MacroElement):
     capa._visorVigilada = true; var fallos = 0, cargas = 0;
     capa.on('tileerror', function(){ fallos++;
       if (fallos >= 4 && cargas === 0) { caja.className = 'visor-aviso-teselas visible';
-        caja.textContent = 'El mapa base no responde (sin conexión, clave rechazada o límite de uso del proveedor). '
-          + 'Elige otro mapa base en el Explorador. Los análisis y resultados no se ven afectados.'; } });
+        caja.textContent = 'Basemap tiles unavailable (connection, key, or provider limits). '
+          + 'Choose another basemap in Explorer. SAR results are unchanged.'; } });
     capa.on('tileload', function(){ cargas++; caja.className = 'visor-aviso-teselas'; });
   }
   m.eachLayer(vigilar);
@@ -207,14 +208,15 @@ class SelectorZonaUnica(MacroElement):
         });
 
         var selector = L.control({position: 'topleft'});
+        var en = '{{ this.lang }}' === 'en';
         selector.onAdd = function() {
             var contenedor = L.DomUtil.create('div', 'leaflet-control visor-zona-drag');
             var boton = L.DomUtil.create('a', 'leaflet-bar', contenedor);
             boton.href = '#';
             boton.setAttribute('role', 'button');
-            boton.setAttribute('aria-label', 'Dibujar zona rectangular arrastrando');
-            boton.title = 'Clic, arrastra desde una esquina hasta la otra y suelta';
-            boton.textContent = '▭ Seleccionar zona';
+            boton.setAttribute('aria-label', en ? 'Draw a study area by dragging' : 'Dibujar zona rectangular arrastrando');
+            boton.title = en ? 'Click and drag between opposite corners' : 'Clic, arrastra desde una esquina hasta la otra y suelta';
+            boton.textContent = en ? '▭ Select area' : '▭ Seleccionar zona';
             L.DomEvent.disableClickPropagation(contenedor);
             L.DomEvent.disableScrollPropagation(contenedor);
             L.DomEvent.on(boton, 'click', L.DomEvent.stop)
@@ -236,6 +238,7 @@ class SelectorZonaUnica(MacroElement):
     def __init__(self) -> None:
         super().__init__()
         self._name = "SelectorZonaUnica"
+        self.lang = idioma()
 
 
 def mapa_fijo() -> folium.Map:
@@ -280,7 +283,7 @@ def mapa_fijo() -> folium.Map:
          edit_options={"edit": True, "remove": True}).add_to(m)
     control_dibujo.add_child(SelectorZonaUnica())
     # Pantalla completa del mapa (API Fullscreen del navegador; el iframe de Streamlit la permite).
-    Fullscreen(position="topleft", title="Pantalla completa", title_cancel="Salir de pantalla completa",
+    Fullscreen(position="topleft", title=tr("Pantalla completa", "Fullscreen"), title_cancel=tr("Salir de pantalla completa", "Exit fullscreen"),
                force_separate_button=True).add_to(m)
     AvisoTeselas().add_to(m)
     return m
@@ -599,7 +602,6 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
     # Con @st.fragment el pan/zoom usaba argumentos obsoletos y restauraba el histórico.
     # Identidad estable del mapa para pan/zoom, nueva al elegir otro GeoTIFF.
     # Así el componente no conserva overlays anteriores al cambiar el historial.
-    from utils.i18n import idioma
     resultado = next(iter(sorted(c.resultados)), "none")
     clave_widget = "mapa" if resultado == "none" and idioma() == "es" else f"mapa__{resultado}__{idioma()}"
     if clave_widget != st.session_state.get("mapa_widget_key"):
