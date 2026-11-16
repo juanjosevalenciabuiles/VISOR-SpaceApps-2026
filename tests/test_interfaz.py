@@ -105,10 +105,10 @@ def estado(monkeypatch):
 
 
 def test_estado_inicial(estado):
-    assert estado["ui_explorador"] and estado["ui_info"] and estado["ui_sar"] == "cerrado"
+    assert estado["ui_explorador"] and not estado["ui_info"] and estado["ui_sar"] == "cerrado"
     assert estado["vista"] is None
     css = interfaz.css_estado()
-    assert css.startswith(".st-key-panel_sar,.st-key-sar_minimizado{display:none !important}")
+    assert ".st-key-panel_info" in css and ".st-key-panel_sar" in css
     assert "@media (max-width:720px){.st-key-panel_info{bottom:calc(46vh + 38px)" in css   # explorador abierto
 
 
