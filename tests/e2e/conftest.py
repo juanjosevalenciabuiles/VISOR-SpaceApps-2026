@@ -222,6 +222,12 @@ class Pagina:
         page.goto(url)
         self.esperar_mapa()
         page.locator(".st-key-barra_superior").wait_for(timeout=60_000)
+        # La guía se muestra a cada visitante nuevo. Los recorridos E2E
+        # la cierran de forma real, como haría un usuario antes de operar.
+        guia = page.locator(".st-key-visor_bienvenida_comenzar button:visible")
+        if guia.count():
+            guia.first.click()
+            self.esperar(350)
 
     @property
     def mapa(self):
