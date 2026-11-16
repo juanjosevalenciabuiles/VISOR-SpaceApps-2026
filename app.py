@@ -6,7 +6,7 @@ interfaz vive en components/ y la lógica de datos en utils/.
 """
 import streamlit as st
 
-from components import capas_ambientales, estilos, flujo, interfaz, mapa, panel_capas
+from components import bienvenida, capas_ambientales, estilos, flujo, interfaz, mapa, panel_capas
 from components import herramientas_sar as herramientas
 from components import resultados as ui_resultados
 from utils import alcance_geografico, diagnostico
@@ -72,3 +72,8 @@ interfaz.panel_informacion(fenomeno, capa, error, controles, resultados)
 interfaz.herramientas_sar()
 interfaz.linea_temporal(ui_resultados.fechas_activas(resultados, controles.resultados))
 interfaz.guia_eco(activos)
+# Bienvenida visible solo en la primera carga de esta sesión.
+# El contenido principal ya está montado detrás del modal.
+if bienvenida.corresponde_mostrar():
+    bienvenida.mostrar()
+
