@@ -699,12 +699,14 @@ def _panel_coberturas(estado: dict, zona, inicio: date, fin: date) -> None:
 def render() -> None:
     """Panel principal PC, preserva el editor científico existente sin reemplazarlo."""
     st.markdown(tr("### Analizar cambios en el agua", "### Analyze changes in surface water"))
-    st.caption(tr("Selecciona únicamente la zona y el periodo. El motor elige las escenas compatibles "
-               "y aplica QA; no tienes que escoger satélite ni descargar archivos manualmente. "
-               "El resultado NISAR disponible es exploratorio, no una inundación confirmada.",
-               "Select only your study area and time range. The system finds compatible scenes "
-               "and applies quality checks; you do not need to choose a satellite or manually "
-               "download files. NISAR changes are exploratory, not confirmed floods."))
+    st.caption(tr(
+        "Elige la zona y las fechas, visualiza las huellas NISAR y confirma el par "
+        "recomendado o selecciona otro. Buscar coberturas no descarga datos; "
+        "el cambio SAR es exploratorio, no una inundación confirmada.",
+        "Choose an area and dates, inspect NISAR footprints, then confirm the "
+        "recommended pair or choose another. Coverage search downloads no data; "
+        "SAR changes are exploratory, not confirmed flooding.",
+    ))
     zona = flujo.zona_confirmada()
     if zona is None:
         st.info(tr("Elige otro lugar en el buscador y confirma su zona para empezar un nuevo análisis.",
@@ -716,8 +718,12 @@ def render() -> None:
                   on_click=_nuevo_analisis, args=(True,), use_container_width=True)
         c2.button(tr("Otro período", "Different period"), key="v9_otro_periodo",
                   on_click=_nuevo_analisis, args=(False,), use_container_width=True)
-        st.caption(tr("El historial se conserva. Puedes volver a abrir cualquier GeoTIFF anterior.",
-                      "History is preserved. You can reopen any previous GeoTIFF."))
+        st.caption(tr(
+            "Los GeoTIFF originales se conservan, aunque ya no aparece un historial "
+            "en el flujo público.",
+            "Original GeoTIFF files remain intact, though the public flow no "
+            "longer exposes a history browser.",
+        ))
     st.caption(tr("Área confirmada en el mapa; no necesitas copiar coordenadas.",
                   "Your study area is confirmed on the map; no need to copy coordinates."))
     hoy = datetime.now(timezone.utc).date()
