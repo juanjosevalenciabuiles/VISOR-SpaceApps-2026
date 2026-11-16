@@ -68,50 +68,36 @@ def _cambiar_resultado(resultados: list) -> None:
 
 
 def _etiqueta_resultado(id_: str | None, por_id: dict) -> str:
+    from utils.etiquetas_resultados import nombre_resultado
     if id_ is None:
-        return "Ningún resultado seleccionado"
-    r = por_id[id_]
-    es_real = r.capa is not None and r.capa.procedencia.es_real
-    origen = "REAL" if es_real else "NO VALIDADO"
-    fechas = ""
-    datos = (r.ficha or {}).get("procedencia")
-    if isinstance(datos, dict) and isinstance(datos.get("fechas"), list) and len(datos["fechas"]) >= 2:
-        fechas = " · " + " → ".join(str(d)[:10] for d in datos["fechas"][:2])
-    return f"{origen} · {r.nombre}{fechas}"
+        return tr("Ningún resultado seleccionado", "No result selected")
+    return nombre_resultado(por_id[id_])
 
 
 def _resultado(resultados: list, activo) -> None:
-    dibujables = [r for r in resultados if r.dibujable and r.capa is not None]
-    por_id = {r.id: r for r in dibujables}
-    identificadores = [None, *por_id]
-    actual = activo.id if activo is not None and activo.id in por_id else None
+    """La capa activa viene EXCLUSIVAMENTE de flujo.resultado_activo.
 
-    # Mantener el selector sincronizado con la publicación automática de V9.
-    # Ocurre ANTES de crear el widget, sin cambiar un estado ya dibujado.
-    if st.session_state.get("visor_seleccion_resultado") != actual:
-        st.session_state["visor_seleccion_resultado"] = actual
-
-    st.selectbox(
-        tr("Resultado satelital en el mapa", "Satellite result on the map"),
-        options=identificadores,
-        key="visor_seleccion_resultado",
-        format_func=lambda id_: _etiqueta_resultado(id_, por_id),
-        on_change=_cambiar_resultado,
-        args=(dibujables,),
-        help="Los archivos son los del historial. Abrir uno no recalcula ni descarga nada. "
-             "NO VALIDADO no significa inundación confirmada.",
-    )
+    No crear un selectbox con on_change hacia el historial: Streamlit podía
+    reutilizar una selección vieja tras el rerun del trabajo NISAR y
+    reemplazar el GeoTIFF recién generado. El historial se abre solo con
+    botones Ver/View explícitos del Explorador.
+    """
+    if activo is None:
+        st.caption(tr("Sin resultado activo · abre History para elegir un GeoTIFF.",
+                      "No active result · open History to choose a GeoTIFF."))
+    else:
+        from utils.etiquetas_resultados import nombre_resultado
+        st.caption(nombre_resultado(activo))
     st.toggle(
         tr("Mostrar resultado SAR", "Show SAR result"),
         key="visor_capa_resultado_visible",
-        disabled=actual is None,
-        help="Oculta o vuelve a mostrar la capa sobre el mapa sin borrar el resultado.",
+        disabled=activo is None,
+        help=tr("Ocultar no borra el archivo.", "Hiding does not delete the file."),
     )
-    if actual is not None:
-        st.slider(tr("Opacidad SAR", "SAR opacity"), 0.0, 1.0, 0.85, step=0.05, key="res_opacidad")
-    else:
-        st.caption(tr("No hay GeoTIFF seleccionado. Puedes analizar una zona o abrir uno del historial.",
-                       "No GeoTIFF selected. Run an analysis or open a result from history."))
+    if activo is not None:
+        st.slider(tr("Opacidad SAR", "SAR opacity"), 0.0, 1.0, 0.85,
+                  step=0.05, key="res_opacidad")
+
 
 
 def render(resultados: list, activo=None) -> None:
@@ -186,7 +172,7 @@ def render(resultados: list, activo=None) -> None:
                     help="Rectángulo ilustrativo de Antioquia, no es una observación SAR.",
                 )
 
-            with st.expander(tr("Resultados SAR y opacidad", "SAR results and opacity"), expanded=activo is not None):
+            with st.expander(tr("Resultado y transparencia", "Result and opacity"), expanded=activo is not None):
                 _resultado(resultados, activo)
             st.caption(tr("El color SAR muestra cambio de señal; no confirma inundaciones.",
                           "SAR colors represent signal change; they do not confirm flooding."))
