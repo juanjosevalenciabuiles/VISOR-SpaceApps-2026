@@ -829,9 +829,8 @@ def render() -> None:
     fin = col_b.date_input(tr("Fin del periodo", "End date"), value=fin_def,
                            key="v9_fin_periodo", format="YYYY-MM-DD")
     firma = _firma(zona, inicio, fin)
-    madurez = _madurez_del_periodo(inicio, fin)
-    # La colección se mantiene en la ficha técnica, no como texto secundario
-    # que interrumpe la acción principal.
+    # La colección se determina automáticamente durante la búsqueda;
+    # no hace falta repetir detalles técnicos junto a las fechas.
     st.markdown(tr("**Coberturas NISAR**", "**NISAR coverage**"))
     if st.button(
         tr("Mostrar coberturas NISAR", "Show NISAR coverage"),
