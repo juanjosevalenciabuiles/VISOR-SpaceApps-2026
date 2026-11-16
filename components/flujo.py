@@ -49,8 +49,27 @@ def zona_confirmada() -> tuple[float, float, float, float] | None:
 
 
 def confirmar_zona(limites, origen: str, geometria: dict | None = None) -> None:
-    """Fija la zona de análisis. Lo anterior (catálogo, par, resultado) deja de corresponder."""
-    st.session_state["zona"] = {"limites": sesion.validar_zona(limites), "origen": origen, "geometria": geometria}
+    """Confirma AOI y descarta la búsqueda anterior si queda fuera de ella.
+
+    Un municipio buscado sirve como referencia solo si su punto pertenece a
+    la zona nueva. Si el usuario dibuja/elige otra área, no puede seguir
+    apareciendo el marcador antiguo ni sesgar su contexto o el par NISAR.
+    """
+    nueva = sesion.validar_zona(limites)
+    lugar = st.session_state.get("lugar")
+    if isinstance(lugar, dict):
+        try:
+            lat, lon = float(lugar["latitud"]), float(lugar["longitud"])
+            dentro = nueva[0] <= lon <= nueva[2] and nueva[1] <= lat <= nueva[3]
+        except (KeyError, TypeError, ValueError):
+            dentro = False
+        if not dentro:
+            st.session_state["lugar"] = None
+            # El texto de búsqueda tampoco debe presentar otra ciudad
+            # como si fuese la de la AOI recién confirmada.
+            st.session_state["lugar_texto"] = None
+            st.session_state["lugares_encontrados"] = None
+    st.session_state["zona"] = {"limites": nueva, "origen": origen, "geometria": geometria}
     st.session_state.update(sar_busqueda=None, sar_error_busqueda=None, mc_informe_sar=None, error_zona=None)
     st.session_state["sel_par"] = None
     # Las huellas CMR son de esta AOI y fechas, no datos globales. Un usuario
