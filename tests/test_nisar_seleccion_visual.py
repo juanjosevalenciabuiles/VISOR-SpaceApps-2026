@@ -464,3 +464,34 @@ def test_fechas_alternativas_visibles_encima_de_analizar_y_sin_descarga(monkeypa
     assert estado["v9_inicio_periodo"] == date(2026, 11, 11)
     assert estado["v9_fin_periodo"] == date(2026, 11, 14)
     assert "v9_coberturas" not in estado and "v9_sugerencias" not in estado
+
+
+
+def test_fallo_busqueda_ampliada_no_borra_catalogo_ni_inventa_fechas(monkeypatch):
+    """Si CMR falla solo en búsqueda extendida, mantener resultado principal."""
+    par = _par("S1", "S2", box(-76.80, 7.55, -76.79, 7.8))
+    resultado = _resultado([par])
+    periodo_inicio = date(2026, 8, 1)
+    periodo_fin = date(2026, 8, 8)
+    estado = {}
+    llamadas = []
+    monkeypatch.setattr(ui.st, "session_state", estado)
+
+    def buscar(*args, **kwargs):
+        llamadas.append(kwargs["madurez"])
+        if len(llamadas) > 1:
+            raise ui.cat.ErrorServicio("NASA CMR temporalmente fuera de servicio")
+        return resultado
+
+    monkeypatch.setattr(ui.cat, "buscar", buscar)
+    ui._consultar_coberturas(AOI, periodo_inicio, periodo_fin)
+    assert len(llamadas) == 2
+    assert all(x == "PROVISIONAL" for x in llamadas)
+    assert estado["v9_coberturas"]["resultado"] is resultado
+    assert estado["v9_sugerencias"]["opciones"] == []
+    assert estado["v9_sugerencias"]["consulta_incompleta"] is True
+    avisos = []
+    monkeypatch.setattr(ui.st, "warning", lambda txt: avisos.append(txt))
+    ui._mostrar_sugerencias(ui._firma(AOI, periodo_inicio, periodo_fin))
+    assert len(avisos) == 1
+    assert "CMR" in avisos[0]
