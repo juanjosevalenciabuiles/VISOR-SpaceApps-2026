@@ -9,7 +9,7 @@ import hashlib
 from dataclasses import replace
 
 from pyproj import Geod
-from shapely.geometry import Point, box
+from shapely.geometry import GeometryCollection, Point, box
 
 from utils import nisar_auto
 
@@ -29,7 +29,7 @@ def interseccion(par, aoi):
     a = getattr(par.antes, "huella", None)
     b = getattr(par.despues, "huella", None)
     if a is None or b is None or a.is_empty or b.is_empty:
-        return box(0, 0, 0, 0).difference(box(0, 0, 0, 0))
+        return GeometryCollection()
     region = aoi if hasattr(aoi, "intersection") else box(*aoi)
     return region.intersection(a).intersection(b)
 
@@ -73,8 +73,7 @@ def opciones(resultado, pares, max_gb: float = 15.0,
         bloqueo = None
         try:
             # Reutilizar el motor existente y sus límites sin permitir una sola escena.
-            from dataclasses import replace as reemplazar
-            evaluado = reemplazar(par, cobertura_comun=frac)
+            evaluado = replace(par, cobertura_comun=frac)
             plan = nisar_auto.planear(
                 replace(resultado, pares=[evaluado]), max_gb=max_gb,
                 aceptar_escena_unica=False,
