@@ -10,6 +10,9 @@ from pathlib import Path
 
 import numpy as np
 import rasterio
+from rasterio.features import geometry_mask
+from rasterio.warp import transform_geom
+from rasterio.windows import transform as window_transform
 
 from utils.procedencia import sha256_archivo
 
@@ -42,7 +45,8 @@ def _validar(a: dict, b: dict) -> None:
 
 
 def procesar_par(antes: dict, despues: dict, destino: str | Path, *,
-                 minimo_looks: float = 1.0, minimo_validos: int = 1) -> dict:
+                 minimo_looks: float = 1.0, minimo_validos: int = 1,
+                 aoi: tuple[float, float, float, float] | None = None) -> dict:
     """GeoTIFF ΔdB=10log10(post/pre) y ficha; máscara QA 1=apto, resto inválido.
 
     Exige gamma0 lineal, máscaras QA y looks efectivos por fecha, ya verificados
@@ -73,6 +77,20 @@ def procesar_par(antes: dict, despues: dict, destino: str | Path, *,
         if any(rasters[i].dtypes[0] not in ("uint8", "uint16", "int16", "int32")
                for i in (1, 4)):
             raise QAInsuficiente("SIN_QA: máscara QA debe ser entera")
+        aoi_proyectado = None
+        if aoi is not None:
+            try:
+                o, s, e, n = map(float, aoi)
+                if not (-180 <= o < e <= 180 and -90 <= s < n <= 90):
+                    raise ValueError("bounds")
+                aoi_proyectado = transform_geom(
+                    "EPSG:4326", base.crs,
+                    {"type": "Polygon", "coordinates": [
+                        [[o, s], [e, s], [e, n], [o, n], [o, s]]
+                    ]},
+                )
+            except (ValueError, TypeError, rasterio.errors.RasterioError) as exc:
+                raise QAInsuficiente("SIN_QA: AOI inválido para medir píxeles válidos") from exc
         profile = base.profile.copy()
         profile.update(driver="GTiff", dtype="float32", count=1, nodata=-9999.0,
                        compress="deflate", predictor=3,
@@ -80,6 +98,8 @@ def procesar_par(antes: dict, despues: dict, destino: str | Path, *,
         with tempfile.TemporaryDirectory(dir=destino.parent, prefix=".visor-qa-") as td:
             temporal = Path(td) / "delta.tif"
             validos = 0
+            pixeles_aoi = 0
+            validos_aoi = 0
             with rasterio.open(temporal, "w", **profile) as salida:
                 for _, ventana in base.block_windows(1):
                     pre, qpre, lpre, post, qpost, lpost = [
@@ -99,11 +119,25 @@ def procesar_par(antes: dict, despues: dict, destino: str | Path, *,
                                      - np.log10(pre.data.astype(np.float64)))
                     valido &= np.isfinite(calc)
                     validos += int(valido.sum())
+                    if aoi_proyectado is not None:
+                        dentro = geometry_mask(
+                            [aoi_proyectado], out_shape=pre.shape,
+                            transform=window_transform(ventana, base.transform),
+                            invert=True,
+                        )
+                        pixeles_aoi += int(dentro.sum())
+                        validos_aoi += int((valido & dentro).sum())
                     delta = np.full(pre.shape, -9999.0, dtype=np.float32)
                     delta[valido] = calc[valido].astype(np.float32)
                     salida.write(delta, 1, window=ventana)
             if validos < minimo_validos:
                 raise QAInsuficiente("SIN_QA: sin píxeles aptos")
+            if aoi_proyectado is not None and (
+                pixeles_aoi == 0 or validos_aoi < minimo_validos
+            ):
+                raise QAInsuficiente(
+                    "SIN_QA: las escenas no tienen píxeles válidos simultáneos dentro del AOI"
+                )
             sha = sha256_archivo(temporal)
             ficha = {
                 "esquema": "visor.ficha.v1", "tipo_producto": "diferencia_db",
@@ -122,8 +156,18 @@ def procesar_par(antes: dict, despues: dict, destino: str | Path, *,
                     "generado_por": "VISOR V9 IA1 cambio_cog",
                     "archivo": {"sha256": sha},
                 },
-                "qa": {"pixeles_validos": validos, "minimo_looks": minimo_looks,
-                       "minimo_validos": minimo_validos, "mascara": "1=apto"},
+                "qa": {
+                    "pixeles_validos": validos, "minimo_looks": minimo_looks,
+                    "minimo_validos": minimo_validos, "mascara": "1..254=apto",
+                    # Solo cuenta píxeles dentro de la AOI solicitada. Las áreas
+                    # fuera o sin datos no se convierten en inundaciones.
+                    "pixeles_en_aoi": pixeles_aoi if aoi_proyectado is not None else None,
+                    "pixeles_validos_en_aoi": validos_aoi if aoi_proyectado is not None else None,
+                    "cobertura_qa_aoi_fraccion": (
+                        round(validos_aoi / pixeles_aoi, 6)
+                        if aoi_proyectado is not None and pixeles_aoi else None
+                    ),
+                },
                 "advertencias": ["Cambio SAR exploratorio; NO mapa de inundación.",
                                  "No hay verificación independiente ni clasificación de agua."],
                 "creado_utc": datetime.now(timezone.utc).isoformat(),
@@ -137,4 +181,9 @@ def procesar_par(antes: dict, despues: dict, destino: str | Path, *,
                 raise
     return {"estado": "CAMBIO_DB_EXPLORATORIO", "raster": str(destino),
             "ficha": str(ficha_ruta), "pixeles_validos": validos,
+            "pixeles_aoi": pixeles_aoi if aoi_proyectado is not None else None,
+            "cobertura_qa_aoi_fraccion": (
+                round(validos_aoi / pixeles_aoi, 6)
+                if aoi_proyectado is not None and pixeles_aoi else None
+            ),
             "sha256": sha, "advertencia": "No representa inundación confirmada"}
