@@ -132,14 +132,14 @@ def _candidata(limites, geometria, origen: str, clave: str, rotulo: str) -> None
         _nota(str(e), "mc-aviso")
         return
     _nota(f"{rotulo}: {_resumen(zona)}.")
-    st.button("Usar esta zona", key=clave, icon=":material/check:", type="primary", on_click=_confirmar,
+    st.button(tr("Usar esta zona", "Use this area"), key=clave, icon=":material/check:", type="primary", on_click=_confirmar,
               args=(zona, origen, geometria))
 
 
 def paso_area(centrar) -> None:
     zona = st.session_state.get("zona")
     if zona:
-        st.markdown('<span class="mc-insignia mc-insignia-real" id="zona-confirmada">ZONA CONFIRMADA</span>',
+        st.markdown(f'<span class="mc-insignia mc-insignia-real" id="zona-confirmada">{tr("ZONA CONFIRMADA", "AREA CONFIRMED")}</span>',
                     unsafe_allow_html=True)
         o, s, e, n = zona["limites"]
         _nota(f"Origen: {zona['origen']}. Oeste {o:.4f} · sur {s:.4f} · este {e:.4f} · norte {n:.4f} (WGS84). "
@@ -153,39 +153,39 @@ def paso_area(centrar) -> None:
                       on_click=flujo.quitar_zona,
                       help="Quita la zona confirmada. El resultado que dependía de ella se retira del mapa.")
     else:
-        _nota("Aún no hay zona. Buscar un lugar solo mueve el mapa: la zona la defines tú aquí.", "mc-aviso")
+        _nota(tr("Aún no hay zona. Buscar solo mueve el mapa: dibuja una zona.",
+          "No area selected. Searching moves the map; draw your study area."), "mc-aviso")
     if st.session_state.get("error_zona"):
         _nota(st.session_state["error_zona"], "mc-aviso")
 
     st.caption(tr("DIBUJAR SOBRE EL MAPA", "DRAW ON THE MAP"))
-    _nota("Pulsa «▭ Seleccionar zona» arriba a la izquierda del mapa, junto a "
-          "Herramientas SAR. Arrastra de esquina a esquina y suelta: la zona "
-          "quedará confirmada automáticamente. Si vuelves a dibujar, reemplaza "
-          "la anterior sin borrar los GeoTIFF del historial.")
+    _nota(tr("Pulsa ▭ Seleccionar zona en el mapa. Arrastra de esquina a esquina y suelta. "
+             "La zona se confirma automáticamente; los resultados antiguos se conservan.",
+             "Click ▭ Select area on the map, drag from one corner to the opposite corner, "
+             "and release. Your AOI is confirmed automatically; saved results remain intact."))
     if st.session_state.get("mapa_dibujo") and st.session_state.get("zona"):
-        _nota("Rectángulo seleccionado y confirmado. Ya puedes elegir las fechas y analizar.")
+        _nota(tr("Zona confirmada. Elige las fechas y analiza.", "Area confirmed. Choose dates and analyze."))
     elif not st.session_state.get("mapa_dibujo"):
-        _nota("Todavía no has dibujado una zona.")
+        _nota(tr("Todavía no hay una zona dibujada.", "No area drawn yet."))
 
     st.caption(tr("O USAR LO QUE SE VE", "OR USE THE VISIBLE AREA"))
     if st.toggle(tr("Usar el área visible del mapa", "Use current map extent"), value=False, key="zona_por_vista",
-                 help="Toma como zona el encuadre actual. Mientras está activo, el mapa informa de su encuadre "
-                      "al moverlo."):
+                 help=tr("Usa el encuadre actual como zona.", "Use the current map viewport as the study area.")):
         vista = st.session_state.get("mapa_limites")
         if vista is None:
-            _nota("Mueve o acerca el mapa para tomar su encuadre.")
+            _nota(tr("Mueve el mapa para obtener su encuadre.", "Pan or zoom to capture the current view."))
         else:
             _candidata(vista, None, "área visible del mapa", "zona_usar_vista", "Área visible")
 
     st.caption(tr("MUNICIPIO", "MUNICIPALITY"))
-    _nota("Los límites municipales del DANE (MGN 2025) se usan para decir en qué municipio está tu zona "
-          "(panel derecho), pero todavía no como zona de análisis: busca el municipio por su nombre para "
-          "ubicarlo y dibuja la zona.")
+    _nota(tr("DANE muestra límites municipales; dibuja el área para analizar.",
+             "DANE provides municipal boundaries; draw an AOI to analyze."))
 
     with st.expander(tr("Avanzado: coordenadas o GeoJSON", "Advanced: coordinates or GeoJSON"), expanded=False, key="zona_avanzado"):
         st.caption(tr("RECUADRO EN GRADOS (WGS84)", "BOUNDING BOX IN DEGREES (WGS84)"))
         for clave, rotulo, ejemplo in CAMPOS_AOI:
-            st.text_input(rotulo, key=clave, placeholder=f"Ej.: {ejemplo}")
+            st.text_input(tr(rotulo, {"Oeste": "West", "Sur": "South", "Este": "East", "Norte": "North"}.get(rotulo, rotulo)),
+                          key=clave, placeholder=tr("Ej.: ", "E.g. ")+ejemplo)
         st.button(tr("Usar estas coordenadas", "Use these coordinates"), key="zona_usar_coordenadas", icon=":material/check:",
                   on_click=_confirmar_coordenadas)
         archivo = st.file_uploader(tr("GeoJSON con un polígono (WGS84, longitud-latitud)",
@@ -204,7 +204,8 @@ def paso_area(centrar) -> None:
     st.date_input(tr("Desde", "From"), inicio, key="sar_inicio", format="YYYY-MM-DD")
     st.date_input(tr("Hasta", "To"), fin, key="sar_fin", format="YYYY-MM-DD")
     st.date_input(tr("Fecha de interés (opcional)", "Date of interest (optional)"), None, key="sar_evento", format="YYYY-MM-DD",
-                  help="Si se indica, se prefieren pares que la encierren (antes < fecha ≤ después).")
+                  help=tr("Se prefieren pares que incluyan la fecha de interés.",
+                          "Prefer image pairs that bracket the date of interest."))
     _, error_p = periodo_actual()
     if error_p:
         _nota(error_p, "mc-aviso")
