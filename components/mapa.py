@@ -55,6 +55,14 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #06121e; }
 .leaflet-top.leaflet-left { top: auto; left: auto; right: 14px; bottom: 40px;
                display: flex; flex-direction: row-reverse; align-items: flex-end; gap: 8px; }
 .leaflet-top.leaflet-left .leaflet-control { margin: 0 !important; float: none; clear: none; }
+/* Barra de dibujo horizontal: conserva todos los controles sin invadir el
+   panel de Información cuando la ventana es baja (regresión Playwright). */
+.leaflet-draw { display: flex !important; align-items: flex-end; gap: 6px; }
+.leaflet-draw-section { display: flex !important; flex: 0 0 auto; }
+.leaflet-draw-toolbar { display: flex !important; margin: 0 !important; }
+.leaflet-draw-toolbar a { display: block !important; float: none !important; border-bottom: 0 !important;
+                        border-right: 1px solid rgba(255,255,255,.12); }
+.leaflet-draw-toolbar a:last-child { border-right: 0; }
 /* Herramientas de dibujo de la zona (rectángulo, polígono, editar, borrar), encima del zoom.
    Iconos SVG propios: no dependen de la hoja de imágenes del complemento ni de las fuentes. */
 .leaflet-draw-toolbar a { background-color: rgba(8,22,36,.78) !important; background-size: 18px 18px !important;
