@@ -406,9 +406,13 @@ def _solicitar_elegido(zona, inicio: date, fin: date, estado: dict, item: dict) 
     )
     if plan.granules != (par.antes.granule, par.despues.granule):
         raise ValueError("La selección cambió durante la verificación; no se descarga.")
-    plan = replace(plan, avisos=(*plan.avisos,
-        "Selección visual de par CMR, no verificación de píxeles; "
-        f"id={item['id']}; cobertura geodésica estimada={item['cobertura']:.4f}."))
+    plan = replace(
+        plan, id_par_seleccionado=item["id"],
+        criterio_seleccion="PAR_CONFIRMADO_USUARIO_POR_COBERTURA_CMR",
+        avisos=(*plan.avisos,
+                "Selección visual de par CMR, no verificación de píxeles; "
+                f"id={item['id']}; cobertura geodésica estimada={item['cobertura']:.4f}."),
+    )
     from components import nisar_auto_ui
     preparado = nisar_auto_ui._ejecutar_en_cola(
         resultado, plan, nisar_auto_ui.METODOS[0], MAX_HARMONY_MB,
