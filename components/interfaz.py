@@ -408,7 +408,14 @@ def herramientas_sar() -> None:
             # Es el ÚNICO botón que inicia Harmony; nunca se duplica abajo.
             v9_experiencia.accion_principal()
             v9_experiencia.render()
-        herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
+        if modo_legado:
+            herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
+        else:
+            # El flujo visual V9 ya busca y elige pares CMR: NO presentar de
+            # nuevo el asistente NISAR antiguo con fechas/descargas distintas.
+            # El editor manual de AOI permanece disponible sin ruido visual.
+            with st.expander(tr("Opciones de zona", "Area options"), expanded=False):
+                herramientas.paso_area(centrar_en)
         st.html(SUBIR_AL_CAMBIAR_DE_PASO, unsafe_allow_javascript=True)
     with st.container(key="sar_minimizado"):
         st.button(tr("Herramientas SAR · restaurar", "Restore SAR tools"), key="restaurar_sar",
