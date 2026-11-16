@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 
 import streamlit as st
 
+from utils.i18n import tr
 from utils import nisar_auto, nisar_catalogo as cat, nisar_descarga, nisar_gcov, trabajos
 from utils.config import DATA_DIR
 
@@ -182,39 +183,51 @@ def _mostrar_trabajo(job_id: str):
             else:
                 st.caption(f"{f['nombre']}: {f['estado']} · {f.get('detalle') or ''}")
     if t["estado"] in trabajos.ACTIVOS:
-        st.info("Preparando las capas NISAR solicitadas; puedes continuar explorando el mapa.")
-        if st.button("Solicitar cancelación", key="nisar_cancelar"):
+        st.info(tr("Preparando las capas NISAR solicitadas; puedes continuar explorando el mapa.",
+                   "Preparing requested NISAR layers; you can continue exploring the map."))
+        if st.button(tr("Solicitar cancelación", "Request cancellation"), key="nisar_cancelar"):
             trabajos.cancelar(job_id)
     elif t["estado"] == trabajos.APTO:
-        st.success("Los insumos NISAR están preparados. Todavía no son un mapa de inundación.")
-        st.caption("Datos y manifiestos en data/nisar/; se conserva resolución nativa y procedencia.")
+        st.success(tr("Los insumos NISAR están preparados. Todavía no son un mapa de inundación.",
+                      "NISAR inputs are ready. They are not a flood map."))
+        st.caption(tr("Datos y manifiestos en data/nisar/; se conserva resolución nativa y procedencia.",
+                      "Data and manifests saved in data/nisar/; native resolution and provenance preserved."))
         _cambio_automatico(t)
     else:
         st.warning(f"El trabajo no se completó: {t.get('error') or t['estado']}")
 
 
 def render(region, error: str | None):
-    st.markdown("### NISAR · sensor principal para estudiar inundaciones")
-    st.caption("NASA/ASF L2 GCOV banda L. Con Harmony descargamos solo tu área y las capas científicas "
-               "necesarias, sin traer el HDF5 completo de varios GB.")
+    st.markdown(tr("### NISAR · sensor principal para estudiar inundaciones",
+                   "### NISAR · primary sensor for flood-related studies"))
+    st.caption(tr("NASA/ASF L2 GCOV banda L. Con Harmony descargamos solo tu área y las capas científicas "
+               "necesarias, sin traer el HDF5 completo de varios GB.",
+               "NASA/ASF L2 GCOV L-band radar. Harmony requests only your area and necessary "
+               "scientific layers instead of downloading multi-GB HDF5 files."))
     if region is None:
-        st.info(error or "Primero dibuja y confirma un área en Colombia.")
+        st.info(error or tr("Primero dibuja y confirma un área en Colombia.",
+                            "First draw and confirm an area in Colombia."))
         return
 
     a, b = st.columns(2)
-    inicio = a.date_input("Desde", value=cat.INICIO_VALIDATED, key="nisar_auto_inicio")
-    fin = b.date_input("Hasta", value=datetime.now(timezone.utc).date(), key="nisar_auto_fin")
-    metodo = st.radio("Forma de obtener los datos", METODOS, horizontal=True,
+    inicio = a.date_input(tr("Desde", "From"), value=cat.INICIO_VALIDATED, key="nisar_auto_inicio")
+    fin = b.date_input(tr("Hasta", "To"), value=datetime.now(timezone.utc).date(), key="nisar_auto_fin")
+    metodo = st.radio(tr("Forma de obtener los datos", "Data acquisition method"), METODOS,
+                      format_func=lambda opcion: tr(opcion,
+                          "Optimized subset · NASA Harmony" if opcion == METODOS[0]
+                          else "Full HDF5 · alternative"), horizontal=True,
                       key="nisar_auto_metodo", help="Harmony es más eficiente para áreas pequeñas.")
     if metodo == METODOS[0]:
-        max_mb = st.slider("Almacenamiento máximo para imágenes recortadas (MB)", 128, 512, 384, 64,
+        max_mb = st.slider(tr("Almacenamiento máximo para imágenes recortadas (MB)",
+                          "Maximum storage for subsets (MB)"), 128, 512, 384, 64,
                            key="nisar_max_mb",
                            help="Límite real de transferencia. No se reduce la resolución.")
         max_gb = 15
         st.caption("Solicitud remota: HH/HV (según disponibilidad), máscara y número de observaciones; "
                    "sin reproyección ni interpolación. No puede calcular inundaciones de una fecha única.")
     else:
-        max_gb = st.slider("Presupuesto máximo para HDF5 completos (GB)", 1, 10, 5,
+        max_gb = st.slider(tr("Presupuesto máximo para HDF5 completos (GB)",
+                          "Maximum storage for full HDF5 (GB)"), 1, 10, 5,
                            key="nisar_max_gb",
                            help="Solo como alternativa autorizada. Necesita varios GB de espacio.")
         max_mb = 0
@@ -222,8 +235,9 @@ def render(region, error: str | None):
                    "Harmony es preferible cuando está disponible.")
 
     clave = (tuple(region.limites), str(inicio), str(fin), metodo, max_mb, max_gb)
-    if st.button("1. Buscar imágenes NISAR", key="nisar_auto_buscar", type="primary"):
-        with st.spinner("Consultando NASA/ASF, sin descargar imágenes…"):
+    if st.button(tr("1. Buscar imágenes NISAR", "1. Find NISAR images"), key="nisar_auto_buscar", type="primary"):
+        with st.spinner(tr("Consultando NASA/ASF, sin descargar imágenes…",
+                            "Querying NASA/ASF metadata without downloading imagery…")):
             try:
                 if inicio > fin:
                     raise nisar_auto.ErrorAutoNISAR("Revisa el orden de fechas.")
@@ -252,9 +266,12 @@ def render(region, error: str | None):
         for aviso in plan.avisos:
             st.caption(aviso)
         if not os.environ.get(nisar_descarga.VARIABLE_TOKEN, "").strip():
-            st.info("Configura EARTHDATA_TOKEN mediante Replit Secrets para autorizar a NASA. "
-                    "Nunca escribas el token en el chat ni en GitHub.")
-        elif st.button("2. Descargar y preparar las capas automáticamente", key="nisar_auto_descargar",
+            st.info(tr("Configura EARTHDATA_TOKEN mediante Replit Secrets para autorizar a NASA. "
+                    "Nunca escribas el token en el chat ni en GitHub.",
+                    "Configure EARTHDATA_TOKEN in Replit Secrets to authorize NASA downloads. "
+                    "Never share tokens in a chat or GitHub."))
+        elif st.button(tr("2. Descargar y preparar las capas automáticamente",
+                            "2. Download and prepare layers automatically"), key="nisar_auto_descargar",
                        type="primary"):
             try:
                 t = _ejecutar_en_cola(guardado["resultado"], plan, metodo, max_mb)
@@ -262,8 +279,11 @@ def render(region, error: str | None):
             except (OSError, ValueError):
                 st.error("No se pudo iniciar el trabajo; revisa el espacio disponible.")
     elif guardado:
-        st.info("Has cambiado el área, las fechas o el presupuesto. Busca de nuevo antes de descargar.")
+        st.info(tr("Has cambiado el área, las fechas o el presupuesto. Busca de nuevo antes de descargar.",
+                   "Area, dates or storage limits changed. Search again before downloading."))
     if st.session_state.get("nisar_auto_job"):
         _mostrar_trabajo(st.session_state["nisar_auto_job"])
-    st.caption("Los COG son datos calibrados de radar. Su contenido NO es una clasificación "
-               "automática de agua ni una confirmación de inundaciones.")
+    st.caption(tr("Los COG son datos calibrados de radar. Su contenido NO es una clasificación "
+               "automática de agua ni una confirmación de inundaciones.",
+               "COGs contain calibrated radar observations. They are NOT automatic water "
+               "classifications or confirmed floods."))
