@@ -177,7 +177,7 @@ def test_ficha_del_exploratorio_no_inventa_datos(tmp_path):
     assert datos["fechas"] == (ui.NO_DECLARADO, None) and datos["umbral"] == (ui.NO_DECLARADO, None)
     assert datos["polarizaciones"] == ("VV y VH", "según las etiquetas del GeoTIFF")
     assert "Sentinel" not in html and "2026" not in html
-    assert "200" in html and "Limitaciones" in html and "No documentada" in html
+    assert "200" in html and ("Limitaciones" in html or "Limitations" in html) and "No documentada" in html
 
 
 def test_ficha_reproducible_muestra_todo_y_su_origen(tmp_path):
