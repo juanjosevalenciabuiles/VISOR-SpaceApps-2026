@@ -36,10 +36,14 @@ interfaz.inicializar_estado()
 clave_tema = st.session_state.get("fenomeno", "inundacion")
 estilos.inyectar_tema(FENOMENOS.get(clave_tema, FENOMENOS["inundacion"]))
 
-# 1. Inventario de data/analisis/ para reconocer el resultado activo de esta sesión.
-#    Que un archivo exista NO lo pone en el mapa: solo se dibuja el resultado activo de la sesión,
-#    y se retira si la zona, el par o los parámetros ya no son los suyos.
-resultados, fuera_de_alcance = alcance_geografico.filtrar_resultados(cargar_resultados())
+# 1. En modo público cargar SOLO el GeoTIFF activo, no todos los históricos.
+#    Una selección borrada/inválida se limpia por flujo.sincronizar, no reactiva el historial.
+#    QA conserva el inventario completo para regresiones y pruebas de seguridad.
+mostrar_historial_qa = os.environ.get("VISOR_MOSTRAR_HISTORIAL") == "1"
+solo_id = None if mostrar_historial_qa else (
+    (st.session_state.get("resultado_activo") or {}).get("id") or "")
+resultados, fuera_de_alcance = alcance_geografico.filtrar_resultados(
+    cargar_resultados(solo_id=solo_id))
 st.session_state["resultados_fuera_de_alcance"] = fuera_de_alcance
 # Desactivar históricos heredados de una sesión previa, sin borrar los archivos.
 if flujo.es_historico() and os.environ.get("VISOR_MOSTRAR_HISTORIAL") != "1":
