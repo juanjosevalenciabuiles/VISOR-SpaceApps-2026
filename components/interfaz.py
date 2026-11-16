@@ -20,13 +20,14 @@ from html import escape
 
 import streamlit as st
 
-from components import barra_lateral, eco, flujo, panel_info
+from components import barra_lateral, bienvenida, eco, flujo, panel_info
 from components import contexto_zona
 from components import herramientas_sar as herramientas
 from components import v9_experiencia
 from components import resultados as ui_resultados
 from components.barra_lateral import Controles
 from components.panel_info import insignia
+from utils.i18n import tr
 from utils import alcance_geografico
 from utils.config import MAPA_CENTRO, MAPA_ZOOM, Fenomeno
 from utils import procedencia, trabajos
@@ -168,48 +169,10 @@ def insignia_procedencia(capa: Capa | None) -> str:
     return insignia(capa.procedencia)
 
 
-@st.dialog("Ayuda · V.I.S.O.R.", width="large")
 def mostrar_ayuda() -> None:
-    st.markdown(
-        """
-**Cómo usar el visor**
+    """El botón Ayuda reabre la guía persistente, nunca un modal."""
+    bienvenida.abrir()
 
-- El mapa ocupa toda la pantalla. Arrástralo y usa la rueda o los botones **+ / −** para el zoom.
-- Al abrir, el mapa está vacío: **no hay ningún resultado hasta que analices** o abras uno del historial.
-- **Buscador** (arriba a la izquierda): escribe un municipio y elige una sugerencia; también acepta
-  coordenadas (`7.67, -76.68`). El botón de la casa vuelve a la vista general.
-- **Explorador** (izquierda): controla el resultado en el mapa, el historial y el mapa base.
-- **Información** (derecha): qué muestra el resultado, de dónde viene, leyenda y créditos.
-- **Herramientas SAR**: define la zona (dibújala con las herramientas ▭ y ⬠ del mapa), busca imágenes,
-  elige dos fechas y pulsa **Analizar**. Solo entonces aparece el resultado, uno a la vez.
-- **Historial** (explorador): resultados guardados de análisis anteriores. Se abren con «Ver» y quedan
-  rotulados como HISTÓRICO; abrirlos no ejecuta nada.
-- Si cambias la zona, las fechas o los parámetros, el resultado anterior se retira del mapa (el archivo
-  no se borra).
-- **Demostración** (explorador): capas sintéticas de ejemplo, apagadas por defecto.
-- Cierra los paneles para ver el mapa completo; vuelve a abrirlos desde la barra superior.
-
-**Qué significan las etiquetas**
-
-| Etiqueta | Significado |
-| --- | --- |
-| DEMO | Datos sintéticos generados para probar la interfaz. No son observaciones. |
-| PROCEDENCIA NO DECLARADA | Falta una ficha de procedencia completa: no se puede afirmar de qué datos ni de qué proceso sale la capa. |
-| REAL SIN VALIDAR | Producto derivado de datos satelitales reales, con ficha de procedencia completa; resultado exploratorio. |
-| VALIDADO | Además, respaldado por una verificación independiente documentada en su ficha. |
-
-Las etiquetas REAL SIN VALIDAR y VALIDADO nunca se asignan por defecto: exigen una ficha JSON que
-corresponda exactamente al archivo (huella SHA-256).
-
-Un cambio de retrodispersión de radar **no confirma** una inundación ni ningún otro fenómeno.
-
-**Datos de radar.** NISAR (NASA-ISRO, banda L) es el sensor principal para estudiar inundaciones;
-Sentinel-1 (ESA/Copernicus, banda C) queda como respaldo. Un GCOV no confirma una inundación.
-
-**Uso de inteligencia artificial.** Parte del código y de la documentación de V.I.S.O.R. se
-desarrolló con asistencia de IA (Claude, de Anthropic), bajo revisión del equipo.
-"""
-    )
 
 
 def estado_html(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple = (),
@@ -260,34 +223,35 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple 
                     unsafe_allow_html=True, width="content")
         st.markdown(estado_html(fenomeno, capa, activos, capa_visible), unsafe_allow_html=True, width="content")
         st.space("stretch")
-        st.button("Explorador", key="btn_explorador", help="Explorador: buscar lugar, resultado en el mapa, historial y mapa base", icon=":material/layers:", on_click=alternar_explorador,
+        st.button(tr("Explorador", "Explorer"), key="btn_explorador", help="Explorador: buscar lugar, resultado en el mapa, historial y mapa base", icon=":material/layers:", on_click=alternar_explorador,
                   type="primary" if st.session_state["ui_explorador"] else "secondary")
-        st.button("Información", key="btn_info", help="Información científica de las capas activas", icon=":material/info:", on_click=alternar_info,
+        st.button(tr("Información", "Information"), key="btn_info", help="Información científica de las capas activas", icon=":material/info:", on_click=alternar_info,
                   type="primary" if st.session_state["ui_info"] else "secondary")
         if activos:
-            st.button("Nuevo análisis", key="btn_nuevo_analisis",
+            st.button(tr("Nuevo análisis", "New analysis"), key="btn_nuevo_analisis",
                       help="Elegir otra zona sin borrar los GeoTIFF del historial",
                       icon=":material/add_location_alt:",
                       on_click=v9_experiencia._nuevo_analisis, args=(True,),
                       type="primary")
-        st.button("Herramientas SAR", key="btn_sar", help="Herramientas SAR: área, escenas, análisis y resultados", icon=":material/satellite_alt:", on_click=abrir_sar,
+        st.button(tr("Herramientas SAR", "SAR tools"), key="btn_sar", help="Herramientas SAR: área, escenas, análisis y resultados", icon=":material/satellite_alt:", on_click=abrir_sar,
                   type="primary" if st.session_state["ui_sar"] == "abierto" else "secondary")
         if st.button(
-            "Laboratorio IA", key="btn_laboratorio_ia", icon=":material/science:",
+            tr("Laboratorio IA", "AI Laboratory"), key="btn_laboratorio_ia", icon=":material/science:",
             help="Resultados históricos de aprendizaje automático del Atrato. "
                  "Página experimental independiente, no alerta actual.",
             type="secondary",
         ):
             st.switch_page("pages/3_Laboratorio_IA.py")
-        if st.button("Ayuda", key="btn_ayuda", help="Ayuda y estados de procedencia", icon=":material/help:"):
-            mostrar_ayuda()
+        st.button(tr("Ayuda", "Guide"), key="btn_ayuda",
+                  help=tr("Reabrir la guía de uso", "Reopen the user guide"),
+                  icon=":material/help:", on_click=mostrar_ayuda)
 
 
 def acceso_laboratorio_ia() -> None:
     """Acceso permanente y legible aunque la barra superior recorte botones."""
     with st.container(key="acceso_laboratorio_ia"):
         if st.button(
-            "🧪 Laboratorio IA", key="btn_ia_flotante", type="primary",
+            tr("🧪 Laboratorio IA", "🧪 AI Laboratory"), key="btn_ia_flotante", type="primary",
             help="Abrir la demostración histórica del Atrato, independiente del SAR.",
             use_container_width=True,
         ):
@@ -304,15 +268,15 @@ def panel_explorador(resultados: list | None = None, activo=None) -> Controles:
     panel = st.container(key="panel_explorador")
     with panel:
         with st.container(horizontal=True, vertical_alignment="center", key="cabecera_explorador"):
-            st.markdown('<div class="mc-titulo-panel">Explorador</div>', unsafe_allow_html=True)
-            st.button("Contraer", key="cerrar_explorador", icon=":material/chevron_left:", type="tertiary",
+            st.markdown(f'<div class="mc-titulo-panel">{tr("Explorador", "Explorer")}</div>', unsafe_allow_html=True)
+            st.button(tr("Contraer", "Collapse"), key="cerrar_explorador", icon=":material/chevron_left:", type="tertiary",
                       on_click=alternar_explorador)
         st.page_link(
-            "pages/3_Laboratorio_IA.py", label="🧪 Abrir Laboratorio IA",
+            "pages/3_Laboratorio_IA.py", label=tr("🧪 Abrir Laboratorio IA", "🧪 Open AI Laboratory"),
             help="Resultados históricos del Atrato y modelos A y B; no es una alerta actual.",
             use_container_width=True,
         )
-        st.button("Ver datos reales · modo jurado", key="visor_boton_muestra_real",
+        st.button(tr("Ver datos reales · modo jurado", "View real data · jury mode"), key="visor_boton_muestra_real",
                   icon=":material/satellite_alt:", type="primary", use_container_width=True,
                   on_click=lambda: st.session_state.__setitem__("visor_modo_muestra_real", True),
                   help="Abre GeoTIFF y tomas NISAR ya guardados, sin consultar ni descargar datos.")
@@ -342,8 +306,8 @@ def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, 
     panel = st.container(key="panel_info")
     with panel:
         with st.container(horizontal=True, vertical_alignment="center", key="cabecera_info"):
-            st.markdown('<div class="mc-titulo-panel">Información</div>', unsafe_allow_html=True)
-            st.button("Cerrar", key="cerrar_info", icon=":material/close:", type="tertiary",
+            st.markdown(f'<div class="mc-titulo-panel">{tr("Información", "Information")}</div>', unsafe_allow_html=True)
+            st.button(tr("Cerrar", "Close"), key="cerrar_info", icon=":material/close:", type="tertiary",
                       on_click=alternar_info)
         if activos:
             st.button("Analizar otra zona · conservar este resultado en historial",
@@ -411,10 +375,10 @@ SUBIR_AL_CAMBIAR_DE_PASO = """<script>
 def herramientas_sar() -> None:
     with st.container(key="panel_sar"):
         with st.container(horizontal=True, vertical_alignment="center", key="cabecera_sar"):
-            st.markdown('<div class="mc-titulo-panel">Herramientas SAR</div>', unsafe_allow_html=True)
-            st.button("Minimizar", key="minimizar_sar", icon=":material/remove:", type="tertiary",
+            st.markdown(f'<div class="mc-titulo-panel">{tr("Herramientas SAR", "SAR tools")}</div>', unsafe_allow_html=True)
+            st.button(tr("Minimizar", "Minimize"), key="minimizar_sar", icon=":material/remove:", type="tertiary",
                       on_click=minimizar_sar)
-            st.button("Cerrar", key="cerrar_sar", icon=":material/close:", type="tertiary",
+            st.button(tr("Cerrar", "Close"), key="cerrar_sar", icon=":material/close:", type="tertiary",
                       on_click=cerrar_sar)
         # La selección de fuente es una decisión del motor, no una pregunta
         # al visitante. No prometer Sentinel automático antes de tener su
