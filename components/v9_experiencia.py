@@ -725,8 +725,16 @@ def accion_principal() -> None:
         mensaje = tr("Análisis verificado y visible en el mapa.",
                      "Verified analysis is visible on the map.")
     elif st.session_state.get("v9_preparacion"):
-        mensaje = tr("Preparación o análisis en curso. Consulta el progreso arriba.",
-                     "Preparation or analysis in progress. See progress above.")
+        job_id = st.session_state.get("v9_mapa_job") or st.session_state["v9_preparacion"]
+        job = trabajos.leer(job_id)
+        if job and job.get("estado") in (
+            trabajos.ERROR, trabajos.BLOQUEADO, trabajos.CANCELADO,
+        ):
+            mensaje = tr("El trabajo se detuvo. Revisa el error o reintenta en el panel.",
+                         "The job stopped. Review the error or retry above.")
+        else:
+            mensaje = tr("Análisis en curso. Sigue las etapas aquí abajo.",
+                         "Analysis running. Track its steps below.")
     elif item is None:
         mensaje = tr("Selecciona un par de imágenes compatible.",
                      "Select a compatible image pair.")
@@ -759,7 +767,12 @@ def accion_principal() -> None:
             mensaje = tr("Par preparado: se reutilizarán sus COG verificados.",
                          "Pair already prepared: existing verified COGs will be reused.")
     with st.container(key="sar_accion_fija"):
-        _progreso_pie_sar()
+        # Evitar un temporizador extra si todavía no hay job. El fragment
+        # se actualiza cada 2 s solo durante preparación/QA de un resultado.
+        if st.session_state.get("v9_preparacion") and not (
+            estado and _resultado_sar_verificado(estado)
+        ):
+            _progreso_pie_sar()
         st.caption(mensaje)
         if st.button(
             tr("Analizar con este par", "Analyze with this pair"),
