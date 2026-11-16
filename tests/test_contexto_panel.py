@@ -387,6 +387,10 @@ def test_recomendaciones_fluviales_son_aoi_validas_y_no_pretenden_cobertura_nisa
             for x in ciudades
         ), "La AOI recomendada debe incluir el municipio identificado"
     assert "Chigorodó" in casos["chigorodo"]["nombre_es"]
+    # La recomendación visible reproduce la EXTENSIÓN aproximada de la captura
+    # que incluye el sector Turbo/Chigorodó, no el AOI de ensayo histórico.
+    assert casos["chigorodo"]["limites"] == (-76.825, 7.568, -76.648, 7.676)
+    assert casos["chigorodo"]["limites"] != AOI_CHIGORODO
     assert "Atrato" in casos["choco_atrato"]["nombre_en"]
 
 
