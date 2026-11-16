@@ -541,3 +541,75 @@ def test_cuadrados_recomendados_son_deterministas_y_no_modifican_preset():
         dos = barra_lateral._ampliar_area_recomendada(original)
         assert uno == dos, f"{clave}: la selección debe ser reproducible"
         assert barra_lateral.RECOMENDACIONES_AOI[clave]["limites"] == original
+
+
+
+def test_wikipedia_no_desplaza_resultado_sar_y_solo_aparece_si_usuario_la_abre(monkeypatch):
+    """Tras analizar, Information prioriza SAR; Wikipedia no invade el panel izquierdo."""
+    from contextlib import nullcontext
+    from types import SimpleNamespace as NS
+    from components import interfaz
+
+    estado = {"ui_info": True, "visor_idioma": "es"}
+    eventos = []
+    monkeypatch.setattr(interfaz.st, "session_state", estado)
+    monkeypatch.setattr(interfaz.st, "container", lambda **kw: nullcontext())
+    monkeypatch.setattr(interfaz.st, "expander", lambda *args, **kw: nullcontext())
+    monkeypatch.setattr(interfaz.st, "markdown",
+                        lambda texto, **kw: eventos.append(("html", texto)))
+    monkeypatch.setattr(interfaz.st, "caption",
+                        lambda texto, **kw: eventos.append(("caption", texto)))
+    monkeypatch.setattr(interfaz.st, "button", lambda *args, **kw: False)
+    monkeypatch.setattr(interfaz.flujo, "es_historico", lambda: False)
+    monkeypatch.setattr(interfaz.ui_resultados, "ficha_html",
+                        lambda _: '<div id="resultado-sar">SAR QA</div>')
+    monkeypatch.setattr(interfaz.ui_resultados, "boton_qgis", lambda _: None)
+    monkeypatch.setattr(interfaz.barra_lateral, "render_leyenda",
+                        lambda *args, **kw: None)
+    monkeypatch.setattr(interfaz.contexto_zona, "zona_actual",
+                        lambda: {"clave": "municipio_prueba"})
+    monkeypatch.setattr(interfaz.contexto_zona, "wikipedia_zona",
+                        lambda *args: pytest.fail(
+                            "Wikipedia no debe consultarse al publicar un análisis"
+                        ))
+    monkeypatch.setattr(interfaz.st, "toggle",
+                        lambda *args, **kw: eventos.append(("toggle", kw.get("key")))
+                        or False)
+    controles = NS(mostrar_capa=False, resultados={"res_sar": 1.0})
+    res = NS(id="res_sar", dibujable=True)
+
+    interfaz.panel_informacion(None, None, None, controles, [res])
+    html = " ".join(texto for tipo, texto in eventos if tipo == "html")
+    assert 'id="resultado-sar"' in html and "Wikipedia" not in html
+    assert ("toggle", "info_lugar_municipio_prueba") in eventos
+    assert not any(tipo == "html" and "ctx-ficha" in texto for tipo, texto in eventos)
+
+    eventos.clear()
+    monkeypatch.setattr(interfaz.st, "toggle", lambda *args, **kw: True)
+    monkeypatch.setattr(interfaz.contexto_zona, "local_de", lambda zona: NS())
+    monkeypatch.setattr(interfaz.contexto_zona, "municipio_de_busqueda",
+                        lambda *args: None)
+    monkeypatch.setattr(interfaz.contexto_zona, "wikipedia_zona",
+                        lambda *args: {"estado": "CON_RESULTADOS", "items": []})
+    monkeypatch.setattr(interfaz.contexto_zona, "ficha_breve_html",
+                        lambda *args: '<div id="ctx-ficha">Wikipedia complementaria</div>')
+    interfaz.panel_informacion(None, None, None, controles, [res])
+    html = " ".join(texto for tipo, texto in eventos if tipo == "html")
+    assert html.index('id="resultado-sar"') < html.index('id="ctx-ficha"')
+
+
+def test_wikipedia_no_se_renderiza_en_panel_sar_ni_explorador():
+    """La ficha de Wikipedia debe pertenecer exclusivamente al panel Information."""
+    from pathlib import Path
+    source = (Path(__file__).resolve().parents[1] / "components" / "interfaz.py"
+              ).read_text(encoding="utf-8")
+    informacion = source.split("def panel_informacion(", 1)[1].split(
+        "def guia_eco(", 1
+    )[0]
+    assert "contexto_zona.ficha_breve_html(" in informacion
+    assert "contexto_zona.ficha_breve_html(" not in source.split(
+        "def herramientas_sar(", 1
+    )[1].split("def linea_temporal(", 1)[0]
+    assert "contexto_zona.ficha_breve_html(" not in source.split(
+        "def panel_explorador(", 1
+    )[1].split("def panel_informacion(", 1)[0]
