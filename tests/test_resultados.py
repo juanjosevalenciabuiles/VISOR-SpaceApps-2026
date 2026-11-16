@@ -226,6 +226,7 @@ def test_app_activa_resultado_sin_perder_controles(tmp_path, monkeypatch):
     for p in (tmp_path / "real").glob("coincidencia*"):
         p.rename(tmp_path / p.name)
     monkeypatch.setenv("VISOR_MOSTRAR_DEMO", "1")  # modos sintéticos solo QA, no versión pública
+    monkeypatch.setenv("VISOR_MOSTRAR_HISTORIAL", "1")  # fixture de histórico aislado
     monkeypatch.setattr(r, "CARPETA_ANALISIS", tmp_path)
     monkeypatch.chdir(RAIZ)
     at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=120).run()
