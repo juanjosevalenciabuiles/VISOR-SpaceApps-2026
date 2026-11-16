@@ -11,6 +11,8 @@ from datetime import date, datetime, timedelta, timezone
 
 import streamlit as st
 
+from utils.i18n import tr
+
 from components import flujo
 from utils import nisar_auto, nisar_catalogo as cat, nisar_descarga, sesion, trabajos
 from utils.config import DATA_DIR
@@ -366,44 +368,55 @@ def _seguimiento(firma):
 
 def render() -> None:
     """Panel principal PC, preserva el editor científico existente sin reemplazarlo."""
-    st.markdown("### Analizar cambios en el agua")
-    st.caption("Selecciona únicamente la zona y el periodo. El motor elige las escenas compatibles "
+    st.markdown(tr("### Analizar cambios en el agua", "### Analyze changes in surface water"))
+    st.caption(tr("Selecciona únicamente la zona y el periodo. El motor elige las escenas compatibles "
                "y aplica QA; no tienes que escoger satélite ni descargar archivos manualmente. "
-               "El resultado NISAR disponible es exploratorio, no una inundación confirmada.")
+               "El resultado NISAR disponible es exploratorio, no una inundación confirmada.",
+               "Select only your study area and time range. The system finds compatible scenes "
+               "and applies quality checks; you do not need to choose a satellite or manually "
+               "download files. NISAR changes are exploratory, not confirmed floods."))
     zona = flujo.zona_confirmada()
     if zona is None:
-        st.info("Elige otro lugar en el buscador y confirma su zona para empezar un nuevo análisis.")
+        st.info(tr("Elige otro lugar en el buscador y confirma su zona para empezar un nuevo análisis.",
+                   "Find a location and confirm your study area to start a new analysis."))
         return
     if (st.session_state.get("v9_preparacion") or st.session_state.get("resultado_activo")):
         c1, c2 = st.columns(2)
-        c1.button("Nueva zona", key="v9_nueva_zona", type="primary",
+        c1.button(tr("Nueva zona", "New area"), key="v9_nueva_zona", type="primary",
                   on_click=_nuevo_analisis, args=(True,), use_container_width=True)
-        c2.button("Otro período", key="v9_otro_periodo",
+        c2.button(tr("Otro período", "Different period"), key="v9_otro_periodo",
                   on_click=_nuevo_analisis, args=(False,), use_container_width=True)
-        st.caption("El historial se conserva. Puedes volver a abrir cualquier GeoTIFF anterior.")
-    st.caption("Área confirmada en el mapa; no necesitas copiar coordenadas.")
+        st.caption(tr("El historial se conserva. Puedes volver a abrir cualquier GeoTIFF anterior.",
+                      "History is preserved. You can reopen any previous GeoTIFF."))
+    st.caption(tr("Área confirmada en el mapa; no necesitas copiar coordenadas.",
+                  "Your study area is confirmed on the map; no need to copy coordinates."))
     hoy = datetime.now(timezone.utc).date()
     inicio_def = hoy - timedelta(days=23)
     fin_def = hoy - timedelta(days=16)
     col_a, col_b = st.columns(2)
-    inicio = col_a.date_input("Inicio del periodo", value=inicio_def,
+    inicio = col_a.date_input(tr("Inicio del periodo", "Start date"), value=inicio_def,
                               key="v9_inicio_periodo", format="YYYY-MM-DD")
-    fin = col_b.date_input("Fin del periodo", value=fin_def,
+    fin = col_b.date_input(tr("Fin del periodo", "End date"), value=fin_def,
                            key="v9_fin_periodo", format="YYYY-MM-DD")
     firma = _firma(zona, inicio, fin)
     # Priorizar los recortes aptos ya guardados, incluso si se prepararon
     # en una sesión anterior. No descargar el mismo par una segunda vez.
     preparado_prev = _preparacion_existente(zona, inicio, fin)
     if preparado_prev:
-        st.caption("Ya hay un par NISAR preparado para esta zona y periodo. "
-                   "Se reutilizará sin repetir descargas de NASA Harmony.")
+        st.caption(tr("Ya hay un par NISAR preparado para esta zona y periodo. "
+                   "Se reutilizará sin repetir descargas de NASA Harmony.",
+                   "A prepared NISAR pair already exists for this area and period. "
+                   "It will be reused without repeating NASA Harmony downloads."))
     madurez = _madurez_del_periodo(inicio, fin)
     if madurez == "PROVISIONAL":
-        st.caption("Fuente seleccionada automáticamente: **NISAR PROVISIONAL** "
-                   "(calibración parcial; visible en la ficha, no es inundación confirmada).")
+        st.caption(tr("Fuente seleccionada automáticamente: **NISAR PROVISIONAL** "
+                   "(calibración parcial; visible en la ficha, no es inundación confirmada).",
+                   "Automatically selected collection: **NISAR PROVISIONAL** "
+                   "(partial calibration, reported in metadata; not a confirmed flood)."))
     else:
-        st.caption("Fuente seleccionada automáticamente: **NISAR VALIDATED**.")
-    if st.button("Buscar y analizar cambios", key="v9_analizar", type="primary",
+        st.caption(tr("Fuente seleccionada automáticamente: **NISAR VALIDATED**.",
+                  "Automatically selected collection: **NISAR VALIDATED**."))
+    if st.button(tr("Buscar y analizar cambios", "Find and analyze changes"), key="v9_analizar", type="primary",
                  use_container_width=True):
         _limpiar_v9()
         flujo.limpiar_resultado()
@@ -411,7 +424,8 @@ def render() -> None:
             st.session_state.update(v9_firma=firma, v9_preparacion=preparado_prev["job_id"],
                                     nisar_auto_job=preparado_prev["job_id"])
         else:
-            with st.spinner("Consultando NASA CMR para elegir un par comparable…"):
+            with st.spinner(tr("Consultando NASA CMR para elegir un par comparable…",
+                            "Querying NASA CMR for a comparable image pair…")):
                 try:
                     job_id = _solicitar(zona, inicio, fin)
                     st.session_state.update(v9_firma=firma, v9_preparacion=job_id,
@@ -427,11 +441,14 @@ def render() -> None:
     _mostrar_sugerencias(firma)
     _seguimiento(firma)
     if st.button(
-        "Ver GeoTIFF anteriores (sin volver a descargar)",
+        tr("Ver GeoTIFF anteriores (sin volver a descargar)",
+           "View previous GeoTIFFs (without redownloading)"),
         key="v9_ver_guardados",
         on_click=_abrir_modo_jurado,
         help="Archivos reales del historial; podrían ser de fechas distintas a las seleccionadas.",
     ):
         st.rerun(scope="app")
-    st.caption("El producto inicial será ΔdB (cambio SAR real). No genera probabilidades, "
-               "clases de inundación ni predicciones de Machine Learning.")
+    st.caption(tr("El producto inicial será ΔdB (cambio SAR real). No genera probabilidades, "
+               "clases de inundación ni predicciones de Machine Learning.",
+               "The initial output is ΔdB (actual SAR signal change). It does not produce flood "
+               "probabilities, flood classes or machine-learning predictions."))
