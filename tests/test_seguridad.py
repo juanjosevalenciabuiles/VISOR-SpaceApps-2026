@@ -56,6 +56,7 @@ def test_metadatos_maliciosos_se_muestran_escapados(tmp_path, monkeypatch):
         monkeypatch.setattr(type(f), "ruta", property(lambda self, d=datos: d / self.archivo), raising=False)
     monkeypatch.chdir(RAIZ)
 
+    monkeypatch.setenv("VISOR_MOSTRAR_DEMO", "1")  # QA de inyección, sin DEMO pública
     at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=120).run()
     at.toggle(key="capa_sar").set_value(True).run()              # la DEMO (con su JSON malicioso), a propósito
     at.button(key="hist_ver_malicioso").click().run()
