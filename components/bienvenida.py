@@ -1,4 +1,4 @@
-"""Guía persistente y bilingüe de V.I.S.O.R.
+"""Ventana emergente persistente, bilingüe y de cierre explícito de V.I.S.O.R.
 
 A diferencia de un diálogo de Streamlit, este panel se dibuja en cada ejecución
 y solo se cierra por una acción explícita del visitante. Nunca toca el estado SAR.
@@ -13,67 +13,61 @@ CLAVE_ABIERTA = "visor_guia_abierta"
 CLAVE_CAPITULO = "visor_guia_capitulo"
 
 ESTILO = """
-<style id="visor-guia-fija">
-.st-key-visor_guia_launcher {
-    position: fixed !important;
-    z-index: 95 !important;
-    bottom: 14px !important;
-    left: 14px !important;
-    width: auto !important;
-    max-width: calc(100vw - 28px) !important;
-    padding: 6px 8px !important;
-    background: rgba(5, 17, 31, .96);
-    border: 1px solid rgba(69, 228, 244, .65);
-    border-radius: 14px;
-    box-shadow: 0 6px 30px rgba(0,0,0,.55);
-    color: #f5f8ff;
-    backdrop-filter: blur(14px);
-}
-.st-key-visor_guia_launcher button {
-    min-height: 34px !important;
-    padding: 4px 10px !important;
-    white-space: nowrap !important;
-    color: #f5f8ff !important;
+<style id="visor-guia-emergente">
+/* Ventana emergente propia: NO usa st.dialog, porque el rerun de Folium
+   destruye diálogos de Streamlit. El fondo no contiene botones de cierre. */
+.visor-guia-sombra {
+  position: fixed !important; inset: 0 !important; z-index: 90 !important;
+  background: rgba(1, 9, 20, .75) !important;
+  backdrop-filter: blur(4px) !important;
+  pointer-events: auto !important;
 }
 .st-key-visor_guia_panel {
-    position: fixed !important;
-    z-index: 94 !important;
-    bottom: 76px !important;
-    left: 14px !important;
-    width: min(460px, calc(100vw - 28px)) !important;
-    max-height: min(74vh, 780px) !important;
-    max-height: min(74dvh, 780px) !important;
-    padding: 17px 19px 20px !important;
-    overflow-y: auto !important;
-    overscroll-behavior: contain;
-    background: rgba(5, 17, 31, .97);
-    color: #eef5ff;
-    border: 1px solid rgba(69, 228, 244, .7);
-    border-radius: 18px;
-    box-shadow: 0 14px 55px rgba(0,0,0,.6);
-    backdrop-filter: blur(18px);
+  position: fixed !important; z-index: 110 !important;
+  top: 50% !important; left: 50% !important; bottom: auto !important;
+  transform: translate(-50%, -50%) !important;
+  width: min(740px, calc(100vw - 32px)) !important;
+  max-height: min(85vh, 850px) !important;
+  max-height: min(85dvh, 850px) !important;
+  overflow-y: auto !important; overscroll-behavior: contain;
+  padding: 22px 26px 24px !important;
+  border: 1px solid rgba(69,228,244,.65) !important;
+  border-radius: 22px !important; color: #edf6ff !important;
+  background: rgba(7,20,36,.98) !important;
+  box-shadow: 0 22px 85px rgba(0,0,0,.74) !important;
 }
 .st-key-visor_guia_panel p, .st-key-visor_guia_panel li {
-    color: #e2ebf5 !important;
-    line-height: 1.48 !important;
+  color: #e2ecf7 !important; line-height: 1.5 !important;
 }
 .st-key-visor_guia_panel h2, .st-key-visor_guia_panel h3 {
-    color: #45e4f4 !important;
+  color: #45e4f4 !important;
 }
-.st-key-visor_guia_panel [data-testid="stMarkdownContainer"] a { color: #8ddfff !important; }
-@media(max-width:720px) {
-    .st-key-visor_guia_launcher { left: 8px !important; bottom: 7px !important; }
-    .st-key-visor_guia_launcher button { padding: 4px 7px !important; min-height: 34px !important; }
-    .st-key-visor_guia_panel {
-        left: 8px !important; bottom: 64px !important;
-        width: calc(100vw - 16px) !important;
-        max-height: 66dvh !important;
-        padding: 12px 14px !important;
-    }
+.st-key-visor_guia_panel [data-testid="stMarkdownContainer"] a {
+  color: #91eaff !important;
+}
+.st-key-visor_guia_launcher {
+  position: fixed !important; z-index: 100 !important;
+  bottom: 12px !important; left: 12px !important;
+  width: auto !important; max-width: calc(100vw - 24px) !important;
+  padding: 5px 8px !important; background: rgba(5,17,31,.96) !important;
+  border: 1px solid rgba(69,228,244,.6); border-radius: 14px;
+  color: #f5f8ff !important;
+}
+.st-key-visor_guia_launcher button {
+  color: #f5f8ff !important; min-height: 34px !important;
+  padding: 4px 10px !important; white-space: nowrap !important;
+}
+@media (max-width: 720px) {
+  .st-key-visor_guia_panel {
+    top: 49% !important; width: calc(100vw - 16px) !important;
+    max-height: 80dvh !important; padding: 12px 15px 16px !important;
+    border-radius: 14px !important;
+  }
+  .st-key-visor_guia_launcher { bottom: 5px !important; left: 5px !important; }
+  .st-key-visor_guia_launcher button { padding: 3px 6px !important; }
 }
 </style>
 """
-
 CAPITULOS = {
     "es": [
         ("Empezar · qué es V.I.S.O.R.", """
@@ -421,14 +415,14 @@ def _lang_en() -> None:
 def render() -> None:
     """Dibujar en TODOS los reruns. Sin st.dialog y sin temporizadores."""
     st.session_state.setdefault(CLAVE_ABIERTA, True)
-    st.session_state.setdefault("visor_idioma", "es")
+    st.session_state.setdefault("visor_idioma", idioma())
     st.markdown(ESTILO, unsafe_allow_html=True)
 
     with st.container(key="visor_guia_launcher", horizontal=True,
                       vertical_alignment="center", gap="small"):
         st.button(
-            tr("📖 Guía", "📖 Guide"), key="visor_guia_toggle",
-            on_click=alternar,
+            tr("📖 Abrir guía", "📖 Open guide"), key="visor_guia_toggle",
+            on_click=abrir,
             help=tr("Abrir u ocultar el manual; no modifica el mapa ni resultados.",
                     "Open or hide the manual without changing map or results."),
         )
@@ -443,15 +437,17 @@ def render() -> None:
         return
 
     capitulos = CAPITULOS[idioma()]
+    # Fondo bloquea interacciones accidentales, pero no cierra la ventana.
+    # Un rerun del mapa reconstruye ambos elementos con el mismo estado abierto.
+    st.markdown('<div class="visor-guia-sombra" aria-hidden="true"></div>',
+                unsafe_allow_html=True)
     with st.container(key="visor_guia_panel"):
-        st.markdown(tr("## Manual V.I.S.O.R.", "## V.I.S.O.R. User Guide"))
+        st.markdown(tr("## Bienvenido a V.I.S.O.R. 🛰️", "## Welcome to V.I.S.O.R. 🛰️"))
         st.caption(tr(
-            "Esta guía no desaparece al mover el mapa. Ciérrala cuando quieras; "
-            "puedes volver a abrirla con el botón 📖.",
-            "This guide stays open while you pan the map. Close it when ready; "
-            "press 📖 to reopen it at any time."
+            "Esta ventana solo se cierra al pulsar «Cerrar». Puedes volver a abrirla desde 📖.",
+            "This window closes only when you press «Close». Reopen it any time using 📖."
         ))
-        st.button(tr("✕ Cerrar guía", "✕ Close guide"), key="visor_guia_cerrar",
+        st.button(tr("✕ Cerrar", "✕ Close"), key="visor_guia_cerrar",
                   on_click=cerrar, use_container_width=True)
         consulta = st.text_input(
             tr("🔎 Buscar en el manual", "🔎 Search this guide"),
@@ -484,6 +480,4 @@ def render() -> None:
             "Nota científica: los cambios SAR son indicios; no confirman por sí solos una inundación.",
             "Scientific note: SAR changes are indicators; they do not by themselves confirm flooding."
         ))
-        st.button(tr("Comenzar a explorar", "Start exploring"),
-                  key="visor_guia_empezar", on_click=cerrar,
-                  type="primary", use_container_width=True)
+
