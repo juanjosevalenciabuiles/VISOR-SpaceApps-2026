@@ -287,7 +287,11 @@ def preparar_harmony(plan: Plan, carpeta: Path | None = None, notificar=None, co
     for c in plan.candidatos:
         if comprobar:
             comprobar()
-        spec = harmony.especificar(c, plan.aoi, caps)
+        # En el selector visual V9 basta copolar + máscara + numberOfLooks.
+        # Otras adquisiciones conservan HV/VH cuando corresponde.
+        spec = harmony.especificar(
+            c, plan.aoi, caps, solo_cambio=bool(plan.id_par_seleccionado)
+        )
         restante = presupuestado - usados
         if restante < 64 * 1024**2:
             raise ErrorAutoNISAR("Se alcanzó el límite de almacenamiento para este par.")
