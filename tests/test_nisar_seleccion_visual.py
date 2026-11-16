@@ -176,3 +176,49 @@ def test_sin_qa_dos_fechas_incompatibles_no_se_saltan_filtro(monkeypatch):
                         lambda *_args: ["polarizaciones incompatibles"])
     with pytest.raises(ValueError, match="compatibilidad"):
         ui._solicitar_elegido(AOI, INI, FIN, estado, item)
+
+
+def test_cobertura_verde_se_oculta_solo_tras_publicacion_sar_apta(monkeypatch):
+    """La huella de selección CMR no debe tapar la imagen SAR verificada."""
+    par = _par("T1", "T2", box(*AOI))
+    resultado = _resultado([par])
+    opciones = geo.opciones(resultado, [par])
+    firma = ui._firma(AOI, INI, FIN)
+    estado = {
+        "zona": {"limites": list(AOI)},
+        "v9_inicio_periodo": INI, "v9_fin_periodo": FIN,
+        "v9_coberturas": {"firma": firma, "opciones": opciones,
+                         "seleccionado": opciones[0]["id"]},
+        "v9_firma": firma,
+        "v9_mapa_job": "mapa_qa_001",
+        "resultado_activo": None,
+    }
+    monkeypatch.setattr(ui.st, "session_state", estado)
+    assert len(ui.grupos_mapa()) == 1
+    assert ui.modo_seleccion_mapa() is True
+
+    # Preparación/proceso en curso: todavía hay huellas para comparar.
+    estado["resultado_activo"] = {"id": "delta_nisar", "origen": "analisis"}
+    assert len(ui.grupos_mapa()) == 1, "sin verificación no ocultar las coberturas"
+
+    # Publicación validada: se retiran T1, T2, verde y zona gris del mapa.
+    estado["v9_publicado"] = "mapa_qa_001"
+    assert ui._resultado_sar_verificado(estado["v9_coberturas"]) is True
+    assert ui.grupos_mapa() == []
+    assert ui.modo_seleccion_mapa() is False
+    assert len(estado["v9_coberturas"]["opciones"]) == 1, "conservar metadatos, no borrar datos"
+
+    # Si se retira el resultado o se inicia otro trabajo, se puede comparar de nuevo.
+    estado["resultado_activo"] = None
+    assert len(ui.grupos_mapa()) == 1
+    estado["resultado_activo"] = {"id": "delta_nisar", "origen": "analisis"}
+    estado["v9_mapa_job"] = "nuevo_mapa_en_curso"
+    assert len(ui.grupos_mapa()) == 1
+
+    # Los resultados ajenos o de otra AOI tampoco autorizan ocultar huellas.
+    estado["v9_mapa_job"] = "mapa_qa_001"
+    estado["resultado_activo"]["origen"] = "historico"
+    assert len(ui.grupos_mapa()) == 1
+    estado["resultado_activo"]["origen"] = "analisis"
+    estado["v9_firma"] = (AOI, "2026-10-01", "2026-11-01")
+    assert len(ui.grupos_mapa()) == 1
