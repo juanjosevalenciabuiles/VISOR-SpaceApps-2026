@@ -31,6 +31,8 @@ def test_leyenda_corta_se_inserta_delante_de_ficha():
     interfaz = (Path(__file__).resolve().parents[1] / "components" / "interfaz.py").read_text(
         encoding="utf-8"
     )
-    assert interfaz.index("ui_resultados.leyenda_rapida_html(res)") < interfaz.index(
-        "ui_resultados.ficha_html(res)"
-    )
+    app = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
+    assert 'st.container(key="visor_leyenda_flotante")' in app
+    assert "ui_resultados.leyenda_rapida_html(activo)" in app
+    assert "ui_resultados.leyenda_rapida_html(res)" not in interfaz
+    assert "ui_resultados.ficha_html(res)" in interfaz
