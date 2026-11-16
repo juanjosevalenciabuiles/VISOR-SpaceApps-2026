@@ -671,6 +671,84 @@ def _panel_coberturas(estado: dict, zona, inicio: date, fin: date) -> None:
         )
 
 
+def _reducir_zona_cog(limites, punto=None):
+    """Sugiere una AOI cuadrada menor DENTRO de la actual, sin bajar resolución.
+
+    No altera el mapa ni la sesión. Un clic explícito del usuario aplicará
+    este recorte y exigirá volver a consultar los pares CMR.
+    """
+    import math
+
+    o, sur, e, n = sesion.validar_zona(limites)
+    ancho, alto = sesion.dimensiones_km((o, sur, e, n))
+    lado = min(ancho, alto) * 0.55  # ~30 % del área cuadrada anterior
+    if lado < 0.2:
+        raise sesion.ErrorZona("La zona ya es demasiado pequeña para otro recorte seguro.")
+    centro_lon, centro_lat = (o + e) / 2, (sur + n) / 2
+    if punto is not None:
+        try:
+            lon, lat = map(float, punto)
+            if o <= lon <= e and sur <= lat <= n:
+                centro_lon, centro_lat = lon, lat
+        except (TypeError, ValueError):
+            pass
+    dlat = lado / 111.32
+    dlon = lado / (111.32 * math.cos(math.radians(centro_lat)))
+    centro_lon = min(max(centro_lon, o + dlon / 2), e - dlon / 2)
+    centro_lat = min(max(centro_lat, sur + dlat / 2), n - dlat / 2)
+    recorte = (centro_lon - dlon / 2, centro_lat - dlat / 2,
+               centro_lon + dlon / 2, centro_lat + dlat / 2)
+    return sesion.validar_zona(recorte)
+
+
+def _aplicar_zona_menor_cog() -> None:
+    """Solo tras pulsar 'Reducir zona': NO reintenta Harmony automáticamente."""
+    zona = flujo.zona_confirmada()
+    if zona is None:
+        return
+    estado = _coberturas_actuales()
+    elegido = (nisar_coberturas.seleccion_actual(estado, estado["firma"])
+               if estado else None)
+    punto = None
+    if elegido is not None and not elegido["geometria"].is_empty:
+        # Si el lugar del usuario no está en la intersección de AMBAS fechas,
+        # priorizar un punto realmente cubierto, no una huella aislada.
+        prioritario = _punto_local(zona)
+        if prioritario is not None:
+            from shapely.geometry import Point
+            if elegido["geometria"].covers(Point(*prioritario)):
+                punto = prioritario
+        if punto is None:
+            centro = elegido["geometria"].representative_point()
+            punto = (centro.x, centro.y)
+    nueva = _reducir_zona_cog(zona, punto)
+    _limpiar_v9()  # conserva fechas; descarta firmas de CMR y trabajos antiguos
+    flujo.limpiar_resultado()
+    flujo.confirmar_zona(nueva, tr("zona reducida con confirmación del usuario",
+                                  "user-confirmed smaller study area"))
+    # No mantener un municipio ajeno al nuevo rectángulo como punto prioritario.
+    lugar = st.session_state.get("lugar")
+    if lugar and not (nueva[0] <= lugar["longitud"] <= nueva[2]
+                      and nueva[1] <= lugar["latitud"] <= nueva[3]):
+        st.session_state["lugar"] = None
+    st.session_state["recomendacion_aoi_actual"] = None
+    st.session_state["recomendacion_aoi_limites"] = None
+    st.session_state["mapa_dibujo"] = None
+    st.session_state["visor_aoi_recomendacion_seq"] = (
+        int(st.session_state.get("visor_aoi_recomendacion_seq", 0)) + 1
+    )
+    st.session_state["ui_sar"] = "abierto"
+    st.session_state["ui_explorador"] = False
+    from components import interfaz
+    interfaz.centrar_en(nueva)
+
+
+def _error_cog_grande(error: str) -> bool:
+    return "COG_DEMASIADO_GRANDE" in error or (
+        "COG supera el límite" in error or "límite de bytes antes de transferir" in error
+    )
+
+
 @st.fragment(run_every=2.0)
 def _progreso_pie_sar() -> None:
     """Indicador en pie fijo: seguimiento de fases REALES sin rerun del mapa.
@@ -690,13 +768,50 @@ def _progreso_pie_sar() -> None:
     if not prep_id:
         return
     prep = trabajos.leer(prep_id)
-    if not prep or prep.get("estado") not in (*trabajos.ACTIVOS, trabajos.APTO):
+    if prep is None:
+        st.warning(tr("No se encuentra el trabajo NISAR.",
+                      "NISAR job cannot be found."))
+        return
+    if prep.get("estado") not in (*trabajos.ACTIVOS, trabajos.APTO):
+        error = str(prep.get("error") or prep.get("estado"))
+        if _error_cog_grande(error):
+            st.warning(tr(
+                "Harmony devolvió un COG demasiado grande. "
+                "La transferencia se detuvo; no se publicó ningún resultado.",
+                "Harmony returned an oversized COG. "
+                "The transfer was stopped; no result was published.",
+            ))
+            with st.expander(tr("Detalle del límite", "Size-limit details"), expanded=False):
+                st.caption(error.replace("COG_DEMASIADO_GRANDE: ", ""))
+            if st.button(
+                tr("Reducir zona y revisar cobertura", "Shrink area and check coverage"),
+                key="v9_reducir_zona_cog", use_container_width=True,
+                help=tr(
+                    "Reduce la zona solo si pulsas aquí. Tendrás que buscar "
+                    "los pares nuevamente; no inicia descargas.",
+                    "Only shrinks the area when you click. You'll need to "
+                    "search pairs again; no downloads are started.",
+                ),
+            ):
+                try:
+                    _aplicar_zona_menor_cog()
+                    st.rerun(scope="app")
+                except sesion.ErrorZona as exc:
+                    st.error(str(exc))
+        else:
+            st.warning(tr("La preparación NISAR se detuvo.",
+                          "NISAR preparation stopped."))
         return
     job_mapa = st.session_state.get("v9_mapa_job")
     if prep.get("estado") == trabajos.APTO and job_mapa:
         cambio = trabajos.leer(job_mapa)
         if cambio and cambio.get("estado") in (*trabajos.ACTIVOS, trabajos.APTO):
             _mostrar_progreso(cambio, "calculo")
+            return
+        if cambio and cambio.get("estado") not in trabajos.ACTIVOS:
+            if cambio.get("estado") != trabajos.APTO:
+                st.warning(tr("El cálculo SAR se detuvo. Revisa los detalles abajo.",
+                              "SAR computation stopped. See details below."))
             return
     _mostrar_progreso(prep, "preparacion")
 
@@ -730,8 +845,8 @@ def accion_principal() -> None:
             mensaje = tr("Trabajo detenido: revisa el error.",
                          "Job stopped: check the error.")
         else:
-            mensaje = tr("Procesando imágenes NISAR…",
-                         "Processing NISAR images…")
+            mensaje = tr("Estado del análisis:",
+                         "Analysis status:")
     elif item is None:
         mensaje = tr("Selecciona un par de imágenes compatible.",
                      "Select a compatible image pair.")
