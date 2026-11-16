@@ -769,17 +769,19 @@ def _progreso_pie_sar() -> None:
         return
     prep = trabajos.leer(prep_id)
     if prep is None:
-        st.warning(tr("No se encuentra el trabajo NISAR.",
-                      "NISAR job cannot be found."))
+        st.error(tr("No se puede recuperar el trabajo NISAR. "
+                    "No se ha publicado ningún resultado.",
+                    "NISAR job cannot be retrieved. "
+                    "No result was published."))
         return
     if prep.get("estado") not in (*trabajos.ACTIVOS, trabajos.APTO):
         error = str(prep.get("error") or prep.get("estado"))
         if _error_cog_grande(error):
-            st.warning(tr(
-                "Harmony devolvió un COG demasiado grande. "
-                "La transferencia se detuvo; no se publicó ningún resultado.",
-                "Harmony returned an oversized COG. "
-                "The transfer was stopped; no result was published.",
+            st.error(tr(
+                "El COG de NASA Harmony supera el límite de descarga. "
+                "No se publicó ningún resultado.",
+                "The NASA Harmony COG exceeds the download limit. "
+                "No result was published.",
             ))
             with st.expander(tr("Detalle del límite", "Size-limit details"), expanded=False):
                 st.caption(error.replace("COG_DEMASIADO_GRANDE: ", ""))
@@ -799,8 +801,13 @@ def _progreso_pie_sar() -> None:
                 except sesion.ErrorZona as exc:
                     st.error(str(exc))
         else:
-            st.warning(tr("La preparación NISAR se detuvo.",
-                          "NISAR preparation stopped."))
+            st.error(tr(
+                "Falló la preparación de NISAR. No hay un resultado SAR válido.",
+                "NISAR preparation failed. There is no valid SAR result.",
+            ))
+            with st.expander(tr("Ver detalle del error", "Show error details"),
+                             expanded=False):
+                st.caption(error)
         return
     job_mapa = st.session_state.get("v9_mapa_job")
     if prep.get("estado") == trabajos.APTO and job_mapa:
@@ -810,8 +817,13 @@ def _progreso_pie_sar() -> None:
             return
         if cambio and cambio.get("estado") not in trabajos.ACTIVOS:
             if cambio.get("estado") != trabajos.APTO:
-                st.warning(tr("El cálculo SAR se detuvo. Revisa los detalles abajo.",
-                              "SAR computation stopped. See details below."))
+                st.error(tr(
+                    "Falló el cálculo SAR o su verificación. No se publicó el mapa.",
+                    "SAR calculation or quality checks failed. No map was published.",
+                ))
+                with st.expander(tr("Ver detalle del error", "Show error details"),
+                                 expanded=False):
+                    st.caption(str(cambio.get("error") or cambio["estado"]))
             return
     _mostrar_progreso(prep, "preparacion")
 
@@ -879,6 +891,16 @@ def accion_principal() -> None:
             mensaje = tr("Par preparado: se reutilizarán sus COG verificados.",
                          "Pair already prepared: existing verified COGs will be reused.")
     with st.container(key="sar_accion_fija"):
+        # Los errores se anuncian ANTES del botón principal, no al final del
+        # panel. El fragment muestra los errores de tareas asíncronas en vivo.
+        error_solicitud = st.session_state.get("v9_error")
+        if error_solicitud:
+            st.error(tr("No se pudo iniciar el análisis: ",
+                        "Could not start analysis: ") + str(error_solicitud))
+        error_catalogo = st.session_state.get("v9_coberturas_error")
+        if error_catalogo and not estado:
+            st.error(tr("No se pudieron buscar coberturas NISAR: ",
+                        "Could not search NISAR coverage: ") + str(error_catalogo))
         # Evitar un temporizador extra si todavía no hay job. El fragment
         # se actualiza cada 2 s solo durante preparación/QA de un resultado.
         if st.session_state.get("v9_preparacion") and not (
@@ -978,9 +1000,10 @@ def render() -> None:
         st.markdown(tr("**Pares disponibles**", "**Available pairs**"))
         _panel_coberturas(estado, zona, inicio, fin)
     elif st.session_state.get("v9_coberturas_error"):
-        st.warning(st.session_state["v9_coberturas_error"])
-    if st.session_state.get("v9_error"):
-        st.warning(st.session_state["v9_error"])
+        # El aviso principal aparece arriba del botón Analizar.
+        pass
+    # Todos los errores de solicitud/catálogo se muestran arriba del botón
+    # Analizar, en accion_principal; no duplicar alertas al final del panel.
     _mostrar_sugerencias(firma)
     _seguimiento(firma)
     # El acceso al histórico heredado es solo para regresión técnica.
