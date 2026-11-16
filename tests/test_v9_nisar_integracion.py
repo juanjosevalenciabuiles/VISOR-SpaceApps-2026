@@ -97,3 +97,38 @@ def test_no_reinterpretar_manifest_de_otra_fuente(tmp_path, monkeypatch):
 def test_rutas_inseguras_no_se_aceptan():
     with pytest.raises(QAInsuficiente, match="no seguro"):
         puente._ruta_segura(puente.HARMONY, "../archivo.tif")
+
+
+
+def test_informe_distingue_cobertura_qa_real_en_aoi_sin_modificar_insumos(tmp_path, monkeypatch):
+    from rasterio.warp import transform as proyectar
+
+    job, manifest, destino = _preparacion(tmp_path, monkeypatch)
+    archivo = puente.HARMONY / "n1" / "HHHH.tif"
+    with rasterio.open(archivo) as origen:
+        bb = origen.bounds
+    oeste, sur = proyectar("EPSG:32618", "EPSG:4326", [bb.left - 30], [bb.bottom - 30])
+    este, norte = proyectar("EPSG:32618", "EPSG:4326", [bb.right + 30], [bb.top + 30])
+    manifest["plan"]["aoi"] = [oeste[0], sur[0], este[0], norte[0]]
+    (puente.CATALOGO / f"resultado_{job}.json").write_text(json.dumps(manifest))
+    ruta_mask = puente.HARMONY / "n1" / "mask.tif"
+    with rasterio.open(ruta_mask, "r+") as mask:
+        datos = mask.read(1)
+        datos[:2] = 0   # el 25 % queda inválido en T1, aunque el footprint cubre el AOI
+        mask.write(datos, 1)
+    r = puente.procesar_preparacion(job)
+    ficha = json.loads(next(destino.glob("*.json")).read_text())
+    qa = ficha["qa"]
+    assert qa["pixeles_en_aoi"] > 0
+    assert qa["pixeles_validos_en_aoi"] < qa["pixeles_en_aoi"]
+    assert 0 < qa["cobertura_qa_aoi_fraccion"] < 0.90
+    assert r["cobertura_qa_aoi_fraccion"] == qa["cobertura_qa_aoi_fraccion"]
+
+
+def test_no_publica_resultado_si_cog_fuera_del_aoi_aunque_contenga_datos(tmp_path, monkeypatch):
+    job, manifest, destino = _preparacion(tmp_path, monkeypatch)
+    manifest["plan"]["aoi"] = [-74.1, 4.6, -74.0, 4.7]  # Bogotá, lejos del COG sintético
+    (puente.CATALOGO / f"resultado_{job}.json").write_text(json.dumps(manifest))
+    with pytest.raises(QAInsuficiente, match="dentro del AOI"):
+        puente.procesar_preparacion(job)
+    assert not list(destino.glob("*.tif"))
