@@ -173,3 +173,45 @@ def test_capturar_encuadre_solo_al_activar_modo_area_visible_o_capas_recortadas(
     assert llamadas[1]["key"] == llamadas[2]["key"]
     assert llamadas[1]["key"].endswith("__seguir_vista")
     assert estado["mapa_limites"] == (-76.8, 5.6, -76.5, 5.8)
+
+
+
+def test_resultado_nuevo_recupera_zoom_del_navegador_sin_navegacion_explicita(monkeypatch):
+    """Al cambiar un raster se respeta el viewport local; recomendación sí puede centrar."""
+    from types import SimpleNamespace
+
+    estado = {"visor_idioma": "en", "mapa_ultimo_destino": 4}
+    monkeypatch.setattr(mapa.st, "session_state", estado)
+    monkeypatch.setattr(mapa, "mapa_fijo", lambda: object())
+    monkeypatch.setattr(mapa, "construir_capas", lambda *_: [])
+    monkeypatch.setattr(mapa, "_centro_y_zoom_guardados", lambda *_: ([7.67, -76.67], 13.0))
+    llamadas = []
+
+    def fake_folium(*args, **kwargs):
+        llamadas.append(kwargs)
+        return {"all_drawings": None}
+
+    monkeypatch.setattr(mapa, "st_folium", fake_folium)
+    vista = {"centro": [7.67, -76.67], "zoom": 13, "n": 4}
+    mapa.render(None, None, SimpleNamespace(resultados={"uno": .85}, hidrografia=False, vias=False),
+                vista=vista)
+    mapa.render(None, None, SimpleNamespace(resultados={"dos": .85}, hidrografia=False, vias=False),
+                vista=vista)
+    assert llamadas[0]["center"] == [7.67, -76.67]
+    assert llamadas[1]["center"] is None and llamadas[1]["zoom"] is None
+    assert llamadas[0]["key"] != llamadas[1]["key"]
+    mapa.render(None, None, SimpleNamespace(resultados={"tres": .85}, hidrografia=False, vias=False),
+                vista={**vista, "n": 5})
+    assert llamadas[2]["center"] == [7.67, -76.67]
+    assert llamadas[2]["zoom"] == 13.0
+
+
+def test_leaflet_conserva_vista_localmente_sin_guardar_datos_sar():
+    from folium import MacroElement
+    assert issubclass(mapa.RecordarVistaNavegador, MacroElement)
+    script = mapa.RecordarVistaNavegador._template.module.script(
+        mapa.RecordarVistaNavegador())
+    assert "sessionStorage" in script
+    assert "moveend" in script
+    assert "getCenter" in script and "getZoom" in script
+    assert "GeoTIFF" not in script and "fetch(" not in script
