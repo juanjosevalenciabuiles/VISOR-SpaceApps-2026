@@ -214,6 +214,16 @@ def _cargar_con_cache(ruta: str, firma: tuple) -> ResultadoSAR:
     return leer_resultado(ruta)
 
 
-def cargar_resultados(carpeta: Path | None = None) -> list[ResultadoSAR]:
-    """Todos los resultados de la carpeta; relee un archivo solo si cambió él o su ficha."""
-    return [_cargar_con_cache(str(r), _firma(r)) for r in listar(carpeta)]
+def cargar_resultados(carpeta: Path | None = None, *, solo_id: str | None = None) -> list[ResultadoSAR]:
+    """Carga solo el raster requerido, o el inventario completo para QA.
+
+    El histórico público ya no existe: abrir decenas de GeoTIFF en cada rerun
+    desperdicia CPU/memoria incluso cuando no se dibuja ninguno. Solo se
+    examinan metadatos y píxeles de la ruta activa (si existe). Los tests y
+    herramientas de QA conservan el comportamiento completo por defecto.
+    `solo_id=""` significa que no hay resultado activo y evita leer rasters.
+    """
+    rutas = listar(carpeta)
+    if solo_id is not None:
+        rutas = [ruta for ruta in rutas if id_resultado(ruta) == solo_id]
+    return [_cargar_con_cache(str(ruta), _firma(ruta)) for ruta in rutas]
