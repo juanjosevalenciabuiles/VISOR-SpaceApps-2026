@@ -153,6 +153,98 @@ def buscador_lugar(ir_a, inicio=None) -> None:
         st.markdown(_nota_fuente(hallazgo["fuente"]), unsafe_allow_html=True)
 
 
+# Presets exploratorios sobre corredores fluviales urbanos. Son rectángulos
+# aproximados para escoger una AOI, NO huellas de inundación ni cobertura NISAR.
+# Río Chigorodó: CORPOURABA; río Atrato en Quibdó: Gobierno del Chocó.
+# https://corpouraba.gov.co/2026/06/02/corpouraba-participo-en-jornada-de-revision-e-inspeccion-en-la-parte-baja-del-rio-chigorodo/
+# https://turismo.choco.gov.co/subregion-atrato/
+RECOMENDACIONES_AOI = {
+    "chigorodo": {
+        "municipio": "Chigorodó",
+        "limites": (-76.71, 7.64, -76.63, 7.71),
+        "nombre_es": "Chigorodó · río Chigorodó",
+        "nombre_en": "Chigorodó · Chigorodó River",
+    },
+    "choco_atrato": {
+        "municipio": "Quibdó",
+        "limites": (-76.70, 5.66, -76.62, 5.73),
+        "nombre_es": "Chocó · río Atrato (Quibdó)",
+        "nombre_en": "Chocó · Atrato River (Quibdó)",
+    },
+}
+
+
+def _seleccionar_recomendacion(clave: str, centrar) -> None:
+    """Un clic confirma la AOI, la encuadra y muestra su ficha; NUNCA inicia SAR.
+
+    Validar primero: ante una zona inválida, no se pierde el trabajo actual.
+    Un mapa nuevo evita que un dibujo Leaflet viejo reemplace este preset.
+    """
+    recomendacion = RECOMENDACIONES_AOI[clave]
+    try:
+        limites = sesion.validar_zona(recomendacion["limites"])
+    except sesion.ErrorZona as exc:
+        st.session_state["error_recomendacion"] = str(exc)
+        return
+    encontrados = lugares.buscar_local(recomendacion["municipio"])
+    lugar = next((x for x in encontrados if x.nombre == recomendacion["municipio"]), None)
+    if lugar is None:
+        st.session_state["error_recomendacion"] = tr(
+            "No se pudo localizar el municipio recomendado.",
+            "Could not locate the recommended municipality.",
+        )
+        return
+
+    from components import v9_experiencia
+    v9_experiencia._limpiar_v9()  # no reutilizar preparaciones COG de otra AOI
+    st.session_state["trabajo_activo"] = None
+    st.session_state["trabajo_publicado"] = None
+    flujo.quitar_zona()          # retira solo referencias de sesión, conserva GeoTIFF
+    st.session_state["mapa_dibujo"] = None
+    st.session_state["visor_modo_muestra_real"] = False
+    st.session_state["lugar"] = {
+        "etiqueta": lugar.etiqueta, "latitud": lugar.latitud,
+        "longitud": lugar.longitud, "fuente": lugar.fuente,
+    }
+    flujo.confirmar_zona(limites, tr("zona fluvial sugerida", "suggested riverside area"))
+    st.session_state["recomendacion_aoi_actual"] = clave
+    st.session_state["error_recomendacion"] = None
+    st.session_state["ui_explorador"] = True
+    st.session_state["ui_sar"] = "cerrado"  # priorizar mapa + ficha Information
+    st.session_state["visor_aoi_recomendacion_seq"] = (
+        int(st.session_state.get("visor_aoi_recomendacion_seq", 0)) + 1)
+    centrar(limites)
+
+
+def recomendaciones_analisis(centrar) -> None:
+    """Dos botones visibles en Explorer que seleccionan el rectángulo de un clic."""
+    st.markdown(
+        f'<div class="mc-titulo-panel">{tr("Zonas recomendadas", "Suggested study areas")}</div>',
+        unsafe_allow_html=True,
+    )
+    st.caption(tr(
+        "Cerca de los ríos es útil explorar posibles cambios asociados al agua. "
+        "Pulsa una zona para seleccionarla en el mapa; revisa después la cobertura "
+        "y las fechas NISAR. No son inundaciones confirmadas.",
+        "Riverside areas are useful starting points for exploring water-related "
+        "changes. Select an area to draw its study box on the map, then verify "
+        "NISAR coverage and dates. These are not confirmed floods.",
+    ))
+    for clave, recomendacion in RECOMENDACIONES_AOI.items():
+        seleccionada = st.session_state.get("recomendacion_aoi_actual") == clave and (
+            flujo.zona_confirmada() == recomendacion["limites"])
+        st.button(
+            recomendacion["nombre_es"] if idioma() == "es" else recomendacion["nombre_en"],
+            key=f"recom_{clave}", icon=":material/water_drop:",
+            type="primary" if seleccionada else "secondary",
+            use_container_width=True, on_click=_seleccionar_recomendacion, args=(clave, centrar),
+            help=tr("Selecciona y centra esta área, sin iniciar un análisis.",
+                    "Select and center this area without starting analysis."),
+        )
+    if st.session_state.get("error_recomendacion"):
+        st.error(st.session_state["error_recomendacion"])
+
+
 def lugar_ubicado(abrir_zona=None) -> None:
     """En el Explorador: dónde quedó el mapa tras la búsqueda y el paso siguiente (definir la zona)."""
     if alcance_geografico.restringido():
@@ -261,6 +353,9 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None,
     with contenedor if contenedor is not None else st.sidebar:
         if titulo:
             st.markdown('<div class="visor-lateral-titulo">🛰️ V.I.S.O.R.</div>', unsafe_allow_html=True)
+
+        if centrar is not None:
+            recomendaciones_analisis(centrar)
 
         if abrir_zona is not None:
             lugar_ubicado(abrir_zona)
