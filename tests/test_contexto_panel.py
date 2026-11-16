@@ -308,3 +308,35 @@ def test_busqueda_fuera_de_zona_no_se_atribuye_al_area():
         "etiqueta": "Rionegro, Antioquia, Colombia", "latitud": 6.15, "longitud": -75.38}) is None
     assert cz.municipio_de_busqueda(zona, local, {
         "etiqueta": "Rionegro, Antioquia, Colombia", "latitud": None, "longitud": None}) is None
+
+
+def test_ficha_breve_muestra_wikipedia_foto_acreditada_y_no_duplica_capas():
+    """La ficha de zona contiene una imagen y un resumen, no paneles ambientales repetidos."""
+    from types import SimpleNamespace as NS
+    from components import contexto_zona as cz
+    zona = {"clave": "prueba", "limites": AOI_CHIGORODO}
+    local = NS(municipios=[NS(nombre="Chigorodó", departamento="Antioquia")], area_km2=42.2)
+    wiki = {"estado": "CON_RESULTADOS", "items": [{
+        "title": "Chigorodó", "extract": "Municipio de Antioquia.", "url": "https://es.wikipedia.org/wiki/Chigorod%C3%B3",
+        "imagen": "https://upload.wikimedia.org/wikipedia/commons/thumb/test.jpg",
+        "credito": {"pagina": "https://commons.wikimedia.org/wiki/File:Test.jpg",
+                    "autor": "Autora de prueba", "licencia": "CC BY-SA 4.0"},
+    }]}
+    html = cz.ficha_breve_html(zona, local, wiki)
+    assert 'id="ctx-foto"' in html and 'data-origen="wikimedia"' in html
+    assert "Autora de prueba" in html and "CC BY-SA 4.0" in html
+    assert "Wikipedia (ES)" in html and "Municipio de Antioquia" in html
+    assert "42.2 km²" in html and "Chigorodó" in html
+    assert 'id="ctx-ideam"' not in html and 'id="ctx-eonet"' not in html
+    assert 'id="ctx-radar"' not in html and 'id="ctx-zona"' not in html
+
+
+def test_ficha_breve_sin_wikipedia_usa_imagen_satelital_sin_inventar_descripcion():
+    from types import SimpleNamespace as NS
+    from components import contexto_zona as cz
+    local = NS(municipios=[], area_km2=None)
+    html = cz.ficha_breve_html({"clave": "sin", "limites": AOI_CHIGORODO},
+                               local, {"estado": "SIN_COINCIDENCIAS", "items": []})
+    assert 'data-origen="satelite"' in html
+    assert "EOX" in html and "Wikipedia" in html
+    assert "No verified Wikipedia summary" in html or "No hay una descripción" in html
