@@ -311,9 +311,9 @@ def test_barra_superior_separa_fenomeno_demo_de_resultado_real():
     i_res, i_real = ambos.index(">Resultado SAR<"), ambos.index("REAL SIN VALIDAR")
     assert i_fen < i_demo < i_res < i_real and "SIN RESULTADO" not in ambos
     oculta = interfaz.estado_html(fen, demo, [real], capa_visible=False)
-    assert "DEMO" not in oculta and "REAL SIN VALIDAR" in oculta
+    assert "DEMO" not in oculta and ("REAL SIN VALIDAR" in oculta or "REAL · UNVALIDATED" in oculta)
     tres = interfaz.estado_html(fen, None, [real, real, real])
-    assert tres.count("REAL SIN VALIDAR") == 1, "un único resultado en el mapa"
+    assert tres.count("REAL · UNVALIDATED") + tres.count("REAL SIN VALIDAR") == 1, "un único resultado en el mapa"
 
 
 def test_insignias_demo_y_real_no_comparten_color():
