@@ -82,7 +82,7 @@ interfaz.barra_superior(fenomeno, capa, activos, controles.mostrar_capa)
 interfaz.buscador()
 interfaz.panel_informacion(fenomeno, capa, error, controles, resultados)
 interfaz.herramientas_sar()
-interfaz.linea_temporal(ui_resultados.fechas_activas(resultados, controles.resultados))
+# La línea temporal flotante se retiró: fechas disponibles en la ficha científica.
 interfaz.guia_eco(activos)
 # La guía es un panel persistente: se dibuja en cada rerun.
 # Mover el mapa no modifica visor_guia_abierta; solo botones explícitos la cierran.
