@@ -179,7 +179,7 @@ def _modo_colombia(m: folium.Map) -> None:
     # Rótulo cartográfico fijo (abajo a la izquierda, sobre la escala): explica el velo sin taparlo todo.
     m.get_root().html.add_child(folium.Element(
         '<div class="visor-rotulo-fuera" id="rotulo-fuera"><span class="visor-rotulo-muestra"></span>'
-        f"Fuera de Colombia: {alcance_geografico.FUERA.lower()}</div>"))
+        f"{tr('Fuera de Colombia: zona no disponible en esta versión', 'Outside Colombia: area unavailable in this release')}</div>"))
 
 
 class SelectorZonaUnica(MacroElement):
