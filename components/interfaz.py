@@ -227,9 +227,9 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple 
                     unsafe_allow_html=True, width="content")
         st.markdown(estado_html(fenomeno, capa, activos, capa_visible), unsafe_allow_html=True, width="content")
         st.space("stretch")
-        st.button(tr("Explorador", "Explorer"), key="btn_explorador", help=tr("Explorador: búsqueda e historial", "Search and SAR history"), icon=":material/layers:", on_click=alternar_explorador,
+        st.button(tr("Explorador", "Explorer"), key="btn_explorador", help=tr("Explorador: búsqueda y análisis actual", "Search and current SAR result"), icon=":material/layers:", on_click=alternar_explorador,
                   type="primary" if st.session_state["ui_explorador"] else "secondary")
-        st.button(tr("Información", "Information"), key="btn_info", help=tr("Información científica de las capas activas", "Scientific details of active layers"), icon=":material/info:", on_click=alternar_info,
+        st.button(tr("Información", "Information"), key="btn_info", help=tr("Resumen del lugar y procedencia SAR", "Place summary and SAR provenance"), icon=":material/info:", on_click=alternar_info,
                   type="primary" if st.session_state["ui_info"] else "secondary")
         if activos:
             st.button(tr("Nuevo análisis", "New analysis"), key="btn_nuevo_analisis",
@@ -298,7 +298,7 @@ GUIA_INICIO = (
     '<li><span class="mc-paso-num">3</span><div><b>Analiza con radar</b><small>Busca NISAR primero; Sentinel-1 es respaldo. Compara dos fechas: '
     "solo entonces se calcula y se dibuja el resultado.</small></div></li></ol>"
     '<p class="visor-leyenda-nota">Todavía no hay ningún resultado en el mapa. V.I.S.O.R. solo muestra lo que tú '
-    "analices en esta sesión o abras a propósito desde el historial.</p>"
+    "analices en esta sesión.</p>"
     '<div class="visor-aviso visor-aviso-general">Un cambio en la señal de radar no confirma una inundación ni '
     "ningún otro fenómeno.</div></div>")
 
@@ -319,6 +319,18 @@ def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None,
                         unsafe_allow_html=True)
             st.button(tr("Cerrar", "Close"), key="cerrar_info",
                       icon=":material/close:", type="tertiary", on_click=alternar_info)
+        # Foto y contexto local solo al abrir Information, sin duplicar leyenda SAR.
+        if st.session_state.get("ui_info"):
+            zona = contexto_zona.zona_actual()
+            if zona is not None:
+                local = contexto_zona.local_de(zona)
+                referencia = contexto_zona.municipio_de_busqueda(
+                    zona, local, st.session_state.get("lugar"))
+                wiki = contexto_zona.wikipedia_zona(zona, local)
+                st.markdown(contexto_zona.ficha_breve_html(zona, local, wiki, referencia),
+                            unsafe_allow_html=True)
+                if wiki.get("estado") == "CONSULTANDO":
+                    contexto_zona._vigilar_wikipedia_resumen(zona["clave"])
         if activos:
             for res in activos:
                 st.caption(tr("HISTÓRICO", "HISTORICAL") if flujo.es_historico()
