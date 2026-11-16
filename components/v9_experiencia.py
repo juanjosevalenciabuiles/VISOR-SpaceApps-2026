@@ -117,17 +117,35 @@ def _coberturas_actuales() -> dict | None:
     return estado if estado.get("firma") == _firma(zona, inicio, fin) else None
 
 
+def _resultado_sar_verificado(estado: dict | None) -> bool:
+    """Solo ocultar huellas CMR tras publicar el GeoTIFF SAR apto de esta AOI.
+
+    v9_publicado se establece únicamente al superar análisis, QA y procedencia.
+    No ocultarlas mientras Harmony procesa ni si falla o el resultado se retira.
+    """
+    if not estado or st.session_state.get("v9_firma") != estado.get("firma"):
+        return False
+    mapa_job = st.session_state.get("v9_mapa_job")
+    activo = st.session_state.get("resultado_activo") or {}
+    return bool(
+        mapa_job and st.session_state.get("v9_publicado") == mapa_job
+        and activo.get("id") and activo.get("origen") == sesion.ANALISIS
+    )
+
+
 def grupos_mapa():
-    """Coberturas CMR calculadas: solo geometrías, nunca capas de agua observada."""
+    """Huellas para elegir par; fuera del mapa cuando ya se muestra SAR verificado."""
     estado = _coberturas_actuales()
-    if not estado:
+    if not estado or _resultado_sar_verificado(estado):
         return []
     from components import cobertura_nisar
     return cobertura_nisar.grupos(estado, estado["firma"])
 
 
 def modo_seleccion_mapa() -> bool:
-    return bool(_coberturas_actuales() and _coberturas_actuales().get("opciones"))
+    estado = _coberturas_actuales()
+    return bool(estado and estado.get("opciones") and
+                not _resultado_sar_verificado(estado))
 
 
 def seleccionar_desde_mapa(click: dict | None, clave_mapa: str) -> bool:
