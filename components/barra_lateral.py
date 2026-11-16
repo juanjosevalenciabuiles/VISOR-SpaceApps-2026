@@ -176,6 +176,32 @@ RECOMENDACIONES_AOI = {
         "nombre_es": "Chocó · río Atrato (Quibdó)",
         "nombre_en": "Chocó · Atrato River (Quibdó)",
     },
+    # Rectángulos exploratorios aproximados: incluyen el lugar de referencia,
+    # NO constituyen una cuenca oficial ni aseguran cobertura NISAR disponible.
+    "carepa": {
+        "municipio": "Carepa",
+        "limites": (-76.71, 7.72, -76.61, 7.80),
+        "nombre_es": "Carepa · río Carepa",
+        "nombre_en": "Carepa · Carepa River",
+    },
+    "apartado": {
+        "municipio": "Apartadó",
+        "limites": (-76.70, 7.835, -76.57, 7.93),
+        "nombre_es": "Apartadó · río Apartadó",
+        "nombre_en": "Apartadó · Apartadó River",
+    },
+    "caucasia": {
+        "municipio": "Caucasia",
+        "limites": (-75.245, 7.94, -75.14, 8.045),
+        "nombre_es": "Caucasia · río Cauca",
+        "nombre_en": "Caucasia · Cauca River",
+    },
+    "choco_cabi": {
+        "municipio": "Quibdó",
+        "limites": (-76.705, 5.635, -76.605, 5.705),
+        "nombre_es": "Chocó · río Cabí (Quibdó)",
+        "nombre_en": "Chocó · Cabí River (Quibdó)",
+    },
 }
 
 
@@ -224,31 +250,44 @@ def _seleccionar_recomendacion(clave: str, centrar) -> None:
     centrar(limites)
 
 
+def _boton_zona_recomendada(clave: str, recomendacion: dict, centrar) -> None:
+    """Mismo comportamiento para todas las AOI: seleccionar y abrir SAR, sin descargar."""
+    seleccionada = st.session_state.get("recomendacion_aoi_actual") == clave and (
+        flujo.zona_confirmada() == recomendacion["limites"])
+    st.button(
+        recomendacion["nombre_es"] if idioma() == "es" else recomendacion["nombre_en"],
+        key=f"recom_{clave}", icon=":material/water_drop:",
+        type="primary" if seleccionada else "secondary",
+        use_container_width=True, on_click=_seleccionar_recomendacion, args=(clave, centrar),
+        help=tr("Selecciona la zona y abre las herramientas SAR sin iniciar descargas.",
+                "Select the area and open SAR tools without starting downloads."),
+    )
+
+
 def recomendaciones_analisis(centrar) -> None:
-    """Dos botones visibles en Explorer que seleccionan el rectángulo de un clic."""
+    """Dos zonas principales y cuatro adicionales plegables para no saturar el mapa."""
     st.markdown(
         f'<div class="mc-titulo-panel">{tr("Zonas recomendadas", "Suggested study areas")}</div>',
         unsafe_allow_html=True,
     )
     st.caption(tr(
         "Cerca de los ríos es útil explorar posibles cambios asociados al agua. "
-        "Pulsa una zona para seleccionarla en el mapa; revisa después la cobertura "
-        "y las fechas NISAR. No son inundaciones confirmadas.",
+        "Elige una zona para abrir SAR y comprobar después cobertura y fechas NISAR. "
+        "No son inundaciones confirmadas.",
         "Riverside areas are useful starting points for exploring water-related "
-        "changes. Select an area to draw its study box on the map, then verify "
-        "NISAR coverage and dates. These are not confirmed floods.",
+        "changes. Select an area to open SAR, then check NISAR coverage and dates. "
+        "These are not confirmed floods.",
     ))
-    for clave, recomendacion in RECOMENDACIONES_AOI.items():
-        seleccionada = st.session_state.get("recomendacion_aoi_actual") == clave and (
-            flujo.zona_confirmada() == recomendacion["limites"])
-        st.button(
-            recomendacion["nombre_es"] if idioma() == "es" else recomendacion["nombre_en"],
-            key=f"recom_{clave}", icon=":material/water_drop:",
-            type="primary" if seleccionada else "secondary",
-            use_container_width=True, on_click=_seleccionar_recomendacion, args=(clave, centrar),
-            help=tr("Selecciona y centra esta área, sin iniciar un análisis.",
-                    "Select and center this area without starting analysis."),
-        )
+    principales = ("chigorodo", "choco_atrato")
+    for clave in principales:
+        _boton_zona_recomendada(clave, RECOMENDACIONES_AOI[clave], centrar)
+    adicionales = [(clave, datos) for clave, datos in RECOMENDACIONES_AOI.items()
+                   if clave not in principales]
+    with st.expander(tr(f"Más zonas recomendadas ({len(adicionales)})",
+                        f"More suggested areas ({len(adicionales)})"),
+                     expanded=False):
+        for clave, recomendacion in adicionales:
+            _boton_zona_recomendada(clave, recomendacion, centrar)
     if st.session_state.get("error_recomendacion"):
         st.error(st.session_state["error_recomendacion"])
 
