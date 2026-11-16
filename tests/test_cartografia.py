@@ -95,7 +95,7 @@ def test_osm_sin_clave_con_politica_y_oscuro_solo_por_css():
 
 def test_aviso_de_teselas_caidas_va_en_el_mapa_fijo():
     texto = mapa.mapa_fijo().get_root().render()
-    assert "tileerror" in texto and "El mapa base no responde" in texto and "visor-aviso-teselas" in texto
+    assert "tileerror" in texto and "Basemap tiles unavailable" in texto and "visor-aviso-teselas" in texto
 
 
 def test_proveedores_y_atribuciones():
