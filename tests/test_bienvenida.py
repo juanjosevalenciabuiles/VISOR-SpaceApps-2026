@@ -56,7 +56,11 @@ def test_guia_se_muestra_despues_del_mapa_en_todos_los_reruns():
     assert "key=\"visor_guia_panel\"" in guia
     assert "key=\"visor_guia_busqueda\"" in guia
     assert "on_click=cerrar" in guia
-    assert "on_click=alternar" in guia
+    assert "visor_guia_empezar" not in guia
+    assert "on_click=abrir" in guia
+    assert "visor-guia-sombra" in guia
+    assert "transform: translate(-50%, -50%)" in guia
+    assert "@st.dialog" not in guia
 
 
 def test_tutorial_dos_idiomas_y_rigor_cientifico():
