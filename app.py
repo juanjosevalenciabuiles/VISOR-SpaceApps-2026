@@ -34,11 +34,14 @@ interfaz.inicializar_estado()
 clave_tema = st.session_state.get("fenomeno", "inundacion")
 estilos.inyectar_tema(FENOMENOS.get(clave_tema, FENOMENOS["inundacion"]))
 
-# 1. Inventario de data/analisis/ (solo para el historial) y resultado autorizado para esta ejecución.
+# 1. Inventario de data/analisis/ para reconocer el resultado activo de esta sesión.
 #    Que un archivo exista NO lo pone en el mapa: solo se dibuja el resultado activo de la sesión,
 #    y se retira si la zona, el par o los parámetros ya no son los suyos.
 resultados, fuera_de_alcance = alcance_geografico.filtrar_resultados(cargar_resultados())
 st.session_state["resultados_fuera_de_alcance"] = fuera_de_alcance
+# Desactivar históricos heredados de una sesión previa, sin borrar los archivos.
+if flujo.es_historico():
+    flujo.limpiar_resultado()
 activo = flujo.sincronizar(resultados)
 # Comprobación ligera de servicios externos, una vez cada 15 min por proceso y sin bloquear la vista.
 diagnostico.comprobar_en_segundo_plano()
