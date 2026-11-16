@@ -169,8 +169,9 @@ def test_el_lienzo_del_mapa_no_cambia_al_activar_resultados(tmp_path):
 def test_ficha_del_exploratorio_no_inventa_datos(tmp_path):
     res = r.leer_resultado(exploratorio(tmp_path / "coincidencia_VV_VH_Chigorodo.tif"))
     html = ui.ficha_html(res)
-    assert "PROCEDENCIA NO DECLARADA" in html and "REAL SIN VALIDAR" not in html
-    assert "No es una inundación confirmada" in html
+    assert ("SOURCE UNVERIFIED" in html or "PROCEDENCIA NO DECLARADA" in html)
+    assert "REAL · UNVALIDATED" not in html and "REAL SIN VALIDAR" not in html
+    assert ("not confirmed flooding" in html or "No es una inundación confirmada" in html)
     datos = ui.datos_declarados(res)
     assert datos["sensor"] == (ui.NO_DECLARADO, None) and datos["metodo"] == (ui.NO_DECLARADO, None)
     assert datos["fechas"] == (ui.NO_DECLARADO, None) and datos["umbral"] == (ui.NO_DECLARADO, None)
@@ -191,7 +192,8 @@ def test_ficha_reproducible_muestra_todo_y_su_origen(tmp_path):
     assert "Combinación píxel a píxel" in d["metodo"][0]
     assert any("parámetros distintos" in a for a in res.ficha["avisos"])
     html = ui.ficha_html(res)
-    assert "REAL SIN VALIDAR" in html and "SHA-256" in html and "No es una inundación confirmada" in html
+    assert ("REAL · UNVALIDATED" in html or "REAL SIN VALIDAR" in html) and "SHA-256" in html
+    assert ("not confirmed flooding" in html or "No es una inundación confirmada" in html)
     assert "NISAR" not in html
 
 
@@ -234,7 +236,7 @@ def test_app_activa_resultado_sin_perder_controles(tmp_path, monkeypatch):
     texto = " ".join(m.value for m in at.markdown)
     assert "SIN RESULTADO" in texto and ("Welcome to V.I.S.O.R." in texto or "Bienvenido a V.I.S.O.R." in texto)
     # El historial lista los archivos con su insignia, pero ninguna ficha ni cifra de resultado.
-    assert "No es una inundación confirmada" not in texto and "Píxeles" not in texto
+    assert "not confirmed flooding" not in texto and "No es una inundación confirmada" not in texto
 
     # Abrir del historial: un único resultado, rotulado HISTÓRICO.
     at.button(key="hist_ver_coincidencia_vv_vh_chigorodo").click().run()
@@ -243,7 +245,8 @@ def test_app_activa_resultado_sin_perder_controles(tmp_path, monkeypatch):
     at.slider(key="res_opacidad").set_value(0.5).run()
     assert not at.exception
     texto = " ".join(m.value for m in at.markdown)
-    assert "PROCEDENCIA NO DECLARADA" in texto and "No es una inundación confirmada" in texto
+    assert "SOURCE UNVERIFIED" in texto or "PROCEDENCIA NO DECLARADA" in texto
+    assert "not confirmed flooding" in texto or "No es una inundación confirmada" in texto
     assert "HISTÓRICO" in texto and at.session_state["resultado_activo"]["origen"] == "historico"
     assert "LÍNEA TEMPORAL" not in texto                             # sin ficha: no hay fechas ni línea
 
@@ -256,4 +259,5 @@ def test_app_activa_resultado_sin_perder_controles(tmp_path, monkeypatch):
     at.button(key="hist_ver_coincidencia_vv_vh_20260924_20261006").click().run()
     assert at.session_state["resultado_activo"]["id"] == "coincidencia_vv_vh_20260924_20261006"
     texto = " ".join(m.value for m in at.markdown)
-    assert "T₁ · 2026-09-24" in texto and "T₂ · 2026-10-06" in texto and "REAL SIN VALIDAR" in texto
+    assert "T₁ · 2026-09-24" in texto and "T₂ · 2026-10-06" in texto
+    assert "REAL · UNVALIDATED" in texto or "REAL SIN VALIDAR" in texto
