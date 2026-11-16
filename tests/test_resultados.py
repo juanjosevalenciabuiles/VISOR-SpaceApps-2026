@@ -223,6 +223,7 @@ def test_app_activa_resultado_sin_perder_controles(tmp_path, monkeypatch):
     reproducible(tmp_path / "real")
     for p in (tmp_path / "real").glob("coincidencia*"):
         p.rename(tmp_path / p.name)
+    monkeypatch.setenv("VISOR_MOSTRAR_DEMO", "1")  # modos sintéticos solo QA, no versión pública
     monkeypatch.setattr(r, "CARPETA_ANALISIS", tmp_path)
     monkeypatch.chdir(RAIZ)
     at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=120).run()
@@ -231,7 +232,7 @@ def test_app_activa_resultado_sin_perder_controles(tmp_path, monkeypatch):
     # Primera carga: hay archivos en disco y aun así nada se dibuja; la DEMO está apagada.
     assert at.session_state["resultado_activo"] is None and at.toggle(key="capa_sar").value is False
     texto = " ".join(m.value for m in at.markdown)
-    assert "SIN RESULTADO" in texto and "Cómo empezar" in texto
+    assert "SIN RESULTADO" in texto and ("Welcome to V.I.S.O.R." in texto or "Bienvenido a V.I.S.O.R." in texto)
     # El historial lista los archivos con su insignia, pero ninguna ficha ni cifra de resultado.
     assert "No es una inundación confirmada" not in texto and "Píxeles" not in texto
 
@@ -243,7 +244,7 @@ def test_app_activa_resultado_sin_perder_controles(tmp_path, monkeypatch):
     assert not at.exception
     texto = " ".join(m.value for m in at.markdown)
     assert "PROCEDENCIA NO DECLARADA" in texto and "No es una inundación confirmada" in texto
-    assert "HISTÓRICO" in texto and "no se ejecutó un análisis nuevo" in texto
+    assert "HISTÓRICO" in texto and at.session_state["resultado_activo"]["origen"] == "historico"
     assert "LÍNEA TEMPORAL" not in texto                             # sin ficha: no hay fechas ni línea
 
     # Cambiar el fenómeno de la DEMO no apaga el resultado ni su opacidad, ni enciende la DEMO.
