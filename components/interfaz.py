@@ -191,7 +191,7 @@ def estado_html(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple = (
             f"{insignia_procedencia(capa)}</span>")
     if activos:
         res = "".join(
-            f'<span class="mc-chip mc-chip-res">{escape(ui_resultados.nombre_visible(r.perfil))}</span>'
+            f'<span class="mc-chip mc-chip-res">{escape(ui_resultados.nombre_visible(r.perfil) if getattr(r, 'perfil', None) is not None else r.nombre)}</span>'
             f'<span class="mc-insignia mc-insignia-origen">{tr(flujo.etiqueta_origen(), "HISTORICAL" if flujo.es_historico() else "CURRENT ANALYSIS")}</span>'
             f"{insignia(r.capa.procedencia)}" for r in list(activos)[:1])
         grupos.append('<span class="mc-grupo" title="Resultado en el mapa"><span class="mc-grupo-rot">Resultado SAR'
