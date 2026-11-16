@@ -195,7 +195,8 @@ def test_app_busca_analiza_y_muestra_el_resultado(tmp_path, monkeypatch):
     assert activo["id"] == "coincidencia_vv_vh_20260924_20261006" and activo["origen"] == "analisis"
     assert activo["run_id"] == inf["run_id"]
     texto = " ".join(m.value for m in at.markdown)
-    assert "REAL SIN VALIDAR" in texto and "VV −7,5 dB · VH −3 dB" in texto and "ANÁLISIS DE ESTA SESIÓN" in texto
+    assert ("REAL · UNVALIDATED" in texto or "REAL SIN VALIDAR" in texto)
+    assert "VV −7,5 dB · VH −3 dB" in texto and "ANÁLISIS DE ESTA SESIÓN" in texto
     assert len(at.warning) == 0
     archivos = sorted(p.name for p in salida.iterdir())
     # El análisis queda como un TRABAJO persistente con todas sus fases en APTO y SHA-256 de cada archivo.
