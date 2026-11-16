@@ -69,6 +69,35 @@ def _sugerencias_cercanas(pares, inicio: date, fin: date, limite: int = 3) -> li
     return sorted(unicos.values(), key=lambda par: _distancia_fechas(par, inicio, fin))[:limite]
 
 
+def _sugerencias_validas_cmr(resultado, pares, zona, inicio: date, fin: date) -> list[dict]:
+    """Pares alternativos CON plan CMR apto, no fechas supuestas ni QA simulado.
+
+    Se aplica la misma validación de cobertura/presupuesto que el selector,
+    usando la AOI actual. Una huella válida no certifica píxeles Harmony.
+    """
+    opciones = nisar_coberturas.opciones(
+        resultado, pares, max_gb=15.0, punto_prioritario=_punto_local(zona),
+    )
+    utilizables = [
+        op for op in opciones if op.get("plan") is not None and
+        not _pares_del_periodo([op["par"]], inicio, fin)
+    ]
+    unicas = {}
+    for op in utilizables:
+        par = op["par"]
+        fechas = (par.antes.nombre.inicio.date(), par.despues.nombre.inicio.date())
+        previo = unicas.get(fechas)
+        if previo is None or op["cobertura"] > previo["cobertura"]:
+            unicas[fechas] = op
+    return sorted(
+        unicas.values(),
+        key=lambda op: (
+            _distancia_fechas(op["par"], inicio, fin),
+            -op["cobertura"],
+        ),
+    )[:3]
+
+
 def _limpiar_v9(limpiar_fechas: bool = False) -> None:
     for clave in ("v9_firma", "v9_preparacion", "v9_mapa_job", "v9_publicado",
                   "v9_error", "v9_sugerencias", "v9_preflight_provisional",
@@ -228,16 +257,25 @@ def _consultar_coberturas(zona, inicio: date, fin: date) -> dict:
     st.session_state.pop("v9_coberturas_error", None)
     st.session_state.pop("v9_pares_solapados", None)
     st.session_state.pop("v9_ultimo_click_par", None)
-    if not pares:
+    # Tanto "sin pares en las fechas" como "pares con huella insuficiente"
+    # necesitan alternativas. Sugerir SOLO fechas de pares que superen la
+    # misma política de cobertura y presupuesto que el botón Analizar.
+    if not any(op["plan"] is not None for op in opciones):
         amplia_desde, amplia_hasta = _limites_coleccion(
             madurez, inicio, fin, margen=DISTANCIA_SUGERENCIAS_DIAS)
-        sugeridos = resultado.pares
+        catalogo_sugerido = resultado
         if (amplia_desde, amplia_hasta) != (desde, hasta):
-            extra = cat.buscar(*zona, amplia_desde, amplia_hasta, madurez=madurez)
-            sugeridos = [*sugeridos, *extra.pares]
+            catalogo_sugerido = cat.buscar(
+                *zona, amplia_desde, amplia_hasta, madurez=madurez
+            )
+        sugeridos = _sugerencias_validas_cmr(
+            catalogo_sugerido,
+            [*resultado.pares, *catalogo_sugerido.pares],
+            zona, inicio, fin,
+        )
         st.session_state["v9_sugerencias"] = {
             "firma": estado["firma"], "madurez": madurez,
-            "pares": _sugerencias_cercanas(sugeridos, inicio, fin),
+            "opciones": sugeridos,
         }
     else:
         st.session_state.pop("v9_sugerencias", None)
@@ -448,27 +486,55 @@ def _solicitar_elegido(zona, inicio: date, fin: date, estado: dict, item: dict) 
 
 
 def _mostrar_sugerencias(firma) -> None:
+    """Alternativa principal ARRIBA de Analizar, sin repetir avisos más abajo."""
     estado = st.session_state.get("v9_sugerencias") or {}
     if estado.get("firma") != firma:
         return
-    pares = estado.get("pares") or []
-    if not pares:
-        st.info(tr("NASA CMR no encontró pares comparables. Prueba otra zona o fechas.",
-                   "NASA CMR found no comparable pairs. Try another area or date range."))
+    opciones = estado.get("opciones") or []
+    if not opciones:
+        st.info(tr(
+            "No hay fechas alternativas con cobertura CMR suficiente en la "
+            "búsqueda disponible. Reduce la zona o amplía el período.",
+            "No alternative dates with sufficient CMR coverage were found "
+            "in the available search. Shrink the area or expand the date range.",
+        ))
         return
-    st.markdown(tr("**Fechas NISAR más cercanas disponibles**",
-                   "**Closest available NISAR acquisition dates**"))
-    st.caption(tr("Sugerencias basadas en metadatos NASA; verificar cobertura y QA.",
-                  "Suggestions based on NASA metadata; pixel coverage and QA must be verified."))
-    for i, par in enumerate(pares):
-        a, b = par.antes.nombre.inicio.date(), par.despues.nombre.inicio.date()
-        st.button(
-            f"{tr('Usar', 'Use')} {a:%Y-%m-%d} → {b:%Y-%m-%d} · {estado['madurez']}",
-            key=f"v9_usar_sugerencia_{i}",
-            on_click=_usar_fechas_sugeridas,
-            args=(a, b),
-            use_container_width=True,
-        )
+    st.warning(tr(
+        "No hay pares aptos para estas fechas. NASA CMR encontró este "
+        "período alternativo con cobertura estimada suficiente:",
+        "No suitable pair was found for these dates. NASA CMR found "
+        "an alternative period with sufficient estimated coverage:",
+    ))
+    recomendado = opciones[0]
+    par = recomendado["par"]
+    antes, despues = par.antes.nombre.inicio.date(), par.despues.nombre.inicio.date()
+    st.button(
+        f"{tr('Usar fechas', 'Use dates')} {antes:%Y-%m-%d} → {despues:%Y-%m-%d} "
+        f"· {recomendado['cobertura']:.0%} CMR",
+        key="v9_usar_sugerencia_0", on_click=_usar_fechas_sugeridas,
+        args=(antes, despues), use_container_width=True,
+        help=tr("Aplica las fechas; luego vuelve a comprobar la cobertura. "
+                "No descarga ni verifica píxeles automáticamente.",
+                "Applies dates; then check coverage again. "
+                "Does not download or verify pixels automatically."),
+    )
+    if len(opciones) > 1:
+        with st.expander(tr("Otras fechas", "Other dates"), expanded=False):
+            for i, alternativa in enumerate(opciones[1:], 1):
+                par = alternativa["par"]
+                a, b = par.antes.nombre.inicio.date(), par.despues.nombre.inicio.date()
+                st.button(
+                    f"{a:%Y-%m-%d} → {b:%Y-%m-%d} · {alternativa['cobertura']:.0%} CMR",
+                    key=f"v9_usar_sugerencia_{i}",
+                    on_click=_usar_fechas_sugeridas, args=(a, b),
+                    use_container_width=True,
+                )
+    st.caption(tr(
+        "Cobertura calculada con huellas CMR; la validez de los píxeles "
+        "solo se comprueba después con Harmony.",
+        "Coverage estimated from CMR footprints; pixel validity "
+        "is verified later through Harmony.",
+    ))
 
 
 def _mostrar_progreso(trabajo: dict, fase: str) -> None:
@@ -579,12 +645,6 @@ def _panel_coberturas(estado: dict, zona, inicio: date, fin: date) -> None:
     # El aviso técnico detallado se conserva en el desplegable inferior; el
     # panel principal prioriza las acciones y la cobertura del par elegido.
     if not opciones:
-        st.info(tr(
-            "No hay pares NISAR con cobertura común para estas fechas. "
-            "Amplía el período o define un rectángulo más pequeño.",
-            "No NISAR pairs share coverage for these dates. "
-            "Expand the date range or choose a smaller study area.",
-        ))
         return
     st.caption(tr(
         "Verde: cobertura común · elige en el mapa o la lista.",
@@ -901,11 +961,11 @@ def accion_principal() -> None:
         if error_catalogo and not estado:
             st.error(tr("No se pudieron buscar coberturas NISAR: ",
                         "Could not search NISAR coverage: ") + str(error_catalogo))
-        if estado and not estado.get("opciones"):
-            st.warning(tr("No hay pares NISAR con cobertura común para estas fechas. "
-                          "Prueba una zona más pequeña u otro período.",
-                          "No NISAR pairs share coverage for these dates. "
-                          "Try a smaller area or different dates."))
+        if estado and not any(op["plan"] is not None for op in estado.get("opciones", [])):
+            # El usuario ve primero las fechas alternativas; la lista CMR
+            # original permanece debajo para inspeccionar el motivo del bloqueo.
+            if isinstance(inicio, date) and isinstance(fin, date) and zona:
+                _mostrar_sugerencias(_firma(zona, inicio, fin))
         elif item and item.get("plan") is None:
             st.warning(tr("Este par no cumple la cobertura mínima o el límite "
                           "de tamaño. Selecciona otro par o ajusta el área.",
@@ -1021,7 +1081,6 @@ def render() -> None:
         _panel_coberturas(estado, zona, inicio, fin)
     # Todos los errores de solicitud/catálogo se muestran arriba del botón
     # Analizar, en accion_principal; no duplicar alertas al final del panel.
-    _mostrar_sugerencias(firma)
     _seguimiento(firma)
     # El acceso al histórico heredado es solo para regresión técnica.
     # No volver a exponerlo en la versión pública que ya lo retiró.
