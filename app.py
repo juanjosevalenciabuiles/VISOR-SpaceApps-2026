@@ -4,6 +4,8 @@ Punto de entrada · interfaz Mission Control Earth Explorer: un único mapa a
 pantalla completa con superficies flotantes. Solo orquesta: cada pieza de
 interfaz vive en components/ y la lógica de datos en utils/.
 """
+import os
+
 import streamlit as st
 
 from components import bienvenida, capas_ambientales, estilos, flujo, interfaz, mapa, panel_capas
@@ -40,7 +42,7 @@ estilos.inyectar_tema(FENOMENOS.get(clave_tema, FENOMENOS["inundacion"]))
 resultados, fuera_de_alcance = alcance_geografico.filtrar_resultados(cargar_resultados())
 st.session_state["resultados_fuera_de_alcance"] = fuera_de_alcance
 # Desactivar históricos heredados de una sesión previa, sin borrar los archivos.
-if flujo.es_historico():
+if flujo.es_historico() and os.environ.get("VISOR_MOSTRAR_HISTORIAL") != "1":
     flujo.limpiar_resultado()
 activo = flujo.sincronizar(resultados)
 # Comprobación ligera de servicios externos, una vez cada 15 min por proceso y sin bloquear la vista.
