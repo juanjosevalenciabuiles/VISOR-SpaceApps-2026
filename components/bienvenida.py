@@ -141,9 +141,8 @@ encontrarse en distintas etapas de madurez, como **VALIDATED** o
 **PROVISIONAL**; el estado debe leerse en la ficha y no confundirse con una
 validación de inundación.
 
-**Sentinel-1** (ESA/Copernicus) usa banda C. Actúa como fuente de respaldo en
-los flujos donde esté configurado y existan datos adecuados; **no debe asumirse
-que se activa automáticamente en todos los casos**.
+**Sentinel-1** (ESA/Copernicus) usa banda C. Esta versión pública se centra
+en NISAR; **no integra un respaldo automático de Sentinel-1**.
 
 1. Confirma una AOI.
 2. Indica las fechas de inicio y fin.
@@ -302,9 +301,8 @@ version's flood-related workflow. GCOV products may have different maturity
 levels, such as **VALIDATED** or **PROVISIONAL**. Product maturity does not
 mean a flood has been independently confirmed.
 
-**Sentinel-1** (ESA/Copernicus) uses C-band radar and can provide a fallback
-in configured workflows with compatible data; **do not assume an automatic
-fallback is available in every environment**.
+**Sentinel-1** (ESA/Copernicus) uses C-band radar, but this public release
+focuses on NISAR and **does not include an automatic Sentinel-1 fallback**.
 
 1. Confirm an AOI and set the start/end dates.
 2. Open the NISAR search and preparation step available in your version.
