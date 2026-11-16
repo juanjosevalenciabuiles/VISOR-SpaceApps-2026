@@ -97,7 +97,7 @@ def capacidades(abrir=None, madurez: str = "VALIDATED") -> dict:
     return {"coleccion": data["conceptId"], "variables": nombres, "madurez": madurez}
 
 
-def capas_necesarias(polarizaciones) -> tuple[str, ...]:
+def capas_necesarias(polarizaciones, *, solo_cambio: bool = False) -> tuple[str, ...]:
     pols = tuple(polarizaciones)
     if "HH" in pols:
         capas = ("HHHH",)
@@ -105,15 +105,20 @@ def capas_necesarias(polarizaciones) -> tuple[str, ...]:
         capas = ("VVVV",)
     else:
         raise ErrorHarmony("El granule no tiene polarización copolar de banda L (HH o VV).")
-    # Para inundaciones, conservar también el canal cruzado disponible.
-    if "HV" in pols:
-        capas += ("HVHV",)
-    elif "VH" in pols:
-        capas += ("VHVH",)
+    # El cálculo ΔdB V9 consume SOLO copolar + mask + numberOfLooks.
+    # No extraer HV/VH si no se utilizarán: reduce las peticiones COG de
+    # cuatro a tres por fecha. Mantener el comportamiento científico
+    # anterior para otros consumidores que sí necesitan polarización cruzada.
+    if not solo_cambio:
+        if "HV" in pols:
+            capas += ("HVHV",)
+        elif "VH" in pols:
+            capas += ("VHVH",)
     return (*capas, "mask", "numberOfLooks")
 
 
-def especificar(candidato, bbox, caps: dict) -> Especificacion:
+def especificar(candidato, bbox, caps: dict, *,
+                solo_cambio: bool = False) -> Especificacion:
     """Solo capas A enumeradas por Harmony. Nunca pedir 'all'."""
     granule = candidato.granule
     madurez = str(getattr(candidato, "madurez", "VALIDATED")).upper()
@@ -126,7 +131,7 @@ def especificar(candidato, bbox, caps: dict) -> Especificacion:
     o, s, e, n = tuple(float(v) for v in bbox)
     if not (-180 <= o < e <= 180 and -90 <= s < n <= 90):
         raise ErrorHarmony("AOI inválida para Harmony.")
-    capas = capas_necesarias(candidato.nombre.pol_a)
+    capas = capas_necesarias(candidato.nombre.pol_a, solo_cambio=solo_cambio)
     variables = tuple(f"/science/LSAR/GCOV/grids/frequencyA/{x}" for x in capas)
     faltantes = [v.rsplit("/", 1)[-1] for v in variables if v not in caps["variables"]]
     if faltantes:
@@ -243,7 +248,15 @@ def _descargar_cota(url, destino: Path, max_bytes: int, abrir=None, comprobar=No
                 raise ErrorHarmony("NASA respondió con texto o página de autenticación, NO un TIFF.")
             cabecera = resp.headers.get("Content-Length")
             if cabecera and int(cabecera) > max_bytes:
-                raise ErrorHarmony("El COG supera el límite de bytes antes de transferir.")
+                # Solo tamaños, nunca imprimir URL firmadas ni cabeceras auth.
+                recibido_mib = int(cabecera) / 1024**2
+                permitido_mib = max_bytes / 1024**2
+                raise ErrorHarmony(
+                    "COG_DEMASIADO_GRANDE: "
+                    f"NASA Harmony devolvió {recibido_mib:.1f} MiB; "
+                    f"el límite restante autorizado es {permitido_mib:.1f} MiB. "
+                    "Selecciona un área más pequeña y vuelve a comprobar su cobertura."
+                )
             # requests.Response y urllib HTTPResponse exponen interfaces distintas.
             fragmentos = (resp.iter_content(chunk_size=BLOQUE)
                           if hasattr(resp, "iter_content")
@@ -265,7 +278,11 @@ def _descargar_cota(url, destino: Path, max_bytes: int, abrir=None, comprobar=No
                             )
                     total += len(fragmento)
                     if total > max_bytes:
-                        raise ErrorHarmony("El COG supera el límite de descarga autorizado.")
+                        raise ErrorHarmony(
+                            "COG_DEMASIADO_GRANDE: el COG supera el límite "
+                            "de transferencia autorizado; no se guardó el archivo. "
+                            "Selecciona un área más pequeña."
+                        )
                     out.write(fragmento)
                     sha.update(fragmento)
         if total < 1024:
@@ -396,8 +413,14 @@ def obtener(spec: Especificacion, carpeta: Path, *, cliente=None, abrir=None,
                 raise ErrorHarmony("Se agotó el presupuesto de transferencia.")
             if notificar:
                 notificar("Descargando capa", capa)
-            tam, sha = _descargar_cota(reconocidos[capa], destino, restante, abrir=abrir,
-                                         comprobar=comprobar, cliente=cliente)
+            try:
+                tam, sha = _descargar_cota(
+                    reconocidos[capa], destino, restante, abrir=abrir,
+                    comprobar=comprobar, cliente=cliente,
+                )
+            except ErrorHarmony as exc:
+                # Identificar la variable científica, no divulgar URLs firmadas.
+                raise ErrorHarmony(f"Capa {capa}: {exc}") from None
             consumido += tam
             geo = _validar_cog(destino, spec.bbox, capa)
             archivos.append({"capa": capa, "archivo": destino.name, "bytes": tam,
