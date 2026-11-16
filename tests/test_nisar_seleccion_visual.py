@@ -307,3 +307,49 @@ def test_estilo_y_ubicacion_del_boton_sar_sin_duplicacion():
     assert 'herramientas.paso_area(centrar_en)' in interfaz
     assert "nisar_auto_ui.render" not in interfaz
     assert codigo.count('key="v9_analizar"') == 1
+
+
+def test_error_nisar_y_catalogo_aparecen_antes_de_analizar(monkeypatch):
+    """Las alertas principales deben ser visibles sin desplazar el panel SAR."""
+    from contextlib import nullcontext
+
+    eventos = []
+    estado = {
+        "zona": {"limites": list(AOI)},
+        "v9_inicio_periodo": INI, "v9_fin_periodo": FIN,
+        "v9_error": "Error al autorizar el par",
+        "v9_coberturas_error": "NASA CMR no disponible",
+    }
+    monkeypatch.setattr(ui.st, "session_state", estado)
+    monkeypatch.setattr(ui.st, "container", lambda **kw: nullcontext())
+    monkeypatch.setattr(ui.st, "error", lambda texto: eventos.append(("error", texto)))
+    monkeypatch.setattr(ui.st, "caption", lambda texto: eventos.append(("caption", texto)))
+    monkeypatch.setattr(ui.st, "button",
+                        lambda texto, **kw: eventos.append(("button", kw["key"])) or False)
+    ui.accion_principal()
+    assert [tipo for tipo, _ in eventos] == ["error", "error", "caption", "button"]
+    assert "autorizar" in eventos[0][1]
+    assert "NASA CMR" in eventos[1][1]
+    assert eventos[-1] == ("button", "v9_analizar")
+    assert ui._error_cog_grande(
+        "ErrorAutoNISAR: El COG supera el límite de bytes antes de transferir."
+    )
+    assert ui._error_cog_grande(
+        "Capa HHHH: COG_DEMASIADO_GRANDE: NASA Harmony devolvió 300 MiB"
+    )
+    assert not ui._error_cog_grande("No hay cobertura de catálogo")
+
+
+def test_reduccion_manual_cog_preserva_geometria_y_resolucion():
+    """La sugerencia disminuye el área, nunca la aumenta ni cambia de ciudad."""
+    from utils import sesion
+
+    actual = sesion.validar_zona(AOI)
+    sugerida = ui._reducir_zona_cog(actual, (-76.68, 7.68))
+    assert sesion.validar_zona(sugerida) == sugerida
+    assert actual[0] <= sugerida[0] < sugerida[2] <= actual[2]
+    assert actual[1] <= sugerida[1] < sugerida[3] <= actual[3]
+    assert sesion.pixeles_estimados(sugerida) < sesion.pixeles_estimados(actual) * 0.35
+    ancho_km, alto_km = sesion.dimensiones_km(sugerida)
+    assert 0.98 < ancho_km / alto_km < 1.02
+    assert ui._reducir_zona_cog(actual, (-76.68, 7.68)) == sugerida
