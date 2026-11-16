@@ -76,13 +76,14 @@ def grupos_mapa() -> list[folium.FeatureGroup]:
     if lugar:
         folium.CircleMarker([lugar["latitud"], lugar["longitud"]], radius=7, color="#ffffff", weight=2,
                             fill=True, fill_color="#0a84ff", fill_opacity=0.9,
-                            tooltip=f"{lugar['etiqueta']} (lugar buscado; no es un resultado)").add_to(grupo)
+                            tooltip=f"{lugar['etiqueta']} " + tr("(lugar buscado; no es un resultado)",
+                                                            "(located place; not an analysis result)")).add_to(grupo)
         hay = True
     zona = st.session_state.get("zona")
     if zona:
         o, s, e, n = zona["limites"]
         folium.Rectangle([[s, o], [n, e]], color="#ffffff", weight=2, fill=False,
-                         tooltip="Zona de análisis confirmada").add_to(grupo)
+                         tooltip=tr("Zona de análisis confirmada", "Confirmed study area")).add_to(grupo)
         geometria = zona.get("geometria") or {}
         if geometria.get("type") == "Polygon":
             folium.Polygon([[y, x] for x, y in geometria["coordinates"][0]], color="#ffd60a", weight=1.5,
