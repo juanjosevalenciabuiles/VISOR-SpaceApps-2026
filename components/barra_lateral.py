@@ -168,15 +168,22 @@ def lugar_ubicado(abrir_zona=None) -> None:
                   on_click=abrir_zona, help=tr("Dibuja la zona en el mapa.", "Draw your study area on the map."))
 
 
-def _ver_historico(id_resultado: str) -> None:
-    """Solo un clic en View activa un histórico. Nunca un rerun del mapa."""
-    from components import v9_experiencia
+def _ver_historico(id_resultado: str, limites=None) -> None:
+    """Abrir histórico solo mediante View, centrarlo y cancelar seguimientos previos."""
+    from components import interfaz, v9_experiencia
     v9_experiencia._limpiar_v9()
+    # Un trabajo legacy de otra zona tampoco puede volver a publicar un resultado.
+    st.session_state["trabajo_activo"] = None
+    st.session_state["trabajo_publicado"] = None
     flujo.quitar_zona()
     st.session_state["lugar"] = None
     flujo.activar(id_resultado, sesion.HISTORICO)
     st.session_state["visor_capa_resultado_visible"] = True
     st.session_state["ui_info"] = False
+    st.session_state["ui_sar"] = "cerrado"
+    # Solo al pulsar View: los siguientes pan/zoom no vuelven a centrarlo.
+    if limites is not None:
+        interfaz.centrar_en(tuple(limites))
 
 
 def _controles_resultados(resultados: list, centrar=None, activo=None) -> dict[str, float]:
@@ -223,7 +230,8 @@ def _controles_resultados(resultados: list, centrar=None, activo=None) -> dict[s
                         f'<span>{escape(nombre_resultado(res, idioma()))}</span></div>',
                         unsafe_allow_html=True)
             st.button(tr("Ver", "View"), key=f"hist_ver_{res.id}", icon=":material/history:", type="tertiary",
-                      on_click=_ver_historico, args=(res.id,), disabled=activo is not None and activo.id == res.id,
+                      on_click=_ver_historico, args=(res.id, res.capa.limites),
+                      disabled=activo is not None and activo.id == res.id,
                       help=tr("Abrir explícitamente este GeoTIFF anterior.", "Explicitly open this historical GeoTIFF."))
         if ocultos:
             st.markdown(
