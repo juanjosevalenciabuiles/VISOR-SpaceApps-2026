@@ -83,8 +83,8 @@ def _resultado(resultados: list, activo) -> None:
     botones Ver/View explícitos del Explorador.
     """
     if activo is None:
-        st.caption(tr("Sin resultado activo · abre History para elegir un GeoTIFF.",
-                      "No active result · open History to choose a GeoTIFF."))
+        st.caption(tr("Sin resultado activo · ejecuta un análisis NISAR.",
+                      "No active result · run a NISAR analysis."))
     else:
         from utils.etiquetas_resultados import nombre_resultado
         st.caption(nombre_resultado(activo))
