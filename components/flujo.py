@@ -53,6 +53,12 @@ def confirmar_zona(limites, origen: str, geometria: dict | None = None) -> None:
     st.session_state["zona"] = {"limites": sesion.validar_zona(limites), "origen": origen, "geometria": geometria}
     st.session_state.update(sar_busqueda=None, sar_error_busqueda=None, mc_informe_sar=None, error_zona=None)
     st.session_state["sel_par"] = None
+    # Las huellas CMR son de esta AOI y fechas, no datos globales. Un usuario
+    # puede volver a una zona anterior: nunca reactivar automáticamente una
+    # elección de pares de otra sesión, ni reutilizar el resultado anterior.
+    for clave in ("v9_coberturas", "v9_coberturas_error",
+                  "v9_pares_solapados", "v9_ultimo_click_par"):
+        st.session_state.pop(clave, None)
     # Mostrar automáticamente la ficha territorial al confirmar una AOI válida.
     # El visitante puede cerrar Information manualmente; pan/zoom no la reabren.
     st.session_state["ui_info"] = True
@@ -67,6 +73,12 @@ def quitar_zona() -> None:
     st.session_state["mapa_dibujo"] = None
     st.session_state.update(sar_busqueda=None, sar_error_busqueda=None, mc_informe_sar=None, error_zona=None)
     st.session_state["sel_par"] = None
+    # Las huellas CMR son de esta AOI y fechas, no datos globales. Un usuario
+    # puede volver a una zona anterior: nunca reactivar automáticamente una
+    # elección de pares de otra sesión, ni reutilizar el resultado anterior.
+    for clave in ("v9_coberturas", "v9_coberturas_error",
+                  "v9_pares_solapados", "v9_ultimo_click_par"):
+        st.session_state.pop(clave, None)
     limpiar_resultado()
 
 
