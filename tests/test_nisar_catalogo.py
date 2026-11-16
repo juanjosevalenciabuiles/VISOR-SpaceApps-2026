@@ -129,7 +129,8 @@ def test_errores_de_red_y_formato_son_legibles(fallo, error):
 def test_busqueda_vacia(tmp_path):
     r = cat.buscar(*CHIGORODO, "2026-10-21", "2026-11-13", abrir=servidor({"items": []}), hoy=HOY)
     assert r.candidatos == [] and r.pares == []
-    assert any("no devolvió escenas" in a for a in r.avisos)
+    assert any("respondió sin registros" in a for a in r.avisos)
+    assert any("No se sustituye la fuente" in a for a in r.avisos)
 
 
 def test_peticion_es_get_sin_cabecera_de_autenticacion():
