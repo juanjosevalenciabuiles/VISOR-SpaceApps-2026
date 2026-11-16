@@ -222,3 +222,85 @@ def test_cobertura_verde_se_oculta_solo_tras_publicacion_sar_apta(monkeypatch):
     estado["resultado_activo"]["origen"] = "analisis"
     estado["v9_firma"] = (AOI, "2026-10-01", "2026-11-01")
     assert len(ui.grupos_mapa()) == 1
+
+
+def test_accion_sar_fija_no_analiza_sin_par_o_sin_cobertura_aceptada(monkeypatch):
+    """La acción es única y siempre visible, pero deshabilitada hasta autorizarla."""
+    from contextlib import nullcontext
+
+    estado = {"zona": {"limites": list(AOI)},
+              "v9_inicio_periodo": INI, "v9_fin_periodo": FIN}
+    monkeypatch.setattr(ui.st, "session_state", estado)
+    monkeypatch.setattr(ui.st, "container", lambda **kwargs: nullcontext())
+    monkeypatch.setattr(ui.st, "caption", lambda *args, **kwargs: None)
+    monkeypatch.setattr(ui, "_preparacion_existente", lambda *args: None)
+    llamadas = []
+
+    def boton(label, **kwargs):
+        llamadas.append({"label": label, **kwargs})
+        return False
+
+    monkeypatch.setattr(ui.st, "button", boton)
+    ui.accion_principal()
+    assert len(llamadas) == 1
+    assert llamadas[-1]["key"] == "v9_analizar"
+    assert llamadas[-1]["disabled"] is True
+
+    parcial = _par("P1", "P2", box(-76.80, 7.55, -76.65, 7.8))
+    resultado = _resultado([parcial])
+    opciones = geo.opciones(resultado, [parcial])
+    assert opciones[0]["plan"] is not None and opciones[0]["cobertura"] < 0.90
+    firma = ui._firma(AOI, INI, FIN)
+    estado["v9_coberturas"] = {"firma": firma, "opciones": opciones,
+                              "seleccionado": opciones[0]["id"]}
+    ui.accion_principal()
+    assert llamadas[-1]["disabled"] is True, "falta aceptar cobertura parcial"
+    estado[ui._clave_aceptacion(firma, opciones[0]["id"])] = True
+    monkeypatch.setenv("EARTHDATA_TOKEN", "TOKEN_FICTICIO_SOLO_EN_PRUEBAS")
+    ui.accion_principal()
+    assert llamadas[-1]["disabled"] is False
+    assert llamadas[-1]["type"] == "primary"
+    estado["v9_preparacion"] = "trabajo_en_curso"
+    ui.accion_principal()
+    assert llamadas[-1]["disabled"] is True
+    assert len(llamadas) == 4, "el botón se emite una sola vez por render"
+
+
+def test_accion_sar_fija_aprueba_reutilizacion_cog_sin_token(monkeypatch):
+    """Reutilizar solo el par preparado autorizado; no obliga a descargar otro."""
+    from contextlib import nullcontext
+
+    par = _par("T1", "T2", box(*AOI))
+    resultado = _resultado([par])
+    opciones = geo.opciones(resultado, [par])
+    firma = ui._firma(AOI, INI, FIN)
+    estado = {"zona": {"limites": list(AOI)},
+              "v9_inicio_periodo": INI, "v9_fin_periodo": FIN,
+              "v9_coberturas": {"firma": firma, "opciones": opciones,
+                               "seleccionado": opciones[0]["id"]}}
+    monkeypatch.setattr(ui.st, "session_state", estado)
+    monkeypatch.setattr(ui.st, "container", lambda **kwargs: nullcontext())
+    monkeypatch.setattr(ui.st, "caption", lambda *args, **kwargs: None)
+    monkeypatch.delenv("EARTHDATA_TOKEN", raising=False)
+    botones = []
+    monkeypatch.setattr(ui.st, "button", lambda *args, **kwargs: botones.append(kwargs) or False)
+    monkeypatch.setattr(ui, "_preparacion_existente", lambda *args: None)
+    ui.accion_principal()
+    assert botones[-1]["disabled"] is True
+    monkeypatch.setattr(ui, "_preparacion_existente", lambda *args: {"job_id": "job_qa"})
+    ui.accion_principal()
+    assert botones[-1]["disabled"] is False
+
+
+def test_estilo_y_ubicacion_del_boton_sar_sin_duplicacion():
+    from pathlib import Path
+    raiz = Path(__file__).resolve().parents[1]
+    css = (raiz / "assets/mission_control.css").read_text(encoding="utf-8")
+    interfaz = (raiz / "components/interfaz.py").read_text(encoding="utf-8")
+    codigo = (raiz / "components/v9_experiencia.py").read_text(encoding="utf-8")
+    assert ".st-key-panel_sar .st-key-sar_accion_fija" in css
+    assert "position: sticky !important" in css
+    assert "bottom: -16px" in css
+    assert "#ffdd75" in css
+    assert 'v9_experiencia.accion_principal()' in interfaz
+    assert codigo.count('key="v9_analizar"') == 1
