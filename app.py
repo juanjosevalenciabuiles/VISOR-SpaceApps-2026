@@ -63,6 +63,13 @@ with st.container(key="lienzo_mapa"):
                 [*herramientas.grupos_mapa(), *capas_ambientales.grupos_mapa()],
                 seguir_vista=herramientas.necesita_vista())
 
+# Leyenda SAR siempre visible al lado del mapa (solo si hay GeoTIFF activo).
+# Fuente única: el perfil científico del archivo, no el resultado del historial.
+if activo is not None and controles.resultados.get(activo.id) is not None:
+    with st.container(key="visor_leyenda_flotante"):
+        st.markdown(ui_resultados.leyenda_rapida_html(activo),
+                    unsafe_allow_html=True)
+
 # 3. Superficies flotantes.
 activos = [activo] if activo is not None else []
 interfaz.barra_superior(fenomeno, capa, activos, controles.mostrar_capa)
