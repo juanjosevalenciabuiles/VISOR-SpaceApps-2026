@@ -146,8 +146,7 @@ def buscador_lugar(ir_a, inicio=None) -> None:
         st.markdown(f'<div class="mc-aviso">No se encontró «{escape(hallazgo["consulta"])}».{alcance} '
                     "Puedes mover el mapa a mano y dibujar la zona.</div>", unsafe_allow_html=True)
     elif len(encontrados) > 1:
-        st.markdown('<div class="visor-leyenda-nota">Hay varias coincidencias. Elige una:</div>',
-                    unsafe_allow_html=True)
+        st.caption(tr("Hay varias coincidencias. Elige una:", "Several matches found. Choose one:"))
         for i, lugar in enumerate(encontrados):
             st.button(lugar.etiqueta, key=f"lugar_ir_{i}", icon=":material/location_on:", type="tertiary",
                       on_click=_elegir_lugar, args=(lugar, ir_a))
@@ -198,7 +197,7 @@ def _controles_resultados(resultados: list, centrar=None, activo=None) -> dict[s
         st.caption(tr("Sin GeoTIFF seleccionado.", "No GeoTIFF selected."))
     else:
         st.markdown(
-            f'<div class="mc-resultado"><span class="mc-insignia mc-insignia-origen">{flujo.etiqueta_origen()}</span>'
+            f'<div class="mc-resultado"><span class="mc-insignia mc-insignia-origen">{tr(flujo.etiqueta_origen(), "HISTORICAL" if flujo.es_historico() else "CURRENT ANALYSIS")}</span>'
             f"{insignia(activo.capa.procedencia)}<span>{escape(nombre_resultado(activo, idioma()))}</span></div>",
             unsafe_allow_html=True)
         # El interruptor y la opacidad residen en el selector persistente.
