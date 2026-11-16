@@ -312,6 +312,10 @@ def _seleccionar_recomendacion(clave: str, centrar) -> None:
         "longitud": lugar.longitud, "fuente": lugar.fuente,
     }
     flujo.confirmar_zona(limites, tr("zona fluvial sugerida", "suggested riverside area"))
+    # La sugerencia ya seleccionó su propio municipio: no conservar el texto
+    # de una búsqueda anterior (por ejemplo Quibdó antes de elegir Murindó).
+    st.session_state["lugar_texto"] = None
+    st.session_state["lugares_encontrados"] = None
     st.session_state["recomendacion_aoi_actual"] = clave
     st.session_state["recomendacion_aoi_limites"] = limites
     st.session_state["error_recomendacion"] = None
