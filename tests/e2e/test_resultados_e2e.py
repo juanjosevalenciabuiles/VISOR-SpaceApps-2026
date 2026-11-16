@@ -115,3 +115,36 @@ def test_diferencia_db_continua(abrir, servidor):
     with open(d.value.path(), "rb") as f:
         assert verificar_paquete(f.read(), origen, (), continuo=True) == []
     assert hashlib.sha256(origen.read_bytes()).hexdigest() == huella and not p.errores
+
+
+
+def test_seleccionar_otro_historico_centra_y_no_reaparece_el_anterior(abrir, servidor):
+    """Regresión real con Leaflet: View A → View B → pan/zoom conserva solo B."""
+    from utils.resultados import leer_resultado
+
+    p = abrir()
+    p.ver_historico(EXPLORATORIO.removeprefix("res_"))
+    primero = capas_imagen(p)
+    assert len(primero) == 1
+
+    # Forzar encuadre lejos del área del resultado nuevo para verificar el recentrado.
+    p.mapa.evaluate("()=>{map.setView([5.5,-72.5],8)}")
+    p.esperar(650)
+    p.ver_historico("cambio_vv_20260924_20261006_dif_db")
+    segundo = capas_imagen(p)
+    assert len(segundo) == 1, "No pueden quedar dos GeoTIFF al cambiar de historial"
+    assert segundo[0]["src"] != primero[0]["src"], "Sigue visible el GeoTIFF antiguo"
+
+    raster = leer_resultado(
+        servidor.datos / "analisis" / "cambio_VV_20260924_20261006_dif_db.tif"
+    )
+    oeste, sur, este, norte = raster.capa.limites
+    zoom, lat, lon = p.vista()
+    assert abs(lat - (sur + norte) / 2) < 0.05
+    assert abs(lon - (oeste + este) / 2) < 0.05
+
+    p.mapa.evaluate("()=>{map.panBy([65,40]);map.setZoom(map.getZoom()+1)}")
+    p.esperar(1000)
+    tercero = capas_imagen(p)
+    assert len(tercero) == 1 and tercero[0]["src"] == segundo[0]["src"]
+    assert p.mapa_intacto(), "Zoom desmontó el mapa o restauró la capa anterior"
