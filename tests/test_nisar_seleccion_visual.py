@@ -565,7 +565,8 @@ def test_reintento_cog_no_permita_otro_par_ni_job_activo(monkeypatch):
                         lambda *a: pytest.fail("no debe iniciarse descarga"))
     assert ui._reintentar_mismo_par_cog() is False
     assert estado["v9_preparacion"] == "fallido_previo"
-    assert "otro par o zona" in estado["v9_error"]
+    assert ("different pair or area" in estado["v9_error"]
+            or "otro par o zona" in estado["v9_error"])
     fallo["escenas"] = {"antes": "T1", "despues": "T2"}
     fallo["estado"] = ui.trabajos.EN_CURSO
     assert ui._reintentar_mismo_par_cog() is False
