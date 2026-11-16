@@ -604,6 +604,11 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
     # Así el componente no conserva overlays anteriores al cambiar el historial.
     resultado = next(iter(sorted(c.resultados)), "none")
     clave_widget = "mapa" if resultado == "none" and idioma() == "es" else f"mapa__{resultado}__{idioma()}"
+    # Solo un clic en una recomendación recrea el componente para limpiar dibujos
+    # antiguos de Leaflet. La clave permanece estable durante pan/zoom.
+    sugerencia_version = int(st.session_state.get("visor_aoi_recomendacion_seq", 0))
+    if sugerencia_version:
+        clave_widget += f"__recomendacion_{sugerencia_version}"
     if clave_widget != st.session_state.get("mapa_widget_key"):
         st.session_state["mapa_widget_key"] = clave_widget
         st.session_state["mapa_firma_dibujo"] = None
