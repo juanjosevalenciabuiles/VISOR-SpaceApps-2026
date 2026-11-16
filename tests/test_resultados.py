@@ -264,3 +264,24 @@ def test_app_activa_resultado_sin_perder_controles(tmp_path, monkeypatch):
     texto = " ".join(m.value for m in at.markdown)
     assert "2026-09-24" in texto and "2026-10-06" in texto
     assert "REAL · UNVALIDATED" in texto or "REAL SIN VALIDAR" in texto
+
+
+def test_cargar_solo_resultado_activo_sin_leer_historicos(tmp_path, monkeypatch):
+    """La vista pública no deserializa rasters que solo existen en el historial."""
+    nombres = ("coincidencia_activa.tif", "historico_a.tif", "historico_b.tif")
+    for nombre in nombres:
+        (tmp_path / nombre).write_bytes(b"raster de prueba, no abrir")
+    llamadas = []
+
+    def leer_sin_abrir(ruta, firma):
+        llamadas.append(Path(ruta).name)
+        return Path(ruta).name
+
+    monkeypatch.setattr(r, "_cargar_con_cache", leer_sin_abrir)
+    assert r.cargar_resultados(tmp_path, solo_id="") == []
+    assert llamadas == []
+    assert r.cargar_resultados(tmp_path, solo_id="coincidencia_activa") == ["coincidencia_activa.tif"]
+    assert llamadas == ["coincidencia_activa.tif"]
+    llamadas.clear()
+    assert set(r.cargar_resultados(tmp_path)) == set(nombres)
+    assert set(llamadas) == set(nombres)
