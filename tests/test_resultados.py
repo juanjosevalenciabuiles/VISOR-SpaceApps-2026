@@ -234,7 +234,7 @@ def test_app_activa_resultado_sin_perder_controles(tmp_path, monkeypatch):
     # Primera carga: hay archivos en disco y aun así nada se dibuja; la DEMO está apagada.
     assert at.session_state["resultado_activo"] is None and at.toggle(key="capa_sar").value is False
     texto = " ".join(m.value for m in at.markdown)
-    assert "SIN RESULTADO" in texto and ("Welcome to V.I.S.O.R." in texto or "Bienvenido a V.I.S.O.R." in texto)
+    assert ("SIN RESULTADO" in texto or "NO RESULT" in texto) and ("Welcome to V.I.S.O.R." in texto or "Bienvenido a V.I.S.O.R." in texto)
     # El historial lista los archivos con su insignia, pero ninguna ficha ni cifra de resultado.
     assert "not confirmed flooding" not in texto and "No es una inundación confirmada" not in texto
 
