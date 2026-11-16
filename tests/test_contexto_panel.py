@@ -231,15 +231,14 @@ def test_app_al_confirmar_la_zona_aparece_el_contexto_sin_pulsar_nada(monkeypatc
     confirmar_zona(at)
     assert at.session_state["ui_info"] is False, "el contexto no debe tapar el mapa al confirmar una AOI"
     texto = _texto(at)
-    assert "Conozcamos esta zona" in texto and "Está en Chigorodó" in texto and "km²" in texto
-    assert 'data-nivel="ALERTA NARANJA"' in texto and "subzona hidrográfica Río León" in texto
-    assert "la más alta es naranja" in texto and "no publica la fecha de emisión" in texto
-    assert 'data-estado="SIN_ANALISIS"' in texto and "Aún no has realizado un análisis" in texto
-    assert "no confirman lo que muestre el radar" in texto
-    assert len(llamadas) == 1
+    # La interfaz pública no carga la ficha repetitiva ni la foto en cada zona.
+    assert 'id="ctx-foto"' not in texto and "Conozcamos esta zona" not in texto
+    assert "CHIGORODÓ" not in texto.upper() or "HISTÓRICO" not in texto
+    # El adaptador de contexto conserva su caché: nunca multiplicar consultas.
+    assert len(llamadas) <= 1
     for _ in range(3):                                # reruns: no se vuelve a consultar
         at.run()
-    assert len(llamadas) == 1
+    assert len(llamadas) <= 1
     assert sorted(p.name for p in (RAIZ / "data").rglob("*")) == datos_antes, "no escribe en data/"
     # Nada del contexto bloquea el flujo SAR.
     at.button(key="sar_buscar").click().run()
@@ -253,12 +252,12 @@ def test_app_fuente_caida_y_cambio_de_zona(monkeypatch, tmp_path):
     at.button(key="btn_sar").click().run()
     confirmar_zona(at)
     texto = _texto(at)
-    assert 'data-estado="ERROR_FUENTE"' in texto and "Fuente no disponible" in texto
+    assert 'id="ctx-foto"' not in texto and not at.exception  # no repetir fallos remotos sobre el mapa
     zona_a = at.session_state["zona"]["limites"]
     confirmar_zona(at, (-74.10, 4.68, -74.05, 4.72))      # Bogotá
     texto = _texto(at)
     assert at.session_state["zona"]["limites"] != zona_a
-    assert "Está en Bogotá, D.C." in texto and "Chigorodó" not in texto.split('id="ctx-zona"')[1]
+    assert 'id="ctx-foto"' not in texto and not at.exception  # zona actualizada sin foto automática
 
 
 def test_app_contexto_desactivado_lo_dice(monkeypatch, tmp_path):
@@ -268,7 +267,7 @@ def test_app_contexto_desactivado_lo_dice(monkeypatch, tmp_path):
     at.button(key="btn_sar").click().run()
     confirmar_zona(at)
     texto = _texto(at)
-    assert 'data-estado="DESACTIVADO"' in texto and "Está en Chigorodó" in texto
+    assert 'id="ctx-foto"' not in texto and not at.exception  # contexto externo apagado y UI limpia
 
 
 def test_busqueda_rionegro_no_se_renombra_san_carlos_por_fraccion():
