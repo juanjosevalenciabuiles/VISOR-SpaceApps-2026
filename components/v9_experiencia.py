@@ -295,9 +295,13 @@ def _mostrar_progreso(trabajo: dict, fase: str) -> None:
         "En cola para iniciar" if trabajo.get("estado") in trabajos.ACTIVOS else
         "Etapas completadas" if trabajo.get("estado") == trabajos.APTO else
         "Trabajo detenido")
+    etapas_en = {"zona": "Area", "escenas": "Scenes", "datos": "Data",
+                 "preparacion": "Preparation", "calculo": "SAR computation",
+                 "verificacion": "Quality checks"}
+    fase_en = etapas_en.get(activo["clave"], "Processing") if activo else "Queued / complete"
     st.progress(min(100, max(0, porcentaje)),
                 text=f"{porcentaje}% {tr('de etapas', 'of steps')} · "
-                     f"{tr('procesando datos SAR', 'processing SAR data')}")
+                     f"{tr(detalle, fase_en)}")
     st.caption(tr("El porcentaje indica etapas, no tiempo restante.",
                   "Progress is based on completed steps, not remaining time.") +
                f" · {tr('Estado', 'Status')}: {trabajo['estado']}")
