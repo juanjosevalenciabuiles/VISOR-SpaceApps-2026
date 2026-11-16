@@ -647,7 +647,8 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
     # Solo la AOI dibujada debe activar el servidor. Las herramientas que
     # necesitan la extensión visible y las capas de ríos/vías recortadas sí
     # reciben bounds/zoom/center para actualizarlas mientras se navega.
-    seguir_encuadre = bool(seguir_vista or c.hidrografia or c.vias)
+    seguir_encuadre = bool(seguir_vista or getattr(c, "hidrografia", False)
+                           or getattr(c, "vias", False))
     objetos_devuelto = (["all_drawings", "bounds", "zoom", "center"]
                          if seguir_encuadre else ["all_drawings"])
     # streamlit-folium fija returned_objects al montar su iframe: entrar
