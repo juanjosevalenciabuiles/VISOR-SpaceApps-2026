@@ -299,8 +299,11 @@ def test_estilo_y_ubicacion_del_boton_sar_sin_duplicacion():
     interfaz = (raiz / "components/interfaz.py").read_text(encoding="utf-8")
     codigo = (raiz / "components/v9_experiencia.py").read_text(encoding="utf-8")
     assert ".st-key-panel_sar .st-key-sar_accion_fija" in css
-    assert "position: sticky !important" in css
-    assert "bottom: -16px" in css
-    assert "#ffdd75" in css
+    assert "position: sticky !important" not in css
+    assert "bottom: -16px" not in css
+    assert "#ffbb49" in css
     assert 'v9_experiencia.accion_principal()' in interfaz
+    assert interfaz.index("v9_experiencia.accion_principal()") < interfaz.index("v9_experiencia.render()")
+    assert 'herramientas.paso_area(centrar_en)' in interfaz
+    assert "nisar_auto_ui.render" not in interfaz
     assert codigo.count('key="v9_analizar"') == 1
