@@ -10,7 +10,7 @@ from shapely.geometry import box
 
 from components import cobertura_nisar as visual
 from components import v9_experiencia as ui
-from utils import nisar_catalogo as cat, nisar_coberturas as geo, nisar_auto
+from utils import nisar_catalogo as cat, nisar_coberturas as geo
 
 AOI = (-76.80, 7.55, -76.55, 7.80)
 INI, FIN = date(2026, 10, 20), date(2026, 11, 10)
