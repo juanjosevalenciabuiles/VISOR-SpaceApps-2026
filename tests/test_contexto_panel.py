@@ -376,7 +376,9 @@ def test_recomendaciones_fluviales_son_aoi_validas_y_no_pretenden_cobertura_nisa
     from components import barra_lateral
     from utils import lugares, sesion
     casos = barra_lateral.RECOMENDACIONES_AOI
-    assert set(casos) == {"chigorodo", "choco_atrato"}
+    assert set(casos) == {
+        "chigorodo", "choco_atrato", "carepa", "apartado", "caucasia", "choco_cabi",
+    }
     for caso in casos.values():
         assert sesion.validar_zona(caso["limites"]) == caso["limites"]
         ciudades = lugares.buscar_local(caso["municipio"])
@@ -392,6 +394,9 @@ def test_recomendaciones_fluviales_son_aoi_validas_y_no_pretenden_cobertura_nisa
     assert casos["chigorodo"]["limites"] == (-76.825, 7.568, -76.648, 7.676)
     assert casos["chigorodo"]["limites"] != AOI_CHIGORODO
     assert "Atrato" in casos["choco_atrato"]["nombre_en"]
+    assert "Cauca River" in casos["caucasia"]["nombre_en"]
+    assert "Cabí" in casos["choco_cabi"]["nombre_es"]
+    assert len({tuple(caso["limites"]) for caso in casos.values()}) == len(casos)
 
 
 def test_recomendacion_un_click_confirma_zona_muestra_ficha_y_no_lanza_sar(monkeypatch):
@@ -449,3 +454,38 @@ def test_recomendacion_invalida_no_borra_zona_ni_resultado(monkeypatch):
     assert estado["resultado_activo"]["id"] == "validado"
     assert estado["zona"]["limites"] == [-76.1, 7.2, -76, 7.3]
     assert estado["visor_aoi_recomendacion_seq"] == 4 and not vistas
+
+
+
+def test_todas_las_recomendaciones_abren_sar_sin_descargar(monkeypatch):
+    """Los seis presets conservan el flujo de un clic y el resultado anterior no reaparece."""
+    from components import barra_lateral
+    estado = {
+        "visor_idioma": "en", "ui_info": False,
+        "ui_sar": "cerrado", "ui_explorador": True,
+    }
+    monkeypatch.setattr(barra_lateral.st, "session_state", estado)
+    visitas = []
+    for numero, (clave, caso) in enumerate(barra_lateral.RECOMENDACIONES_AOI.items(), 1):
+        barra_lateral._seleccionar_recomendacion(clave, lambda limites: visitas.append(limites))
+        assert tuple(estado["zona"]["limites"]) == caso["limites"]
+        assert estado["lugar"]["etiqueta"].startswith(caso["municipio"])
+        assert estado["ui_info"] is True
+        assert estado["ui_sar"] == "abierto"
+        assert estado["ui_explorador"] is False
+        assert estado["ui_explorador_previo"] is True
+        assert estado["visor_aoi_recomendacion_seq"] == numero
+        assert estado["recomendacion_aoi_actual"] == clave
+        assert "nisar_auto_job" not in estado
+        assert "v9_preparacion" not in estado
+    assert len(visitas) == len(barra_lateral.RECOMENDACIONES_AOI)
+
+
+def test_recomendaciones_principales_visibles_y_otras_plegables():
+    from components import barra_lateral
+    from pathlib import Path
+    source = (Path(barra_lateral.__file__)).read_text(encoding="utf-8")
+    assert 'principales = ("chigorodo", "choco_atrato")' in source
+    assert "with st.expander(" in source
+    assert "More suggested areas" in source
+    assert "recom_{clave}" in source
