@@ -114,3 +114,62 @@ def test_resultado_nuevo_no_elimina_aoi_al_remontar_mapa(monkeypatch):
     mapa.render(None, None, SimpleNamespace(resultados={"resultado_nuevo": 0.85}))
     assert estado["zona"]["limites"] == (-77, 7, -76, 8)
     assert estado["mapa_firma_dibujo"] is None
+
+
+
+def test_pan_y_zoom_normal_no_disparan_rerun_del_servidor(monkeypatch):
+    """Los eventos de encuadre se quedan en Leaflet salvo herramientas que los necesitan."""
+    from types import SimpleNamespace
+
+    estado = {"visor_idioma": "en"}
+    monkeypatch.setattr(mapa.st, "session_state", estado)
+    monkeypatch.setattr(mapa, "mapa_fijo", lambda: object())
+    monkeypatch.setattr(mapa, "construir_capas", lambda *_: [])
+    monkeypatch.setattr(mapa, "_centro_y_zoom_guardados", lambda *_: (None, None))
+    llamados = []
+
+    def folium_falso(*args, **kwargs):
+        llamados.append(kwargs)
+        return {"all_drawings": None}  # pan/zoom no cambia dibujos
+
+    monkeypatch.setattr(mapa, "st_folium", folium_falso)
+    control = SimpleNamespace(resultados={}, hidrografia=False, vias=False)
+    mapa.render(None, None, control)
+    mapa.render(None, None, control)  # simulación de rerun por otro widget
+    assert len(llamados) == 2
+    assert [x["returned_objects"] for x in llamados] == [
+        ["all_drawings"], ["all_drawings"],
+    ]
+    assert llamados[0]["key"] == llamados[1]["key"], "no remontar Leaflet en zoom"
+    assert "on_change" in llamados[0]
+
+
+def test_capturar_encuadre_solo_al_activar_modo_area_visible_o_capas_recortadas(monkeypatch):
+    from types import SimpleNamespace
+
+    estado = {"visor_idioma": "en"}
+    monkeypatch.setattr(mapa.st, "session_state", estado)
+    monkeypatch.setattr(mapa, "mapa_fijo", lambda: object())
+    monkeypatch.setattr(mapa, "construir_capas", lambda *_: [])
+    monkeypatch.setattr(mapa, "_centro_y_zoom_guardados", lambda *_: (None, None))
+    llamadas = []
+
+    def folium_falso(*args, **kwargs):
+        llamadas.append(kwargs)
+        return {"all_drawings": None, "bounds": {
+            "_southWest": {"lat": 5.6, "lng": -76.8},
+            "_northEast": {"lat": 5.8, "lng": -76.5},
+        }}
+
+    monkeypatch.setattr(mapa, "st_folium", folium_falso)
+    normal = SimpleNamespace(resultados={}, hidrografia=False, vias=False)
+    mapa.render(None, None, normal)
+    mapa.render(None, None, normal, seguir_vista=True)
+    mapa.render(None, None, normal, seguir_vista=True)
+    mapa.render(None, None, SimpleNamespace(resultados={}, hidrografia=True, vias=False))
+    assert llamadas[0]["returned_objects"] == ["all_drawings"]
+    assert all(x["returned_objects"] == ["all_drawings", "bounds", "zoom", "center"]
+               for x in llamadas[1:])
+    assert llamadas[1]["key"] == llamadas[2]["key"]
+    assert llamadas[1]["key"].endswith("__seguir_vista")
+    assert estado["mapa_limites"] == (-76.8, 5.6, -76.5, 5.8)
