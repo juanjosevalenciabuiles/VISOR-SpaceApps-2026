@@ -414,7 +414,11 @@ def test_recomendacion_un_click_confirma_zona_muestra_ficha_y_no_lanza_sar(monke
     vistas = []
     barra_lateral._seleccionar_recomendacion("chigorodo", lambda zona: vistas.append(zona))
     aoi = barra_lateral.RECOMENDACIONES_AOI["chigorodo"]["limites"]
-    assert tuple(estado["zona"]["limites"]) == aoi and vistas == [aoi]
+    extendida = tuple(estado["zona"]["limites"])
+    assert vistas == [extendida]
+    assert estado["recomendacion_aoi_limites"] == extendida
+    assert extendida[0] <= aoi[0] and extendida[1] <= aoi[1]
+    assert extendida[2] >= aoi[2] and extendida[3] >= aoi[3]
     assert estado["resultado_activo"] is None
     assert "v9_preparacion" not in estado
     assert "v9_mapa_job" not in estado and "v9_publicado" not in estado
@@ -429,7 +433,10 @@ def test_recomendacion_un_click_confirma_zona_muestra_ficha_y_no_lanza_sar(monke
     assert estado["recomendacion_aoi_actual"] == "chigorodo"
     # Cambiar a Chocó usa la misma operación, sin intentar preparar ni analizar.
     barra_lateral._seleccionar_recomendacion("choco_atrato", lambda zona: vistas.append(zona))
-    assert tuple(estado["zona"]["limites"]) == barra_lateral.RECOMENDACIONES_AOI["choco_atrato"]["limites"]
+    nueva = tuple(estado["zona"]["limites"])
+    original = barra_lateral.RECOMENDACIONES_AOI["choco_atrato"]["limites"]
+    assert nueva[0] <= original[0] and nueva[1] <= original[1]
+    assert nueva[2] >= original[2] and nueva[3] >= original[3]
     assert estado["lugar"]["etiqueta"].startswith("Quibdó")
     assert estado["visor_aoi_recomendacion_seq"] == 2
     assert estado["ui_info"] is True and estado["ui_sar"] == "abierto"
@@ -468,7 +475,11 @@ def test_todas_las_recomendaciones_abren_sar_sin_descargar(monkeypatch):
     visitas = []
     for numero, (clave, caso) in enumerate(barra_lateral.RECOMENDACIONES_AOI.items(), 1):
         barra_lateral._seleccionar_recomendacion(clave, lambda limites: visitas.append(limites))
-        assert tuple(estado["zona"]["limites"]) == caso["limites"]
+        expandida = tuple(estado["zona"]["limites"])
+        o, sur, e, norte = caso["limites"]
+        assert expandida[0] <= o and expandida[1] <= sur
+        assert expandida[2] >= e and expandida[3] >= norte
+        assert estado["recomendacion_aoi_limites"] == expandida
         assert estado["lugar"]["etiqueta"].startswith(caso["municipio"])
         assert estado["ui_info"] is True
         assert estado["ui_sar"] == "abierto"
@@ -489,3 +500,25 @@ def test_recomendaciones_principales_visibles_y_otras_plegables():
     assert "with st.expander(" in source
     assert "More suggested areas" in source
     assert "recom_{clave}" in source
+
+
+def test_zonas_recomendadas_se_amplian_cerca_del_maximo_real_sin_salir_de_colombia():
+    """Al seleccionar, amplía el río sin modificar el AOI original que funcionó."""
+    from components import barra_lateral
+    from utils import sesion
+    from utils.analisis_sar import MAX_PIXELES
+
+    casos = barra_lateral.RECOMENDACIONES_AOI
+    for clave, caso in casos.items():
+        base = caso["limites"]
+        ampliada = barra_lateral._ampliar_area_recomendada(base)
+        assert sesion.validar_zona(ampliada) == ampliada
+        assert ampliada[0] <= base[0] and ampliada[1] <= base[1]
+        assert ampliada[2] >= base[2] and ampliada[3] >= base[3]
+        pix = sesion.pixeles_estimados(ampliada)
+        assert pix <= int(MAX_PIXELES * 0.87), "reservar margen de memoria"
+        assert pix > sesion.pixeles_estimados(base)
+        assert pix >= int(MAX_PIXELES * 0.65), (
+            f"{clave}: la recomendación sigue demasiado pequeña pese al espacio disponible"
+        )
+    assert casos["chigorodo"]["limites"] == (-76.825, 7.568, -76.648, 7.676)
