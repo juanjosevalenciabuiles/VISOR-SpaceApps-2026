@@ -53,11 +53,15 @@ def confirmar_zona(limites, origen: str, geometria: dict | None = None) -> None:
     st.session_state["zona"] = {"limites": sesion.validar_zona(limites), "origen": origen, "geometria": geometria}
     st.session_state.update(sar_busqueda=None, sar_error_busqueda=None, mc_informe_sar=None, error_zona=None)
     st.session_state["sel_par"] = None
-    st.session_state["ui_info"] = False     # contexto disponible bajo demanda, sin ocultar el mapa
+    # Mostrar automáticamente la ficha territorial al confirmar una AOI válida.
+    # El visitante puede cerrar Information manualmente; pan/zoom no la reabren.
+    st.session_state["ui_info"] = True
 
 
 def quitar_zona() -> None:
     st.session_state["zona"] = None
+    # Al retirar la AOI, no dejar visible una ficha territorial obsoleta.
+    st.session_state["ui_info"] = False
     # La geometría editable no debe reactivar una zona que el usuario retiró.
     # Se conserva su firma hasta que Leaflet entregue un dibujo NUEVO.
     st.session_state["mapa_dibujo"] = None
