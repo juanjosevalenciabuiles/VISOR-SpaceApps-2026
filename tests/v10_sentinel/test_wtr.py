@@ -1,5 +1,6 @@
 """Pruebas sintéticas sin red para clasificación conservadora WTR."""
 import pytest
+import numpy as np
 
 from utils.v10_sentinel.wtr import comparar_wtr
 
@@ -60,3 +61,32 @@ def test_codigo_desconocido_en_post_impide_publicacion_parcial():
     assert resultado["estado"] == "NO_APTA"
     assert resultado["clases"] is None
     assert resultado["pixeles_validos"] == 1
+
+
+def test_mascaras_numpy_booleanas_de_rasterio():
+    """La QA booleana de un COG no debe descartarse por identidad Python."""
+    resultado = comparar_wtr(
+        np.array([[0, 1]], dtype=np.uint8),
+        np.array([[1, 1]], dtype=np.uint8),
+        np.array([[True, True]], dtype=np.bool_),
+        np.array([[True, True]], dtype=np.bool_),
+        mascara_aoi=np.array([[True, False]], dtype=np.bool_),
+        codigos={"agua": 1, "no_agua": 0},
+        version_verificada=True,
+        georef_anterior=GEO,
+        georef_posterior=GEO,
+    )
+    assert resultado["estado"] == "APTA"
+    assert resultado["clases"] == [[2, 255]]
+    assert resultado["pixeles_totales"] == 1
+
+
+def test_qa_numerica_no_autoriza_publicacion():
+    resultado = comparar_wtr(
+        [[0]], [[1]], [[1]], [[1]],
+        codigos={"agua": 1, "no_agua": 0},
+        version_verificada=True,
+        georef_anterior=GEO, georef_posterior=GEO,
+    )
+    assert resultado["estado"] == "NO_APTA"
+    assert resultado["clases"] is None
