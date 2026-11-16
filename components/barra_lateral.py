@@ -14,7 +14,8 @@ from html import escape
 import streamlit as st
 
 from components import flujo, leyenda
-from utils.i18n import tr
+from utils.i18n import idioma, tr
+from utils.etiquetas_resultados import nombre_resultado
 from components.panel_info import insignia
 from utils import alcance_geografico, lugares, sesion
 from utils import mapas_base
@@ -169,24 +170,30 @@ def lugar_ubicado(abrir_zona=None) -> None:
 
 
 def _ver_historico(id_resultado: str) -> None:
+    """Solo un clic en View activa un histórico. Nunca un rerun del mapa."""
+    from components import v9_experiencia
+    v9_experiencia._limpiar_v9()
+    flujo.quitar_zona()
+    st.session_state["lugar"] = None
     flujo.activar(id_resultado, sesion.HISTORICO)
+    st.session_state["visor_capa_resultado_visible"] = True
+    st.session_state["ui_info"] = False
 
 
 def _controles_resultados(resultados: list, centrar=None, activo=None) -> dict[str, float]:
     """Un único resultado en el mapa: el del último análisis de esta sesión o el que se abra a
     propósito desde el historial. Lo que hay en data/analisis/ NO se dibuja por existir."""
-    st.caption(tr("RESULTADO EN EL MAPA", "MAP RESULT"))
+    st.caption(tr("RESULTADO ACTIVO", "ACTIVE RESULT"))
     activos: dict[str, float] = {}
     if st.session_state.get("aviso_resultado"):
         st.markdown(f'<div class="mc-aviso">{escape(st.session_state["aviso_resultado"])}</div>',
                     unsafe_allow_html=True)
     if activo is None:
-        st.markdown('<div class="visor-leyenda-nota" id="sin-resultado">Ninguno. Aparecerá aquí cuando termines un '
-                    "análisis en Herramientas SAR o abras uno del historial.</div>", unsafe_allow_html=True)
+        st.caption(tr("Sin GeoTIFF seleccionado.", "No GeoTIFF selected."))
     else:
         st.markdown(
             f'<div class="mc-resultado"><span class="mc-insignia mc-insignia-origen">{flujo.etiqueta_origen()}</span>'
-            f"{insignia(activo.capa.procedencia)}<code>{escape(activo.ruta.name)}</code></div>",
+            f"{insignia(activo.capa.procedencia)}<span>{escape(nombre_resultado(activo, idioma()))}</span></div>",
             unsafe_allow_html=True)
         # El interruptor y la opacidad residen en el selector persistente.
         if st.session_state.get("visor_capa_resultado_visible", True):
@@ -203,12 +210,9 @@ def _controles_resultados(resultados: list, centrar=None, activo=None) -> dict[s
     dibujables = [r for r in resultados if r.dibujable]
     ocultos = [r for r in resultados if not r.dibujable]
     with st.expander(f"{tr('Historial', 'History')} ({len(dibujables)})", expanded=False, key="historial"):
-        st.markdown('<div class="visor-leyenda-nota">Resultados guardados en <code>data/analisis/</code> por '
-                    "análisis anteriores. Ninguno se muestra hasta que pulses «Ver»; abrirlo no ejecuta un "
-                    "análisis nuevo.</div>", unsafe_allow_html=True)
+        # Elegir un resultado histórico siempre exige pulsar View.
         if not dibujables:
-            st.markdown('<div class="visor-leyenda-nota">Todavía no hay resultados guardados.</div>',
-                        unsafe_allow_html=True)
+            st.caption(tr("No hay resultados guardados.", "No saved results."))
         if st.session_state.get("resultados_fuera_de_alcance"):
             st.markdown(f'<div class="visor-leyenda-nota" id="historial-fuera">'
                         f'{st.session_state["resultados_fuera_de_alcance"]} resultado(s) guardado(s) de zonas fuera de '
@@ -216,12 +220,11 @@ def _controles_resultados(resultados: list, centrar=None, activo=None) -> dict[s
                         unsafe_allow_html=True)
         for res in dibujables:
             st.markdown(f'<div class="mc-resultado">{insignia(res.capa.procedencia)}'
-                        f'<code>{escape(res.ruta.name)}</code></div>'
-                        f'<div class="visor-leyenda-nota">{escape(res.nombre)} · {escape(_fecha_archivo(res))}</div>',
+                        f'<span>{escape(nombre_resultado(res, idioma()))}</span></div>',
                         unsafe_allow_html=True)
             st.button(tr("Ver", "View"), key=f"hist_ver_{res.id}", icon=":material/history:", type="tertiary",
                       on_click=_ver_historico, args=(res.id,), disabled=activo is not None and activo.id == res.id,
-                      help="Lo muestra en el mapa rotulado como HISTÓRICO.")
+                      help=tr("Abrir explícitamente este GeoTIFF anterior.", "Explicitly open this historical GeoTIFF."))
         if ocultos:
             st.markdown(
                 f'<details class="mc-detalles mc-resultado-off"><summary>{len(ocultos)} archivo(s) no se muestran'
@@ -257,9 +260,7 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None,
         # El dock persistente es el ÚNICO lugar con widgets de capas.
         # Aquí solo leemos su estado para construir Controles; el explorador
         # nunca duplica claves Streamlit ni altera el mapa por sí solo.
-        st.caption(tr("CAPAS DEL MAPA", "MAP LAYERS"))
-        st.caption("Activa y cambia tus capas en «CAPAS DEL MAPA», visible sobre el mapa "
-                   "aunque cierres el Explorador.")
+        # Las capas ya se controlan en un dock fijo, no repetir instrucciones.
         mapa_base = st.session_state.get("mapa_base") or mapas_base.predeterminado()
         disponibles_locales = disponibles()
         hidrografia = bool(st.session_state.get("ctx_hidrografia", False)
@@ -276,25 +277,30 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None,
         with st.expander(tr("Estado del sistema", "System status"), expanded=False, key="sistema"):
             sistema.render()
 
-        # Las capas DEMO son sintéticas: apagadas por defecto y solo visibles si se piden a propósito.
-        with st.expander(tr("Demostración (datos sintéticos)", "Demonstration (synthetic data)"), expanded=False, key="demo"):
-            st.markdown('<div class="visor-leyenda-nota">Capas generadas por computador para probar la interfaz. '
-                        "No son observaciones de satélite ni resultados de un análisis.</div>",
-                        unsafe_allow_html=True)
-            mostrar_capa = st.toggle(tr("Mostrar capa DEMO", "Show DEMO layer"), value=False, key="capa_sar")
-            solo_inundaciones = os.environ.get("VISOR_FENOMENOS_LEGACY") != "1"
-            if solo_inundaciones and st.session_state.get("fenomeno") not in (None, "inundacion"):
-                st.session_state["fenomeno"] = "inundacion"
-            clave = st.radio(
-                tr("Fenómeno", "Phenomenon"),
-                options=["inundacion"] if solo_inundaciones else list(FENOMENOS),
-                format_func=lambda k: f"{FENOMENOS[k].icono}  {FENOMENOS[k].nombre}",
-                key="fenomeno",
-            )
-            opacidad = st.slider(tr("Opacidad DEMO", "DEMO opacity"), 0.0, 1.0, 0.85, 0.05, disabled=not mostrar_capa, key="opacidad_sar")
-            mostrar_huella = st.toggle(tr("Cobertura de la capa DEMO", "DEMO layer footprint"), value=True, disabled=not mostrar_capa,
-                                       key="huella")
-
+        # Material DEMO oculto de la experiencia pública: no es SAR satelital.
+        # Solo QA opt-in por variable de entorno, sin borrar archivos históricos.
+        if os.environ.get("VISOR_MOSTRAR_DEMO") == "1":
+            with st.expander(tr("Demostración (sintético)", "Synthetic demo (QA only)"),
+                             expanded=False, key="demo"):
+                mostrar_capa = st.toggle(tr("Mostrar capa DEMO", "Show DEMO layer"),
+                                         value=False, key="capa_sar")
+                solo_inundaciones = os.environ.get("VISOR_FENOMENOS_LEGACY") != "1"
+                opciones = ["inundacion"] if solo_inundaciones else list(FENOMENOS)
+                clave = st.radio(tr("Fenómeno", "Phenomenon"), options=opciones,
+                                 format_func=lambda k: f"{FENOMENOS[k].icono} {FENOMENOS[k].nombre}",
+                                 key="fenomeno")
+                opacidad = st.slider(tr("Opacidad DEMO", "DEMO opacity"),
+                                     0.0, 1.0, 0.85, 0.05,
+                                     disabled=not mostrar_capa, key="opacidad_sar")
+                mostrar_huella = st.toggle(tr("Cobertura DEMO", "DEMO footprint"),
+                                          value=True, disabled=not mostrar_capa, key="huella")
+        else:
+            st.session_state["capa_sar"] = False
+            mostrar_capa, mostrar_huella, opacidad = False, False, 0.85
+            clave = st.session_state.get("fenomeno", "inundacion")
+            if clave not in FENOMENOS:
+                clave = "inundacion"
+            # Se conserva la configuración de las capas reales, sin exponer widgets DEMO.
     return Controles(
         clave, mostrar_capa, opacidad, mostrar_huella and mostrar_capa, mostrar_referencia,
         mapa_base, hidrografia, vias, activos, limites, zoom,
