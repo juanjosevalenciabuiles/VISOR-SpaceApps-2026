@@ -610,6 +610,9 @@ def test_pagina_muestra_el_error_del_motor_sin_caerse(tmp_path, monkeypatch):
 def test_la_pagina_principal_sigue_intacta(monkeypatch):
     from streamlit.testing.v1 import AppTest
 
+    # Solo QA: conservar selectores de fenómenos DEMO que la entrega pública oculta.
+    monkeypatch.setenv("VISOR_MOSTRAR_DEMO", "1")
+    monkeypatch.setenv("VISOR_FENOMENOS_LEGACY", "1")
     monkeypatch.chdir(RAIZ)
     at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=120).run()
     assert not at.exception and len(at.error) == 0
