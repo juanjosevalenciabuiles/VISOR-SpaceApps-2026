@@ -35,7 +35,7 @@ from utils.geotiff import Capa
 
 ESTADO_INICIAL = {
     "ui_explorador": True,              # panel izquierdo de exploración
-    "ui_info": True,                    # panel científico de la derecha
+    "ui_info": False,                   # panel derecho opt-in para no tapar el mapa
     "ui_sar": "cerrado",                # "cerrado" | "abierto" | "minimizado"
     "ui_explorador_previo": True,       # cómo estaba el explorador antes de abrir SAR
     "vista": None,                      # {"centro": [lat, lon], "zoom": z, "n": k}
@@ -299,45 +299,40 @@ GUIA_INICIO = (
     "ningún otro fenómeno.</div></div>")
 
 
-def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, controles: Controles,
-                      resultados: list | None = None) -> None:
+def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None,
+                      controles: Controles, resultados: list | None = None) -> None:
+    """Detalles científicos a demanda, sin repetir ni la guía ni la zona AOI.
+
+    La leyenda breve del GeoTIFF vive SOBRE EL MAPA y no aquí. El historial
+    solo se abre desde Explorer, nunca desde controles involuntarios.
+    """
     activos = [r for r in (resultados or []) if r.dibujable and r.id in controles.resultados]
     demo = controles.mostrar_capa
     panel = st.container(key="panel_info")
     with panel:
         with st.container(horizontal=True, vertical_alignment="center", key="cabecera_info"):
-            st.markdown(f'<div class="mc-titulo-panel">{tr("Información", "Information")}</div>', unsafe_allow_html=True)
-            st.button(tr("Cerrar", "Close"), key="cerrar_info", icon=":material/close:", type="tertiary",
-                      on_click=alternar_info)
+            st.markdown(f'<div class="mc-titulo-panel">{tr("Información", "Information")}</div>',
+                        unsafe_allow_html=True)
+            st.button(tr("Cerrar", "Close"), key="cerrar_info",
+                      icon=":material/close:", type="tertiary", on_click=alternar_info)
         if activos:
-            st.button(tr("Analizar otra zona · conservar este resultado en historial",
-                         "Analyze another area · keep this result in history"),
-                      key="v9_nueva_zona_desde_info",
-                      on_click=v9_experiencia._nuevo_analisis, args=(True,),
-                      use_container_width=True)
-        for res in activos:
-            if flujo.es_historico():
-                abierto = str((st.session_state.get("resultado_activo") or {}).get("abierto", ""))[:16]
-                st.caption(tr("RESULTADO HISTÓRICO", "HISTORICAL RESULT"))
-                st.markdown('<div class="mc-aviso" id="aviso-historico">Abierto desde el historial '
-                            f'({escape(abierto.replace("T", " "))} UTC). Es un resultado guardado de un análisis '
-                            "anterior: no se ejecutó un análisis nuevo.</div>", unsafe_allow_html=True)
-            else:
-                st.caption(tr("RESULTADO DE ESTE ANÁLISIS", "RESULT OF THIS ANALYSIS"))
-            # Resumen de colores al comienzo del panel, junto al GeoTIFF activo.
-            # El perfil del archivo decide el significado; jamás inferir severidad.
-            st.markdown(ui_resultados.leyenda_rapida_html(res), unsafe_allow_html=True)
-            st.markdown(ui_resultados.ficha_html(res), unsafe_allow_html=True)
-            ui_resultados.boton_qgis(res)
-        # Contexto de la zona confirmada (sin pulsar nada); sin zona, una invitación a elegirla.
-        hay_zona = contexto_zona.render(activos, {"analizar": abrir_sar, "centrar": centrar_en,
-                                                   "cambiar": cambiar_zona})
-        if not activos and not demo and not hay_zona:
-            st.markdown(GUIA_INICIO, unsafe_allow_html=True)
+            for res in activos:
+                st.caption(tr("HISTÓRICO", "HISTORICAL") if flujo.es_historico()
+                           else tr("RESULTADO ACTUAL", "CURRENT RESULT"))
+                st.markdown(ui_resultados.ficha_html(res), unsafe_allow_html=True)
+                ui_resultados.boton_qgis(res)
+        elif not demo:
+            st.caption(tr("Selecciona una zona y analiza para ver los detalles.",
+                          "Choose an area and run an analysis to see details."))
         if demo:
-            st.caption("CAPA DE DEMOSTRACIÓN")
+            # Solo habilitado cuando VISOR_MOSTRAR_DEMO=1 en un entorno QA.
+            st.caption(tr("CAPA SINTÉTICA", "SYNTHETIC LAYER"))
             panel_info.render(fenomeno, capa, error)
-    barra_lateral.render_leyenda(fenomeno, capa if demo else None, controles, panel)
+    # Los créditos y límites se conservan bajo consulta voluntaria.
+    with panel:
+        fuentes = st.expander(tr("Fuentes y créditos", "Sources and credits"), expanded=False)
+    barra_lateral.render_leyenda(fenomeno, capa if demo else None, controles, fuentes)
+
 
 
 def guia_eco(activos: list) -> None:
