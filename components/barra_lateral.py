@@ -13,8 +13,8 @@ from html import escape
 
 import streamlit as st
 
-from components import flujo
-from utils.i18n import tr, leyenda
+from components import flujo, leyenda
+from utils.i18n import tr
 from components.panel_info import insignia
 from utils import alcance_geografico, lugares, sesion
 from utils import mapas_base
