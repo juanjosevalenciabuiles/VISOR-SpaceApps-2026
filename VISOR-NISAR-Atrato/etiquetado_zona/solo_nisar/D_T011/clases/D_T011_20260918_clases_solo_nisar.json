@@ -1,0 +1,87 @@
+{
+  "esquema": "visor.ficha.v1",
+  "tipo_producto": "clases_inundacion_nisar",
+  "fecha": "2026-09-18",
+  "unidades": "clase",
+  "fuente": "NISAR L2 GCOV, ASF DAAC",
+  "advertencia": "Indicio exploratorio sin validar. Detección de cambio en una fecha observada; no es un pronóstico.",
+  "procedencia": {
+    "estado": "real_sin_validar",
+    "sensor": "NISAR L-SAR (banda L), stack D_T011",
+    "fechas": [
+      "referencia: mediana de 2026-06-26, 2026-07-08, 2026-08-13, 2026-09-18",
+      "2026-09-18"
+    ],
+    "polarizaciones": [
+      "HH",
+      "HV"
+    ],
+    "metodo": "Toda la franja del stack D_T011; filtro lee_5 (ENL 14.3); un K-means→GMM por stack (k=10); mapeo relativo por fecha (Otsu -15.0 dB, bosque -5.7 dB); consenso; refinamiento por píxel; agua permanente por HH_max; veg. inundada permanente por HH_min ≥ bosque + 2.0 dB y a ≤ 3.0 km de agua; urbano: NISAR (brillo persistente + textura, a ≤ 2 km de agua)",
+    "generado_por": {
+      "modulo": "ml_choco",
+      "notebook": "etiquetado_zona_solo_nisar.ipynb"
+    },
+    "generado_utc": "2026-11-15T14:52:01+00:00",
+    "archivo": {
+      "nombre": "D_T011_20260918_clases_solo_nisar.tif",
+      "sha256": "13706d35ddf6f3ba8df89045e7810e5d48d587157d7ed48fa3a9779d0e18af1a"
+    },
+    "validacion": null
+  },
+  "fechas_detalle": {
+    "observacion": "2026-09-18",
+    "referencia": [
+      "2026-06-26",
+      "2026-07-08",
+      "2026-08-13",
+      "2026-09-18"
+    ],
+    "fecha_objetivo": null
+  },
+  "nodata": 255,
+  "clases": {
+    "0": {
+      "nombre": "Fuera de zona",
+      "color": "#FFFFFF"
+    },
+    "1": {
+      "nombre": "Agua permanente",
+      "color": "#08306B"
+    },
+    "2": {
+      "nombre": "Agua abierta nueva",
+      "color": "#41B6C4"
+    },
+    "3": {
+      "nombre": "Veg. inundada permanente",
+      "color": "#9E9AC8"
+    },
+    "4": {
+      "nombre": "Veg. inundada nueva",
+      "color": "#54278F"
+    },
+    "5": {
+      "nombre": "Bosque no inundado",
+      "color": "#1B7837"
+    },
+    "6": {
+      "nombre": "Veg. baja / pasto / suelo",
+      "color": "#C2E699"
+    },
+    "7": {
+      "nombre": "Urbano",
+      "color": "#737373"
+    },
+    "8": {
+      "nombre": "Urbano con aumento",
+      "color": "#E6550D"
+    },
+    "9": {
+      "nombre": "Dudoso",
+      "color": "#FFD92F"
+    },
+    "255": {
+      "nombre": "Sin dato"
+    }
+  }
+}

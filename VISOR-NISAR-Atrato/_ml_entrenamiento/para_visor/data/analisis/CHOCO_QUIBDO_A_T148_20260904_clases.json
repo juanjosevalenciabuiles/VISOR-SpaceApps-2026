@@ -1,0 +1,98 @@
+{
+  "esquema": "visor.ficha.v1",
+  "tipo_producto": "clases_inundacion_nisar",
+  "producto": "Clases de inundación NISAR (etiquetado no supervisado solo NISAR)",
+  "fecha": "2026-09-04",
+  "unidades": "clase",
+  "fuente": "NISAR L2 GCOV, ASF DAAC",
+  "nodata": 255,
+  "advertencia": "Indicio exploratorio sin validar en campo. Detección de cambio en una fecha observada.",
+  "procedencia": {
+    "estado": "real_sin_validar",
+    "sensor": "NISAR L-SAR (banda L), stack A_T148",
+    "polarizaciones": [
+      "HH",
+      "HV"
+    ],
+    "fechas": [
+      "referencia: mediana de 2026-06-24, 2026-07-06, 2026-08-11, 2026-09-16",
+      "2026-09-04"
+    ],
+    "metodo": "Filtro Lee 5x5; K-means → GMM por stack; mapeo relativo (Otsu para agua, bosque de la escena como ancla); consenso K-means/GMM; reglas de agua permanente, vegetación inundada permanente y urbano",
+    "generado_por": {
+      "modulo": "ml_choco",
+      "notebook": "etiquetado_zona_solo_nisar.ipynb + capas_visor.py"
+    },
+    "generado_utc": "2026-11-15T18:30:15+00:00",
+    "archivo": {
+      "nombre": "CHOCO_QUIBDO_A_T148_20260904_clases.tif",
+      "sha256": "f1b96114dc01f2d50369c0cfa028c0a33bee7e297daa56daa21213e39de23627"
+    },
+    "validacion": null
+  },
+  "fechas_detalle": {
+    "observacion": "2026-09-04",
+    "fecha_objetivo": null
+  },
+  "cuadricula": {
+    "crs": "EPSG:32618",
+    "resolucion": [
+      20,
+      20
+    ],
+    "limites": [
+      306000,
+      619700,
+      326000,
+      639700
+    ],
+    "ancho": 1000,
+    "alto": 1000
+  },
+  "clases": {
+    "1": {
+      "nombre": "Agua permanente",
+      "color": "#08306B"
+    },
+    "2": {
+      "nombre": "Agua abierta nueva",
+      "color": "#41B6C4"
+    },
+    "3": {
+      "nombre": "Veg. inundada permanente",
+      "color": "#9E9AC8"
+    },
+    "4": {
+      "nombre": "Veg. inundada nueva",
+      "color": "#54278F"
+    },
+    "5": {
+      "nombre": "Bosque no inundado",
+      "color": "#1B7837"
+    },
+    "6": {
+      "nombre": "Veg. baja / pasto / suelo",
+      "color": "#C2E699"
+    },
+    "7": {
+      "nombre": "Urbano",
+      "color": "#737373"
+    },
+    "8": {
+      "nombre": "Urbano con aumento",
+      "color": "#E6550D"
+    },
+    "9": {
+      "nombre": "Dudoso",
+      "color": "#FFD92F"
+    },
+    "255": {
+      "nombre": "Sin dato"
+    }
+  },
+  "indicio_inundacion": [
+    2,
+    4,
+    8
+  ]
+}
