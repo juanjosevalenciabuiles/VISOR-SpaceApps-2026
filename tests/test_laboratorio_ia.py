@@ -51,4 +51,4 @@ def test_acceso_ia_sin_tapar_controles_del_mapa():
     import inspect
     main = (ROOT / "app.py").read_text(encoding="utf-8")
     assert "interfaz.acceso_laboratorio_ia()" not in main
-    assert 'label="🧪 Abrir Laboratorio IA"' in inspect.getsource(interfaz.panel_explorador)
+    assert 'label=tr("🧪 Abrir Laboratorio IA", "🧪 Open AI Laboratory")' in inspect.getsource(interfaz.panel_explorador)
