@@ -261,8 +261,8 @@ def preparar_harmony(plan: Plan, carpeta: Path | None = None, notificar=None, co
     """
     from utils import nisar_harmony as harmony
 
-    if not 64 <= max_mb <= 512:
-        raise ErrorAutoNISAR("Límite Harmony: selecciona entre 64 y 512 MB.")
+    if not 64 <= max_mb <= 1024:
+        raise ErrorAutoNISAR("Límite Harmony: selecciona entre 64 y 1024 MiB.")
     try:
         alcance_geografico.validar_limites(plan.aoi)
     except alcance_geografico.FueraDeAlcance as exc:
@@ -280,8 +280,23 @@ def preparar_harmony(plan: Plan, carpeta: Path | None = None, notificar=None, co
     if caps.get("madurez", "VALIDATED") != madurez:
         raise ErrorAutoNISAR("Harmony no ha validado capacidades para la colección " + madurez + ".")
     carpeta = Path(carpeta) if carpeta is not None else DATA_DIR / "nisar" / "harmony"
-    # Crear solo el mínimo de archivos científicos: HH/HV (o VV/VH), máscara y looks.
+    # Comprobación por PAR antes de solicitar el primer COG. Los controles
+    # individuales permanecen en harmony.obtener y el stream siempre tiene
+    # límite por capa. Reservar al menos 512 MiB adicionales para metadatos,
+    # staging y margen del entorno de ejecución; no asumir que un despliegue
+    # publicado comparte el disco del workspace de Replit.
     presupuestado = max_mb * 1024**2
+    carpeta.mkdir(parents=True, exist_ok=True)
+    libre = shutil.disk_usage(carpeta).free
+    reserva = 512 * 1024**2
+    if libre < presupuestado + reserva:
+        raise ErrorAutoNISAR(
+            "Espacio insuficiente para el par NISAR: se necesitan "
+            f"{(presupuestado + reserva) / 1024**2:.0f} MiB libres "
+            "para descargar y preparar los COG de forma segura."
+        )
+    # Crear solo el mínimo de capas: copolar + máscara + looks cuando
+    # el análisis temporal V9 ha confirmado un par específico.
     escenas = []
     usados = 0
     for c in plan.candidatos:
