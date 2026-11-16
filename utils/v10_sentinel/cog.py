@@ -37,7 +37,9 @@ def leer_ventana_cog(url: str, bbox_wgs84: tuple[float, float, float, float],
     _url_cog_confiable(url)
     if not isinstance(presupuesto_bytes, int) or not 0 < presupuesto_bytes <= MAX_AOI_BYTES:
         raise ValueError("PRESUPUESTO_INVALIDO")
-    if len(bbox_wgs84) != 4 or not all(np.isfinite(bbox_wgs84)):
+    if (not isinstance(bbox_wgs84, (tuple, list)) or len(bbox_wgs84) != 4
+            or any(isinstance(v, (bool, str, bytes)) or not isinstance(v, (int, float, np.number))
+                   for v in bbox_wgs84) or not all(np.isfinite(bbox_wgs84))):
         raise ValueError("AOI_INVALIDA")
     west, south, east, north = bbox_wgs84
     if not (-180 <= west < east <= 180 and -90 <= south < north <= 90):
@@ -47,6 +49,10 @@ def leer_ventana_cog(url: str, bbox_wgs84: tuple[float, float, float, float],
         with rasterio.open(url) as ds:
             if ds.crs is None or ds.transform.is_identity or ds.count < 1:
                 raise ValueError("COG_SIN_GEOREFERENCIA")
+            # La ventana de bounds solo es segura en rejillas norte-arriba.
+            # Rejillas rotadas requieren recorte geométrico explícito.
+            if abs(ds.transform.b) > 1e-12 or abs(ds.transform.d) > 1e-12:
+                raise ValueError("COG_REJILLA_ROTADA_NO_SOPORTADA")
             bounds = transform_bounds("EPSG:4326", ds.crs, *bbox_wgs84,
                                       densify_pts=21)
             # Una intersección parcial no demuestra cobertura del AOI: fallar cerrado.
