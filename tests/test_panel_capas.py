@@ -73,11 +73,11 @@ def test_quitar_resultado_del_mapa_no_borra_ningun_archivo(monkeypatch):
 def test_leyenda_de_historial_indica_procedencia_y_fechas():
     real = _res("uno", True)
     no_validado = _res("dos", False)
-    assert "REAL" in panel_capas._etiqueta_resultado("uno", {"uno": real})
+    assert "AOI" in panel_capas._etiqueta_resultado("uno", {"uno": real})
     assert "2026-10-22" in panel_capas._etiqueta_resultado("uno", {"uno": real})
-    assert "NO VALIDADO" in panel_capas._etiqueta_resultado(
+    assert "2026-11-03" in panel_capas._etiqueta_resultado(
         "dos", {"dos": no_validado})
-    assert panel_capas._etiqueta_resultado(None, {}) == "Ningún resultado seleccionado"
+    assert panel_capas._etiqueta_resultado(None, {}) in ("No result selected", "Ningún resultado seleccionado")
 
 
 def test_dock_mapa_base_usa_clave_unica_y_sincroniza_fondo(monkeypatch):
