@@ -161,6 +161,7 @@ def test_recomendaciones_fluviales_un_click_crea_zona_y_muestra_info(abrir):
     # Rectángulo mayor de la captura Turbo/Chigorodó; no el antiguo preset urbano.
     assert abs(lat - 7.622) < 0.02 and abs(lon + 76.7365) < 0.02
     assert p.visible("panel_info") and "Chigorodó" in p.texto("panel_info")
+    assert p.visible("panel_sar"), "la recomendación debe abrir las herramientas SAR"
     assert p.page.locator("#zona-confirmada").count() == 1
     assert capas_imagen(p) == [], "un preset no lanza SAR"
     n = p.mapa.evaluate("""() => Object.values(map._layers).filter(
@@ -169,11 +170,14 @@ def test_recomendaciones_fluviales_un_click_crea_zona_y_muestra_info(abrir):
     ).length""")
     assert n == 1, "el rectángulo recomendado debe verse en Leaflet"
 
+    # SAR Tools ocupa el lado izquierdo: reabrir Explorer antes del segundo preset.
+    p.clic("btn_explorador")
     p.clic("recom_choco_atrato")
     p.esperar_mapa()
     zoom, lat, lon = p.vista()
     assert abs(lat - 5.695) < 0.02 and abs(lon + 76.66) < 0.02
     assert p.visible("panel_info") and "Quibdó" in p.texto("panel_info")
+    assert p.visible("panel_sar")
     assert capas_imagen(p) == []
     n = p.mapa.evaluate("""() => Object.values(map._layers).filter(
         l => l instanceof L.Rectangle &&
