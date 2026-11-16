@@ -495,3 +495,78 @@ def test_fallo_busqueda_ampliada_no_borra_catalogo_ni_inventa_fechas(monkeypatch
     ui._mostrar_sugerencias(ui._firma(AOI, periodo_inicio, periodo_fin))
     assert len(avisos) == 1
     assert "CMR" in avisos[0]
+
+
+
+def test_reintento_cog_solo_tras_clic_para_mismo_par_y_aoi(monkeypatch):
+    """El presupuesto ampliado crea un NUEVO job; no modifica el fallido."""
+    par = _par("T1", "T2", box(*AOI))
+    resultado = _resultado([par])
+    opciones = geo.opciones(resultado, [par])
+    item = opciones[0]
+    firma = ui._firma(AOI, INI, FIN)
+    estado = {
+        "zona": {"limites": list(AOI)},
+        "v9_inicio_periodo": INI, "v9_fin_periodo": FIN,
+        "v9_coberturas": {
+            "firma": firma, "opciones": opciones, "seleccionado": item["id"],
+        },
+        "v9_firma": firma, "v9_preparacion": "fallido_previo",
+        ui._clave_aceptacion(firma, item["id"]): True,
+    }
+    fallo = {
+        "estado": ui.trabajos.ERROR,
+        "aoi": {"limites": list(AOI)},
+        "escenas": {"antes": "T1", "despues": "T2"},
+        "error": "COG_DEMASIADO_GRANDE: NASA Harmony devolvió 227.8 MiB",
+    }
+    monkeypatch.setattr(ui.st, "session_state", estado)
+    monkeypatch.setattr(ui.trabajos, "leer", lambda ident: fallo)
+    llamadas = []
+    monkeypatch.setattr(
+        ui, "_solicitar_elegido",
+        lambda zona, inicio, fin, estado_actual, elegido: (
+            llamadas.append((tuple(zona), inicio, fin, elegido["id"]))
+            or "nuevo_job_1024"
+        ),
+    )
+    assert ui._reintentar_mismo_par_cog() is True
+    assert llamadas == [(AOI, INI, FIN, item["id"])]
+    assert estado["v9_preparacion"] == "nuevo_job_1024"
+    assert estado["v9_firma"] == firma
+    assert estado["nisar_auto_job"] == "nuevo_job_1024"
+    assert not estado.get("v9_error")
+
+
+def test_reintento_cog_no_permita_otro_par_ni_job_activo(monkeypatch):
+    """Un cambio de escena o un job en curso no se considera consentimiento."""
+    par = _par("T1", "T2", box(*AOI))
+    opciones = geo.opciones(_resultado([par]), [par])
+    item = opciones[0]
+    firma = ui._firma(AOI, INI, FIN)
+    estado = {
+        "zona": {"limites": list(AOI)},
+        "v9_inicio_periodo": INI, "v9_fin_periodo": FIN,
+        "v9_coberturas": {
+            "firma": firma, "opciones": opciones, "seleccionado": item["id"],
+        },
+        "v9_firma": firma, "v9_preparacion": "fallido_previo",
+        ui._clave_aceptacion(firma, item["id"]): True,
+    }
+    fallo = {
+        "estado": ui.trabajos.ERROR,
+        "aoi": {"limites": list(AOI)},
+        "escenas": {"antes": "Otras1", "despues": "Otras2"},
+        "error": "COG_DEMASIADO_GRANDE: excedido",
+    }
+    monkeypatch.setattr(ui.st, "session_state", estado)
+    monkeypatch.setattr(ui.trabajos, "leer", lambda ident: fallo)
+    monkeypatch.setattr(ui, "_solicitar_elegido",
+                        lambda *a: pytest.fail("no debe iniciarse descarga"))
+    assert ui._reintentar_mismo_par_cog() is False
+    assert estado["v9_preparacion"] == "fallido_previo"
+    assert "otro par o zona" in estado["v9_error"]
+    fallo["escenas"] = {"antes": "T1", "despues": "T2"}
+    fallo["estado"] = ui.trabajos.EN_CURSO
+    assert ui._reintentar_mismo_par_cog() is False
+    assert estado["v9_preparacion"] == "fallido_previo"
