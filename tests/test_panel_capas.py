@@ -154,3 +154,17 @@ def test_nombre_resultado_contiene_aoi_y_fechas_sin_inventar_municipio():
     assert "Chigorodó" not in etiqueta
     r.ficha["municipio"] = "Chigorodó"
     assert nombre_resultado(r).startswith("Chigorodó")
+
+
+def test_etiqueta_historial_bloquea_html_no_confiable():
+    """JSON y etiquetas GeoTIFF nunca pueden inyectar HTML en título del historial."""
+    from utils.etiquetas_resultados import nombre_resultado
+    r = _res("malicioso")
+    r.ficha["municipio"] = '<img src=x onerror="alert(1)">Chigorodó'
+    r.ficha["procedencia"]["fechas"] = ['<script>x</script>', '2026-11-03']
+    etiqueta = nombre_resultado(r)
+    assert "<" not in etiqueta and ">" not in etiqueta
+    assert "<img" not in etiqueta and "onerror" not in etiqueta
+    assert "Chigorodó" in etiqueta and "date unknown" in etiqueta
+    r.ficha["procedencia"]["fechas"] = ["2026-10-22", "2026-11-03"]
+    assert "2026-10-22 → 2026-11-03" in nombre_resultado(r)
