@@ -9,6 +9,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 import math
 
+import numpy as np
+
 from rasterio.crs import CRS
 
 
@@ -72,14 +74,14 @@ def comparar_wtr(
         grids += (mascara_aoi,)
     # No clasificar ni un píxel sin demostrar su identidad espacial.
     _comprobar_alineacion(georef_anterior, georef_posterior)
-    if not anterior or not anterior[0]:
+    if len(anterior) == 0 or len(anterior[0]) == 0:
         raise ValueError("Raster vacío")
     alto, ancho = len(anterior), len(anterior[0])
     if any(len(grid) != alto or any(len(row) != ancho for row in grid) for grid in grids):
         raise ValueError("Las matrices WTR/QA deben coincidir")
-    if mascara_aoi is not None and any(type(v) is not bool for row in mascara_aoi for v in row):
+    if mascara_aoi is not None and any(not isinstance(v, (bool, np.bool_)) for row in mascara_aoi for v in row):
         raise ValueError("Máscara AOI debe ser booleana")
-    total_aoi = sum(sum(row) for row in mascara_aoi) if mascara_aoi is not None else alto * ancho
+    total_aoi = sum(sum(bool(v) for v in row) for row in mascara_aoi) if mascara_aoi is not None else alto * ancho
     if total_aoi == 0:
         raise ValueError("AOI sin píxeles dentro de la cuadrícula")
     salida = []
@@ -90,7 +92,9 @@ def comparar_wtr(
             pre, post = anterior[y][x], posterior[y][x]
             if mascara_aoi is not None and not mascara_aoi[y][x]:
                 valor = 255
-            elif not (qa_anterior[y][x] is True and qa_posterior[y][x] is True):
+            elif not (isinstance(qa_anterior[y][x], (bool, np.bool_))
+                      and isinstance(qa_posterior[y][x], (bool, np.bool_))
+                      and bool(qa_anterior[y][x]) and bool(qa_posterior[y][x])):
                 valor = 255
             elif pre not in (agua, seco) or post not in (agua, seco):
                 valor = 255
