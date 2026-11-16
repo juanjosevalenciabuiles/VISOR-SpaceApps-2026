@@ -901,13 +901,33 @@ def accion_principal() -> None:
         if error_catalogo and not estado:
             st.error(tr("No se pudieron buscar coberturas NISAR: ",
                         "Could not search NISAR coverage: ") + str(error_catalogo))
+        if estado and not estado.get("opciones"):
+            st.warning(tr("No hay pares NISAR con cobertura común para estas fechas. "
+                          "Prueba una zona más pequeña u otro período.",
+                          "No NISAR pairs share coverage for these dates. "
+                          "Try a smaller area or different dates."))
+        elif item and item.get("plan") is None:
+            st.warning(tr("Este par no cumple la cobertura mínima o el límite "
+                          "de tamaño. Selecciona otro par o ajusta el área.",
+                          "This pair does not meet the minimum coverage or size "
+                          "limit. Choose another pair or adjust the area."))
         # Evitar un temporizador extra si todavía no hay job. El fragment
         # se actualiza cada 2 s solo durante preparación/QA de un resultado.
         if st.session_state.get("v9_preparacion") and not (
             estado and _resultado_sar_verificado(estado)
         ):
             _progreso_pie_sar()
-        st.caption(mensaje)
+        # Un mensaje estático de «Procesando» se quedaba congelado después
+        # de un fallo. Durante el job, el fragment de arriba muestra el
+        # progreso o el error ACTUAL cada 2 s, sin recargar el mapa.
+        trabajo_actual = (
+            zona is not None and isinstance(inicio, date) and isinstance(fin, date)
+            and st.session_state.get("v9_firma") == _firma(zona, inicio, fin)
+            and bool(st.session_state.get("v9_preparacion"))
+            and not (estado and _resultado_sar_verificado(estado))
+        )
+        if not trabajo_actual:
+            st.caption(mensaje)
         if st.button(
             tr("Analizar con este par", "Analyze with this pair"),
             key="v9_analizar", type="primary", icon=":material/play_arrow:",
@@ -999,9 +1019,6 @@ def render() -> None:
     elif estado:
         st.markdown(tr("**Pares disponibles**", "**Available pairs**"))
         _panel_coberturas(estado, zona, inicio, fin)
-    elif st.session_state.get("v9_coberturas_error"):
-        # El aviso principal aparece arriba del botón Analizar.
-        pass
     # Todos los errores de solicitud/catálogo se muestran arriba del botón
     # Analizar, en accion_principal; no duplicar alertas al final del panel.
     _mostrar_sugerencias(firma)
