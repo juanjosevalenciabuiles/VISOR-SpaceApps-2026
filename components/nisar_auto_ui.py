@@ -171,15 +171,16 @@ def _cambio_automatico(preparacion: dict) -> None:
 def _mostrar_trabajo(job_id: str):
     t = trabajos.leer(job_id)
     if not t:
-        st.warning("No se encontró el trabajo de adquisición NISAR.")
+        st.warning(tr("No se encontró el trabajo NISAR.", "NISAR job not found."))
         return
-    st.markdown(f"**Estado de preparación:** {t['estado']}")
+    st.markdown(f"**{tr('Estado de preparación', 'Preparation status')}:** {t['estado']}")
     for f in t.get("fases") or []:
         if f["estado"] != trabajos.PENDIENTE:
             # La cola genérica dice «Resultado publicado», pero aquí solo se publica
             # el manifiesto de INSUMOS, no una capa ambiental dibujable.
             if f["clave"] == "listo" and t["estado"] == trabajos.APTO:
-                st.caption("Preparación terminada: APTO · Insumos NISAR guardados, sin clasificación de agua")
+                st.caption(tr("Insumos NISAR guardados; no hay clasificación de agua.",
+                              "NISAR inputs saved; no water classification."))
             else:
                 st.caption(f"{f['nombre']}: {f['estado']} · {f.get('detalle') or ''}")
     if t["estado"] in trabajos.ACTIVOS:
@@ -194,7 +195,7 @@ def _mostrar_trabajo(job_id: str):
                       "Data and manifests saved in data/nisar/; native resolution and provenance preserved."))
         _cambio_automatico(t)
     else:
-        st.warning(f"El trabajo no se completó: {t.get('error') or t['estado']}")
+        st.warning(f"{tr('El trabajo no se completó', 'Job did not finish')}: {t.get('error') or t['estado']}")
 
 
 def render(region, error: str | None):
@@ -216,23 +217,24 @@ def render(region, error: str | None):
                       format_func=lambda opcion: tr(opcion,
                           "Optimized subset · NASA Harmony" if opcion == METODOS[0]
                           else "Full HDF5 · alternative"), horizontal=True,
-                      key="nisar_auto_metodo", help="Harmony es más eficiente para áreas pequeñas.")
+                      key="nisar_auto_metodo", help=tr("Harmony es mejor para áreas pequeñas.", "Harmony is more efficient for small AOIs."))
     if metodo == METODOS[0]:
         max_mb = st.slider(tr("Almacenamiento máximo para imágenes recortadas (MB)",
                           "Maximum storage for subsets (MB)"), 128, 512, 384, 64,
                            key="nisar_max_mb",
-                           help="Límite real de transferencia. No se reduce la resolución.")
+                           help=tr("Límite de transferencia, sin reducir resolución.",
+                                   "Download limit without downsampling."))
         max_gb = 15
-        st.caption("Solicitud remota: HH/HV (según disponibilidad), máscara y número de observaciones; "
-                   "sin reproyección ni interpolación. No puede calcular inundaciones de una fecha única.")
+        st.caption(tr("Se solicitan capas HH/HV y QA disponibles; una fecha no basta para analizar cambios.",
+                       "Requests available HH/HV and QA layers; a single date cannot show change."))
     else:
         max_gb = st.slider(tr("Presupuesto máximo para HDF5 completos (GB)",
                           "Maximum storage for full HDF5 (GB)"), 1, 10, 5,
                            key="nisar_max_gb",
-                           help="Solo como alternativa autorizada. Necesita varios GB de espacio.")
+                           help=tr("Alternativa que necesita varios GB.", "Alternative requiring several GB of storage."))
         max_mb = 0
-        st.warning("Esta alternativa descarga archivos completos de 1 a varios GB. "
-                   "Harmony es preferible cuando está disponible.")
+        st.warning(tr("Esta alternativa descarga HDF5 de varios GB. Prefiere Harmony.",
+                       "This downloads multi-GB HDF5 files. Prefer Harmony where available."))
 
     clave = (tuple(region.limites), str(inicio), str(fin), metodo, max_mb, max_gb)
     if st.button(tr("1. Buscar imágenes NISAR", "1. Find NISAR images"), key="nisar_auto_buscar", type="primary"):
@@ -255,14 +257,17 @@ def render(region, error: str | None):
     guardado = st.session_state.get("nisar_auto_plan")
     if guardado and guardado["clave"] == clave:
         plan = guardado["plan"]
-        st.markdown(f"**Propuesta:** {plan.tipo.replace('_', ' ').lower()} · "
-                    f"{len(plan.candidatos)} fecha(s) · "
-                    f"cobertura aproximada **{plan.cobertura:.0%}** de la zona.")
+        st.markdown(f"**{tr('Propuesta', 'Plan')}:** {plan.tipo.replace('_', ' ').lower()} · "
+                    f"{len(plan.candidatos)} {tr('fecha(s)', 'date(s)')} · "
+                    f"{tr('cobertura aproximada', 'estimated coverage')} **{plan.cobertura:.0%}**.")
         if metodo == METODOS[0]:
-            st.caption(f"El HDF5 original suma {plan.tamano_bytes/1e9:.2f} GB, pero **NO se descargará**. "
-                       f"Límite máximo de descarga COG: {max_mb} MB, sujeto a disponibilidad Harmony.")
+            st.caption(tr(f"El HDF5 completo suma {plan.tamano_bytes/1e9:.2f} GB, pero NO se descargará. "
+                      f"Límite de recortes: {max_mb} MB.",
+                      f"Full HDF5 size: {plan.tamano_bytes/1e9:.2f} GB, NOT downloaded. "
+                      f"Subset download limit: {max_mb} MB."))
         else:
-            st.caption(f"Tamaño de HDF5 completos: {plan.tamano_bytes/1e9:.2f} GB.")
+            st.caption(tr(f"Tamaño de HDF5 completos: {plan.tamano_bytes/1e9:.2f} GB.",
+                           f"Full HDF5 size: {plan.tamano_bytes/1e9:.2f} GB."))
         for aviso in plan.avisos:
             st.caption(aviso)
         if not os.environ.get(nisar_descarga.VARIABLE_TOKEN, "").strip():
