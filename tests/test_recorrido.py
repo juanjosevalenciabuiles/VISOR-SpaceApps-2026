@@ -232,6 +232,7 @@ def test_app_arranca_vacia_aunque_haya_resultados_en_disco(tmp_path, monkeypatch
     reproducible(tmp_path)
     monkeypatch.setattr(resultados, "CARPETA_ANALISIS", tmp_path)
     monkeypatch.setenv("VISOR_GEOCODIFICADOR_URL", "desactivado")
+    monkeypatch.setenv("VISOR_MOSTRAR_HISTORIAL", "1")  # fixture QA, oculto en el producto público
     monkeypatch.chdir(RAIZ)
     for _ in range(2):                                               # dos sesiones nuevas e independientes
         at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=120).run()
