@@ -209,8 +209,11 @@ def test_resultado_nuevo_recupera_zoom_del_navegador_sin_navegacion_explicita(mo
 def test_leaflet_conserva_vista_localmente_sin_guardar_datos_sar():
     from folium import MacroElement
     assert issubclass(mapa.RecordarVistaNavegador, MacroElement)
-    script = mapa.RecordarVistaNavegador._template.module.script(
-        mapa.RecordarVistaNavegador())
+    import folium
+
+    m = folium.Map(location=[7.67, -76.67])
+    mapa.RecordarVistaNavegador().add_to(m)
+    script = m.get_root().render()
     assert "sessionStorage" in script
     assert "moveend" in script
     assert "getCenter" in script and "getZoom" in script
