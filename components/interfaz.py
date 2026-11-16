@@ -319,8 +319,20 @@ def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None,
                         unsafe_allow_html=True)
             st.button(tr("Cerrar", "Close"), key="cerrar_info",
                       icon=":material/close:", type="tertiary", on_click=alternar_info)
-        # Cuando hay un resultado, la ficha SAR tiene prioridad sobre el
-        # contexto territorial. Wikipedia no es una fuente de validación SAR.
+        # Wikipedia y fotografía corresponden exclusivamente a Information
+        # (panel DERECHO), antes y después del análisis. El resultado SAR
+        # sigue a la ficha territorial; nunca se copia al Explorer ni a SAR.
+        if st.session_state.get("ui_info"):
+            zona = contexto_zona.zona_actual()
+            if zona is not None:
+                local = contexto_zona.local_de(zona)
+                referencia = contexto_zona.municipio_de_busqueda(
+                    zona, local, st.session_state.get("lugar"))
+                wiki = contexto_zona.wikipedia_zona(zona, local)
+                st.markdown(contexto_zona.ficha_breve_html(zona, local, wiki, referencia),
+                            unsafe_allow_html=True)
+                if wiki.get("estado") == "CONSULTANDO":
+                    contexto_zona._vigilar_wikipedia_resumen(zona["clave"])
         if activos:
             for res in activos:
                 st.caption(tr("HISTÓRICO", "HISTORICAL") if flujo.es_historico()
@@ -334,32 +346,6 @@ def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None,
             # Solo habilitado cuando VISOR_MOSTRAR_DEMO=1 en un entorno QA.
             st.caption(tr("CAPA SINTÉTICA", "SYNTHETIC LAYER"))
             panel_info.render(fenomeno, capa, error)
-        # Wikipedia es contexto OPCIONAL, exclusivo del panel derecho
-        # Information. Después de analizar permanece oculto hasta pulsar
-        # "Ver información del lugar"; así no desplaza la ficha SAR.
-        # Antes de analizar la ficha breve sigue apareciendo automáticamente
-        # al confirmar el AOI, como pidió el equipo.
-        if st.session_state.get("ui_info"):
-            zona = contexto_zona.zona_actual()
-            if zona is not None:
-                mostrar_lugar = True
-                if activos:
-                    mostrar_lugar = st.toggle(
-                        tr("Ver información del lugar (Wikipedia)",
-                           "Show place information (Wikipedia)"),
-                        value=False, key=f"info_lugar_{zona['clave']}",
-                        help=tr("Contexto geográfico, no evidencia de inundación.",
-                                "Geographic context, not flood evidence."),
-                    )
-                if mostrar_lugar:
-                    local = contexto_zona.local_de(zona)
-                    referencia = contexto_zona.municipio_de_busqueda(
-                        zona, local, st.session_state.get("lugar"))
-                    wiki = contexto_zona.wikipedia_zona(zona, local)
-                    st.markdown(contexto_zona.ficha_breve_html(zona, local, wiki, referencia),
-                                unsafe_allow_html=True)
-                    if wiki.get("estado") == "CONSULTANDO":
-                        contexto_zona._vigilar_wikipedia_resumen(zona["clave"])
     # Los créditos y límites se conservan bajo consulta voluntaria.
     with panel:
         fuentes = st.expander(tr("Fuentes y créditos", "Sources and credits"), expanded=False)
