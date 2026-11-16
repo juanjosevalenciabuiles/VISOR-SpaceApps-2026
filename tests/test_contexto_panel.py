@@ -502,8 +502,8 @@ def test_recomendaciones_principales_visibles_y_otras_plegables():
     assert "recom_{clave}" in source
 
 
-def test_zonas_recomendadas_se_amplian_cerca_del_maximo_real_sin_salir_de_colombia():
-    """Al seleccionar, amplía el río sin modificar el AOI original que funcionó."""
+def test_zonas_recomendadas_son_compactas_y_cuadradas_en_km_dentro_de_colombia():
+    """Cada preset conserva el río, pero ya no produce grandes rectángulos al 87 %."""
     from components import barra_lateral
     from utils import sesion
     from utils.analisis_sar import MAX_PIXELES
@@ -515,10 +515,29 @@ def test_zonas_recomendadas_se_amplian_cerca_del_maximo_real_sin_salir_de_colomb
         assert sesion.validar_zona(ampliada) == ampliada
         assert ampliada[0] <= base[0] and ampliada[1] <= base[1]
         assert ampliada[2] >= base[2] and ampliada[3] >= base[3]
+        ancho_km, alto_km = sesion.dimensiones_km(ampliada)
+        assert 0.97 <= ancho_km / alto_km <= 1.03, (
+            f"{clave}: lado oeste-este {ancho_km:.2f} km, "
+            f"norte-sur {alto_km:.2f} km; la zona debe ser cuadrada en km"
+        )
         pix = sesion.pixeles_estimados(ampliada)
-        assert pix <= int(MAX_PIXELES * 0.87), "reservar margen de memoria"
-        assert pix > sesion.pixeles_estimados(base)
-        assert pix >= int(MAX_PIXELES * 0.65), (
-            f"{clave}: la recomendación sigue demasiado pequeña pese al espacio disponible"
+        assert pix <= int(MAX_PIXELES * 0.40), (
+            f"{clave}: el área no debe volver al máximo de la versión anterior"
+        )
+        assert pix > sesion.pixeles_estimados(base), (
+            f"{clave}: conservar extensión mayor que el corredor base"
         )
     assert casos["chigorodo"]["limites"] == (-76.825, 7.568, -76.648, 7.676)
+
+
+def test_cuadrados_recomendados_son_deterministas_y_no_modifican_preset():
+    """Repetir la elección no desplaza la zona ni altera coordenadas científicas."""
+    from components import barra_lateral
+
+    originales = {k: tuple(x["limites"]) for k, x in
+                  barra_lateral.RECOMENDACIONES_AOI.items()}
+    for clave, original in originales.items():
+        uno = barra_lateral._ampliar_area_recomendada(original)
+        dos = barra_lateral._ampliar_area_recomendada(original)
+        assert uno == dos, f"{clave}: la selección debe ser reproducible"
+        assert barra_lateral.RECOMENDACIONES_AOI[clave]["limites"] == original
