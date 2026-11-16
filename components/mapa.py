@@ -604,6 +604,19 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
     # Así el componente no conserva overlays anteriores al cambiar el historial.
     resultado = next(iter(sorted(c.resultados)), "none")
     clave_widget = "mapa" if resultado == "none" and idioma() == "es" else f"mapa__{resultado}__{idioma()}"
+    # El mapa es interactivo en el navegador: un pan/zoom normal no necesita
+    # ejecutar de nuevo Streamlit ni volver a serializar los overlays SAR.
+    # Solo la AOI dibujada debe activar el servidor. Las herramientas que
+    # necesitan la extensión visible y las capas de ríos/vías recortadas sí
+    # reciben bounds/zoom/center para actualizarlas mientras se navega.
+    seguir_encuadre = bool(seguir_vista or c.hidrografia or c.vias)
+    objetos_devuelto = (["all_drawings", "bounds", "zoom", "center"]
+                         if seguir_encuadre else ["all_drawings"])
+    # streamlit-folium fija returned_objects al montar su iframe: entrar
+    # o salir del modo de seguimiento requiere UNA nueva instancia, no un
+    # remontaje por cada cambio de centro/zoom.
+    if seguir_encuadre:
+        clave_widget += "__seguir_vista"
     # Solo un clic en una recomendación recrea el componente para limpiar dibujos
     # antiguos de Leaflet. La clave permanece estable durante pan/zoom.
     sugerencia_version = int(st.session_state.get("visor_aoi_recomendacion_seq", 0))
@@ -620,7 +633,7 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
         use_container_width=True,
         # streamlit-folium fija esta lista al montar el mapa y no la vuelve a leer: tiene que ser
         # constante. Mover el mapa provoca una recarga ligera (sin recálculo) para conocer el encuadre.
-        returned_objects=["all_drawings", "bounds", "zoom", "center"],
+        returned_objects=objetos_devuelto,
         center=centro,
         zoom=zoom,
         key=clave_widget,            # estable en zoom; nueva al cambiar resultado
@@ -633,7 +646,12 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
         if salida.get("all_drawings") is not None else False
     )
     limites = limites_de_vista(salida.get("bounds"))
-    st.session_state["mapa_limites"] = limites if limites is not None and limites[0] < limites[2] else None
+    if limites is not None and limites[0] < limites[2]:
+        st.session_state["mapa_limites"] = limites
+    elif seguir_encuadre:
+        # No pisar el último encuadre solo porque el componente aún está
+        # montándose; queda disponible al moverlo en modo de seguimiento.
+        st.session_state.setdefault("mapa_limites", None)
     if nueva_seleccion:
         st.rerun()  # Nueva AOI: refresca también los controles externos al mapa.
 
