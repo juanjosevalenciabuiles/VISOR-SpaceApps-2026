@@ -597,6 +597,14 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
     que se ve y para «usar el área visible»). Nada de lo que devuelve el mapa lanza un análisis."""
     # Cada rerun debe recibir resultados, controles y overlays actualizados.
     # Con @st.fragment el pan/zoom usaba argumentos obsoletos y restauraba el histórico.
+    # Identidad estable del mapa para pan/zoom, nueva al elegir otro GeoTIFF.
+    # Así el componente no conserva overlays anteriores al cambiar el historial.
+    from utils.i18n import idioma
+    resultado = next(iter(sorted(c.resultados)), "none")
+    clave_widget = "mapa" if resultado == "none" and idioma() == "es" else f"mapa__{resultado}__{idioma()}"
+    if clave_widget != st.session_state.get("mapa_widget_key"):
+        st.session_state["mapa_widget_key"] = clave_widget
+        st.session_state["mapa_firma_dibujo"] = None
     centro, zoom = _centro_y_zoom_guardados(vista)
     salida = st_folium(
         mapa_fijo(),
@@ -608,7 +616,7 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
         returned_objects=["all_drawings", "bounds", "zoom", "center"],
         center=centro,
         zoom=zoom,
-        key="mapa",                   # clave persistente del componente
+        key=clave_widget,            # estable en zoom; nueva al cambiar resultado
         on_change=_guardar_encuadre_usuario,
     ) or {}
     # El componente puede devolver una actualización parcial (zoom, capas).
