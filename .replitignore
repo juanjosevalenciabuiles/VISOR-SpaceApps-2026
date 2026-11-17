@@ -1,0 +1,44 @@
+# V.I.S.O.R. | Qué NO se empaqueta en la publicación de Replit (Autoscale).
+# Solo afecta a la imagen publicada: no borra nada del workspace.
+#
+# REGLA CRÍTICA: NO excluir .pythonlibs/ ni .venv/.
+#   .venv/pyvenv.cfg tiene "home = /home/runner/workspace/.pythonlibs/bin":
+#   el Python de .venv es un enlace a .pythonlibs. Sin .pythonlibs el enlace
+#   queda roto en el contenedor, start.sh intenta recrear .venv e instalar
+#   desde PyPI (inaccesible en Autoscale) y la app nunca abre el puerto 5000.
+#   Así fallaron todas las publicaciones del 17-nov. La publicación que sí
+#   funcionó (c482f32c, 15-nov) no tenía este archivo y llevaba ambos.
+
+# Historial Git (~4,9 GiB): no hace falta para servir la app.
+.git/
+
+# Entornos de los experimentos de despliegue del 17-nov (~1,5 GiB): no se usan.
+runtime_env/
+runtime_packages/
+
+# Cachés, pruebas e informes locales.
+.cache/
+.pytest_cache/
+__pycache__/
+*.pyc
+informes/
+exportaciones/
+
+# Secretos: en producción van en los Secrets del despliegue, nunca en la imagen.
+.env
+.env.*
+.streamlit/secrets.toml
+
+# Registro de trabajos del workspace: apunta a cachés Harmony que no se publican
+# y podría reanudar trabajos al arrancar. Producción empieza con historial vacío.
+data/trabajos/
+
+# Cachés históricos de NASA Harmony (~5,9 GiB, 65 AOI/fechas). Siguen intactos
+# en el workspace. Se conserva solo el par de demostración de Chigorodó.
+data/nisar/harmony/**
+!data/nisar/harmony/375d3135cd519661/
+!data/nisar/harmony/375d3135cd519661/**
+!data/nisar/harmony/3875345486d3a7c7/
+!data/nisar/harmony/3875345486d3a7c7/**
+
+# data/analisis/ (resultados GeoTIFF con ficha y SHA-256) SÍ se publica.
