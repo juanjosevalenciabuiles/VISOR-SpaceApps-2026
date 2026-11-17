@@ -6,6 +6,7 @@ Las opciones especializadas continúan en Herramientas SAR por compatibilidad.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 
@@ -603,8 +604,8 @@ def _seguimiento(firma):
         st.info(tr("Preparando observaciones NISAR reales…", "Preparing real NISAR observations…"))
         return
     if preparacion["estado"] != trabajos.APTO:
-        st.warning(tr("La preparación NISAR falló", "NISAR preparation failed") + ": " +
-                   str(preparacion.get("error") or preparacion["estado"]))
+        # El error completo ya se muestra en la cabecera SAR, antes de Analizar.
+        # Evitar el mismo fallo duplicado al final del panel.
         return
     zona = flujo.zona_confirmada()
     inicio, fin = date.fromisoformat(firma[1]), date.fromisoformat(firma[2])
@@ -821,6 +822,61 @@ def _aplicar_zona_menor_cog() -> None:
     interfaz.centrar_en(nueva)
 
 
+def _error_preparacion_publico(error: str) -> str:
+    """Mostrar la causa persistida, sin URL firmadas ni credenciales accidentales."""
+    texto = str(error or "").strip()
+    texto = re.sub(r"https?://[^\\s<>]+", "[enlace omitido]", texto, flags=re.IGNORECASE)
+    texto = re.sub(
+        r"(?:bearer\\s+|EARTHDATA_TOKEN\\s*[=:]\\s*)(?!en\\b)[^\\s,;]+",
+        "[credencial omitida]", texto, flags=re.IGNORECASE,
+    )
+    return texto[:600] or tr("Error desconocido en el trabajo.", "Unknown job error.")
+
+
+def _sugerencia_error_preparacion(error: str) -> str:
+    """Orientaciones sin atribuir el fallo a una causa no demostrada."""
+    e = str(error).lower()
+    if "cog_demasiado_grande" in e or "límite de bytes" in e:
+        return tr(
+            "El recorte supera el presupuesto; revisa el tamaño indicado o reduce la AOI.",
+            "The subset exceeds its budget; inspect its size or reduce the AOI.",
+        )
+    if "superó el límite" in e or "no terminó dentro del límite" in e:
+        return tr(
+            "Se agotó el tiempo permitido. Revisa si Harmony avanzaba o si el servidor se reinició.",
+            "The time limit was reached. Check Harmony progress or server restarts.",
+        )
+    if "reinició" in e or "interrumpido" in e:
+        return tr(
+            "El servidor interrumpió el trabajo; comprueba la estabilidad de Replit.",
+            "The server interrupted the job; check Replit runtime stability.",
+        )
+    if any(x in e for x in ("espacio insuficiente", "no hay espacio libre", "almacenamiento")):
+        return tr(
+            "Revisa el espacio del entorno que ejecuta el trabajo; puede ser distinto al Preview.",
+            "Check free space in the runtime executing the job; it may differ from Preview.",
+        )
+    if any(x in e for x in ("earthdata", "autenticación", "autorización", "login", "403", "401")):
+        return tr(
+            "Revisa la autenticación Earthdata en Secrets, sin compartir el token.",
+            "Check Earthdata authentication in Secrets without sharing the token.",
+        )
+    if any(x in e for x in ("crs", "cuadrícula", "geotiff", "resolución", "máscara")):
+        return tr(
+            "El producto no pasó la validación científica; no se debe publicar como resultado.",
+            "The product failed scientific checks and must not be published as a result.",
+        )
+    if "harmony" in e or "capas" in e:
+        return tr(
+            "Revisa el estado del servicio Harmony y las capas del par. No asumas que es la AOI.",
+            "Check Harmony service and pair layers. Do not assume the AOI is the problem.",
+        )
+    return tr(
+        "El diagnóstico exacto está en el error del trabajo; no reduzcas la zona a ciegas.",
+        "The job error holds the actual diagnosis; do not shrink the area blindly.",
+    )
+
+
 def _error_cog_grande(error: str) -> bool:
     return "COG_DEMASIADO_GRANDE" in error or (
         "COG supera el límite" in error or "límite de bytes antes de transferir" in error
@@ -957,13 +1013,13 @@ def _progreso_pie_sar() -> None:
                 except sesion.ErrorZona as exc:
                     st.error(str(exc))
         else:
-            st.error(tr(
-                "Falló la preparación de NISAR. No hay un resultado SAR válido.",
-                "NISAR preparation failed. There is no valid SAR result.",
-            ))
-            with st.expander(tr("Ver detalle del error", "Show error details"),
-                             expanded=False):
-                st.caption(error)
+            # El mensaje anterior era genérico; dejar visible el error REAL
+            # guardado por el trabajo, en la cabecera, antes de Analizar.
+            st.error(
+                tr("Falló la preparación NISAR: ", "NISAR preparation failed: ")
+                + _error_preparacion_publico(error)
+            )
+            st.caption(_sugerencia_error_preparacion(error))
         return
     job_mapa = st.session_state.get("v9_mapa_job")
     if prep.get("estado") == trabajos.APTO and job_mapa:
@@ -973,13 +1029,11 @@ def _progreso_pie_sar() -> None:
             return
         if cambio and cambio.get("estado") not in trabajos.ACTIVOS:
             if cambio.get("estado") != trabajos.APTO:
+                error_calculo = str(cambio.get("error") or cambio["estado"])
                 st.error(tr(
-                    "Falló el cálculo SAR o su verificación. No se publicó el mapa.",
-                    "SAR calculation or quality checks failed. No map was published.",
-                ))
-                with st.expander(tr("Ver detalle del error", "Show error details"),
-                                 expanded=False):
-                    st.caption(str(cambio.get("error") or cambio["estado"]))
+                    "Falló el cálculo o QA SAR: ", "SAR calculation or QA failed: "
+                ) + _error_preparacion_publico(error_calculo))
+                st.caption(_sugerencia_error_preparacion(error_calculo))
             return
     _mostrar_progreso(prep, "preparacion")
 
