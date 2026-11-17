@@ -41,3 +41,7 @@ data/nisar/harmony/**
 !data/nisar/harmony/3875345486d3a7c7/**
 
 # data/analisis/ (resultados GeoTIFF con ficha y SHA-256) SÍ se publica.
+
+# Laboratorio IA: investigación del equipo ML (~120 MiB: notebooks, modelos, datos).
+# La app solo usa data/ia_lab/demo_visor_E6.html, que sí se publica.
+ia_lab/

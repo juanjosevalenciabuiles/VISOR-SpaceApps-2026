@@ -61,3 +61,7 @@ Si el HTML no existe, se muestra un error y no se fabrican datos.
 - Revisar permisos de Drive: se observó acceso `anyone: writer` en
   artefactos del laboratorio. Corresponde al dueño revisar y restringir
   permisos; esta integración NO los modifica.
+
+## Investigación y modelos
+
+El trabajo completo del equipo ML (notebooks, entrenamiento, datos y modelos) está en [`ia_lab/`](../ia_lab/README.md) y sus resultados en [`docs/ia_lab/`](ia_lab/).

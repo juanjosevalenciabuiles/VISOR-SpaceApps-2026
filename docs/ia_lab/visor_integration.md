@@ -1,6 +1,6 @@
 # Integration with the V.I.S.O.R. app
 
-The app (Python + Streamlit + Folium) does not train anything: it reads precomputed files from `_ml_entrenamiento/para_visor/`.
+The app (Python + Streamlit + Folium) does not train anything: it reads precomputed files from `ia_lab/entrenamiento/para_visor/`.
 
 ## Layers
 
