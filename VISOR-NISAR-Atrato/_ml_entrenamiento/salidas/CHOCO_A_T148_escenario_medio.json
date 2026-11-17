@@ -1,0 +1,76 @@
+{
+  "esquema": "visor.ficha.v1",
+  "tipo_producto": "probabilidad_inundacion_nisar",
+  "producto": "Probabilidad de inundación nueva · escenario medio (nivel en Quibdó 497 cm)",
+  "fuente": "NISAR L2 GCOV (ASF DAAC) + IDEAM + Copernicus DEM/HAND + ESA WorldCover",
+  "fecha": "2026-09-04",
+  "unidades": "porcentaje (0-100)",
+  "nodata": 255,
+  "advertencia": "Pronóstico experimental entrenado con etiquetas no supervisadas (sin verdad de campo). Indica dónde es más probable que aparezca agua nueva si se da el escenario hidrológico indicado.",
+  "procedencia": {
+    "estado": "real_sin_validar",
+    "sensor": "NISAR L-SAR (banda L), stack A_T148",
+    "fechas": [
+      "2026-08-11",
+      "2026-09-04"
+    ],
+    "polarizaciones": [
+      "HH",
+      "HV"
+    ],
+    "metodo": "XGBoost sobre 30 variables (radar en t, clases en t, terreno, escenario IDEAM t→t+1); entrenado sin el evento E6; umbral de alerta 0.02",
+    "entradas": [
+      {
+        "papel": "estado",
+        "fecha": "2026-08-11"
+      },
+      {
+        "papel": "escenario",
+        "nivel_max_cm": 477.5000000000608
+      }
+    ],
+    "generado_por": {
+      "modulo": "ml_choco",
+      "notebook": "entrenamiento_prediccion_inundaciones.ipynb"
+    },
+    "generado_utc": "2026-11-15T18:17:20+00:00",
+    "archivo": {
+      "nombre": "CHOCO_A_T148_escenario_medio.tif",
+      "sha256": "7be1c7477a2ac4b6981ffbf28dd8bba03ef0b66de69f6ebcbf56fc3a510efbee"
+    },
+    "validacion": null
+  },
+  "fechas_detalle": {
+    "observacion": "2026-08-11",
+    "fecha_objetivo": null,
+    "nota": "Escenario hipotético: mismo estado del radar, nivel del río fijado por el usuario o por el Modelo A."
+  },
+  "umbral_alerta_pct": 2,
+  "criterio_umbral": "percentil 95 de la franja: la alerta marca el 5 % de celdas más probables",
+  "cuadricula": {
+    "crs": "EPSG:32618",
+    "resolucion": [
+      40,
+      40
+    ],
+    "limites": [
+      272880,
+      613560,
+      339880,
+      796440
+    ],
+    "ancho": 1675,
+    "alto": 4572
+  },
+  "limitaciones": [
+    "Etiquetas del etiquetado no supervisado solo NISAR, no de campo.",
+    "Productos NISAR provisionales (bandeo de 1-2 dB).",
+    "Bajo bosque muy denso la inundación se subestima.",
+    "Solo 18 pares de fechas (jun-sep 2026) y un escenario hidrológico por par."
+  ],
+  "escenario": {
+    "nombre": "medio",
+    "nivel_quibdo_cm": 497,
+    "estado_base": "2026-08-11"
+  }
+}

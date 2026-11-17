@@ -1,0 +1,66 @@
+{
+  "modelo_A": {
+    "operativo": {
+      "modelo": "Random Forest",
+      "conjunto": "2 · + GloFAS hoy",
+      "H_dias": 3,
+      "umbral_nivel_cm": 497,
+      "ROC_AUC": 0.767,
+      "PR_AUC": 0.443,
+      "F1": 0.492,
+      "POD": 0.519,
+      "FAR": 0.533,
+      "CSI": 0.326,
+      "Brier": 0.118,
+      "umbral": 0.333
+    },
+    "con_pronostico": {
+      "modelo": "XGBoost",
+      "conjunto": "3 · + pronóstico GloFAS (techo)",
+      "H_dias": 3,
+      "umbral_nivel_cm": 497,
+      "ROC_AUC": 0.79,
+      "PR_AUC": 0.458,
+      "F1": 0.477,
+      "POD": 0.67,
+      "FAR": 0.629,
+      "CSI": 0.314,
+      "Brier": 0.118,
+      "umbral": 0.207
+    },
+    "solo_ideam": {
+      "modelo": "Random Forest",
+      "conjunto": "1 · Quibdó IDEAM + ONI",
+      "H_dias": 3,
+      "umbral_nivel_cm": 497,
+      "ROC_AUC": 0.766,
+      "PR_AUC": 0.45,
+      "F1": 0.485,
+      "POD": 0.558,
+      "FAR": 0.57,
+      "CSI": 0.321,
+      "Brier": 0.118,
+      "umbral": 0.331
+    }
+  },
+  "modelo_B": {
+    "modelo": "XGBoost",
+    "umbral": 0.02,
+    "E6_A_T148": {
+      "ROC_AUC": 0.904,
+      "PR_AUC": 0.022,
+      "F1": 0.02,
+      "POD": 0.422,
+      "FAR": 0.99,
+      "CSI": 0.01,
+      "Brier": 0.005,
+      "umbral": 0.02,
+      "IoU": 0.01,
+      "captura_top_1%": 0.231,
+      "captura_top_5%": 0.422,
+      "captura_top_10%": 0.612
+    },
+    "filas_entrenamiento": 329679,
+    "pares": 18
+  }
+}

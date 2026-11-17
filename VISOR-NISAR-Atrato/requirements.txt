@@ -1,0 +1,16 @@
+numpy==2.5.3
+pandas==3.0.5
+scipy==1.18.1
+scikit-learn==1.9.1
+xgboost==3.4.1
+lightgbm==4.7.0
+joblib==1.6.0
+rasterio==1.5.2
+matplotlib
+h5py
+asf_search
+folium>=0.17
+Pillow
+streamlit
+pytest
+jupyter

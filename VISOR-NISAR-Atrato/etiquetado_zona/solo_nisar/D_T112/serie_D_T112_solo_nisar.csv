@@ -1,0 +1,5 @@
+stack,fecha,papel,pols,cubre_km2,umbral_agua_dB,ancla_bosque_dB,pct_seguro,1_Agua permanente_km2,2_Agua abierta nueva_km2,3_Veg. inundada permanente_km2,4_Veg. inundada nueva_km2,5_Bosque no inundado_km2,6_Veg. baja / pasto / suelo_km2,7_Urbano_km2,8_Urbano con aumento_km2,9_Dudoso_km2,inundacion_nueva_km2
+D_T112,2026-06-21,"despues E4, antes E5, antes E6",HH+HV,6556.541,-15.0,-5.55,69.722,219.26,0.269,71.941,3.818,5072.182,103.698,0.366,0.004,1075.205,4.088
+D_T112,2026-08-20,despues E5,HH,2508.582,-15.0,-4.55,83.64,139.457,4.17,38.584,0.624,2088.071,44.996,0.067,0.007,190.594,4.793
+D_T112,2026-09-01,durante E6,HH+HV,6541.562,-15.0,-5.15,78.923,210.74,0.382,71.941,3.833,5275.37,81.001,0.351,0.019,895.118,4.215
+D_T112,2026-09-25,despues E6,HH+HV,6557.032,-15.0,-5.15,89.326,212.384,0.06,71.941,0.156,5794.525,76.1,0.363,0.007,387.188,0.216
