@@ -56,6 +56,16 @@ def confirmar_zona(limites, origen: str, geometria: dict | None = None) -> None:
     apareciendo el marcador antiguo ni sesgar su contexto o el par NISAR.
     """
     nueva = sesion.validar_zona(limites)
+    zona_anterior = zona_confirmada()
+    if zona_anterior != nueva:
+        # Una AOI confirmada por dibujo, búsqueda o recomendación toma el
+        # centro una sola vez. Pan/zoom posteriores quedan en manos de Leaflet.
+        from components import interfaz
+        interfaz.centrar_en(nueva)
+        # La vista del municipio anterior no debe prevalecer en el nuevo AOI.
+        st.session_state.pop("mapa_encuadre_usuario", None)
+        st.session_state.pop("mapa_ultimo_destino", None)
+        st.session_state.pop("mapa_limites", None)
     lugar = st.session_state.get("lugar")
     if isinstance(lugar, dict):
         try:
