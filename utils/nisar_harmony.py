@@ -74,7 +74,7 @@ def _json_publico(url: str, abrir=None) -> dict:
     return datos
 
 
-def capacidades(abrir=None, madurez: str = "VALIDATED") -> dict:
+def capacidades(abrir=None, madurez: str = "VALIDATED", dormir=time.sleep) -> dict:
     """Capacidades Harmony de LA colección elegida; no modifica datos."""
     madurez = madurez.upper()
     if madurez not in COLECCIONES_AUTORIZADAS:
@@ -82,41 +82,51 @@ def capacidades(abrir=None, madurez: str = "VALIDATED") -> dict:
     nombre = COLECCIONES_AUTORIZADAS[madurez]
     url = CAP_URL if madurez == "VALIDATED" else (
         "https://harmony.earthdata.nasa.gov/capabilities?shortName=" + nombre)
-    try:
-        data = _json_publico(url, abrir)
-    except urllib.error.HTTPError as exc:
-        # HTTPError también es URLError. Separar códigos sin mostrar URLs,
-        # cabeceras, cookies ni posibles parámetros privados de la petición.
-        codigo = int(exc.code)
-        if codigo in (401, 403):
-            motivo = f"HTTP {codigo}: acceso rechazado por Harmony."
-        elif codigo == 404:
-            motivo = "HTTP 404: Harmony no encontró capacidades para esta colección."
-        elif codigo == 429:
-            motivo = "HTTP 429: límite temporal de solicitudes de Harmony."
-        elif 500 <= codigo <= 599:
-            motivo = f"HTTP {codigo}: fallo del servicio Harmony."
-        else:
-            motivo = f"HTTP {codigo}: petición de capacidades rechazada."
-        raise ErrorHarmony(
-            f"No se pudo verificar Harmony para NISAR {madurez}: {motivo} "
-            "No se descargó ningún GeoTIFF."
-        ) from None
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        razon = getattr(exc, "reason", None)
-        if isinstance(exc, TimeoutError) or isinstance(razon, TimeoutError):
-            motivo = "La consulta de capacidades agotó su tiempo de conexión."
-        else:
-            motivo = "No se logró conectar con el endpoint de capacidades de Harmony."
-        raise ErrorHarmony(
-            f"No se pudo verificar Harmony para NISAR {madurez}: {motivo} "
-            "No se descargó ningún GeoTIFF."
-        ) from None
-    except ValueError:
-        raise ErrorHarmony(
-            f"Harmony respondió con datos JSON inválidos para NISAR {madurez}. "
-            "No se descargó ningún GeoTIFF."
-        ) from None
+    # La lectura pública de capacidades es un GET idempotente. Reintentar
+    # ÚNICAMENTE fallos de red, HTTP 408/429 y 5xx transitorios; nunca
+    # descargas COG, solicitudes de trabajo, ni rechazos de autorización.
+    # 3 intentos máximos y esperas de 1 + 2 s, sin cachear datos dudosos.
+    for intento in range(3):
+        try:
+            data = _json_publico(url, abrir)
+            break
+        except urllib.error.HTTPError as exc:
+            codigo = int(exc.code)
+            if codigo in (408, 429, 500, 502, 503, 504) and intento < 2:
+                dormir(2 ** intento)
+                continue
+            if codigo in (401, 403):
+                motivo = f"HTTP {codigo}: acceso rechazado por Harmony."
+            elif codigo == 404:
+                motivo = "HTTP 404: Harmony no encontró capacidades para esta colección."
+            elif codigo == 429:
+                motivo = "HTTP 429: límite temporal de solicitudes de Harmony."
+            elif 500 <= codigo <= 599:
+                motivo = f"HTTP {codigo}: fallo del servicio Harmony."
+            else:
+                motivo = f"HTTP {codigo}: petición de capacidades rechazada."
+            raise ErrorHarmony(
+                f"No se pudo verificar Harmony para NISAR {madurez}: {motivo} "
+                "No se descargó ningún GeoTIFF."
+            ) from None
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            if intento < 2:
+                dormir(2 ** intento)
+                continue
+            razon = getattr(exc, "reason", None)
+            if isinstance(exc, TimeoutError) or isinstance(razon, TimeoutError):
+                motivo = "La consulta de capacidades agotó su tiempo de conexión."
+            else:
+                motivo = "No se logró conectar con el endpoint de capacidades de Harmony."
+            raise ErrorHarmony(
+                f"No se pudo verificar Harmony para NISAR {madurez}: {motivo} "
+                "No se descargó ningún GeoTIFF."
+            ) from None
+        except ValueError:
+            raise ErrorHarmony(
+                f"Harmony respondió con datos JSON inválidos para NISAR {madurez}. "
+                "No se descargó ningún GeoTIFF."
+            ) from None
     if data.get("shortName") != nombre or not re.fullmatch(r"C\d+-ASF", data.get("conceptId") or ""):
         raise ErrorHarmony("Harmony no identifica la colección NISAR " + madurez + " en ASF.")
     nombres = {
