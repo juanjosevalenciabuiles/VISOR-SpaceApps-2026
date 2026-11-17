@@ -1,14 +1,11 @@
-# V.I.S.O.R. — Deployment-only exclusions for Replit
-# Based on verified functional SAR version 3f67ecb.
-# This file does NOT delete files from the workspace or modify scientific data.
-# Keep .venv for start.sh. Keep all COG and SAR output until we audit them.
+# V.I.S.O.R. | Despliegue NASA — base funcional 3f67ecb
+# Solo afecta a la imagen publicada. NO borra archivos del workspace.
 #
-# Git history is unnecessary for the running web application (~4.9 GiB).
+# Metadatos de desarrollo (4.9 GiB): no necesarios para ejecutar Streamlit.
 .git/
-# Replit's legacy Python package install is not used by start.sh,
-# which runs the isolated .venv (~767 MiB).
+# Instalacion duplicada de paquetes (767 MiB): start.sh usa exclusivamente .venv.
 .pythonlibs/
-# Build and QA artifacts, not used by the production app.
+# Archivos temporales del editor y las pruebas.
 .cache/
 .pytest_cache/
 __pycache__/
@@ -16,7 +13,27 @@ __pycache__/
 tests/
 informes/
 exportaciones/
-# Never bundle local secrets; use Replit deployment secrets instead.
+# Secretos en Replit Deployment Secrets, nunca en la imagen.
 .env
 .env.*
 .streamlit/secrets.toml
+
+# Datos de trabajos anteriores: pueden apuntar a archivos que no existen en
+# produccion. Los nuevos se crean durante el procesamiento en data/trabajos/.
+data/trabajos/
+
+# Harmony: preservar originales solo en el workspace, evitar que 65 caches
+# historicos (~5.9 GiB) se empaqueten. El proceso ya crea/descarga COG nuevos
+# cuando un AOI/fecha carece de cache compatible.
+data/nisar/harmony/**
+
+# Conservar UNA pareja pequena de preparaciones del AOI de Chigorodo
+# (2026-10-24 y 2026-11-05; ~78 MiB cada una) para demostracion.
+# Debe verificarse el manifest/CRS/huella antes de afirmar que es reutilizable.
+!data/nisar/harmony/375d3135cd519661/
+!data/nisar/harmony/375d3135cd519661/**
+!data/nisar/harmony/3875345486d3a7c7/
+!data/nisar/harmony/3875345486d3a7c7/**
+
+# Conservar data/analisis/: contiene resultados GeoTIFF mostrados en el mapa.
+# Conservar .venv/: start.sh lo verifica y reutiliza al publicar.
