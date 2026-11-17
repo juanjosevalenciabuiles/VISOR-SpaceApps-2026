@@ -11,6 +11,8 @@ externalPort = 80
 
 [deployment]
 deploymentTarget = "autoscale"
-# Mismo arranque que en desarrollo, para que el despliegue tenga las mismas bibliotecas.
-build = ["bash", "start.sh", "--verificar"]
-run = ["bash", "start.sh"]
+# Dependencias instaladas en build y vendorizadas fuera de .venv.
+# Autoscale no tiene que resolver PyPI ni crear entornos al iniciar.
+# El boton Run del workspace sigue usando el start.sh original.
+build = ["bash", "deploy/build.sh"]
+run = ["bash", "deploy/run.sh"]
