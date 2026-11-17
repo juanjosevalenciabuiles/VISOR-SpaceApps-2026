@@ -17,6 +17,7 @@ fija a pantalla completa desde assets/mission_control.css.
 
 import hashlib
 import json
+from dataclasses import replace
 
 import folium
 import numpy as np
@@ -743,6 +744,43 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
             salida["last_object_clicked"], clave_widget
         ):
             st.rerun()  # Solo selección explícita; nunca pan/zoom.
+
+
+
+def _render_estado_actual() -> None:
+    """Renderizar SIEMPRE con el estado del ultimo rerun completo de la app.
+
+    No conservar argumentos de un @st.fragment anterior: ese comportamiento
+    permitia que un pan/zoom restaurara un GeoTIFF historico ya deseleccionado.
+    Los eventos ligeros se aislan en render_vivo sin bloquear controles SAR.
+    """
+    actual = st.session_state.get("visor_mapa_render_actual")
+    if not actual:
+        return
+
+    # Recortes contextuales siguen el viewport mas reciente, incluso cuando
+    # solo se ha ejecutado el fragmento por pan/zoom.
+    controles = actual["controles"]
+    if controles.hidrografia or controles.vias:
+        limites, zoom = vista_actual(st.session_state.get("vista"))
+        controles = replace(controles, vista_limites=limites, vista_zoom=zoom)
+
+    from components import capas_ambientales, herramientas_sar, v9_experiencia
+
+    render(
+        actual["fenomeno"], actual["capa"], controles,
+        st.session_state.get("vista"), actual["resultados"],
+        [*herramientas_sar.grupos_mapa(), *capas_ambientales.grupos_mapa(),
+         *v9_experiencia.grupos_mapa()],
+        seguir_vista=herramientas_sar.necesita_vista(),
+        seleccionar_par=v9_experiencia.modo_seleccion_mapa(),
+    )
+
+
+@st.fragment
+def render_vivo() -> None:
+    """Pan/zoom en fragmento; cambios de AOI/pares actualizan toda la app."""
+    _render_estado_actual()
 
 
 def limites_de_vista(bounds) -> tuple[float, float, float, float] | None:
