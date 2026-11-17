@@ -571,3 +571,60 @@ def test_reintento_cog_no_permita_otro_par_ni_job_activo(monkeypatch):
     fallo["estado"] = ui.trabajos.EN_CURSO
     assert ui._reintentar_mismo_par_cog() is False
     assert estado["v9_preparacion"] == "fallido_previo"
+
+
+
+def test_causa_real_nisar_se_muestra_sin_urls_firmadas_o_tokens():
+    """Los errores reales del job deben ser legibles, pero nunca exponer credenciales."""
+    fallo = (
+        "NASA Harmony no completó el recorte: "
+        "https://harmony.earthdata.nasa.gov/signed?t=secreto "
+        "EARTHDATA_TOKEN=valor_real Bearer otro_secreto"
+    )
+    visible = ui._error_preparacion_publico(fallo)
+    assert "NASA Harmony no completó el recorte" in visible
+    assert "[enlace omitido]" in visible
+    assert "[credencial omitida]" in visible
+    assert "secreto" not in visible and "valor_real" not in visible
+    assert ui._error_preparacion_publico("") != ""
+    assert len(ui._error_preparacion_publico("x" * 1500)) <= 600
+
+
+def test_diagnostico_nisar_distingue_fallos_reales_y_no_culpa_a_la_aoi():
+    """No sugerir reducir cualquier AOI ante fallos comunes de NASA o Replit."""
+    assert "tiempo" in ui._sugerencia_error_preparacion(
+        "Superó el límite de 900 s"
+    ).lower() or "time" in ui._sugerencia_error_preparacion(
+        "Superó el límite de 900 s"
+    ).lower()
+    assert "earthdata" in ui._sugerencia_error_preparacion(
+        "Earthdata Login no está configurado"
+    ).lower()
+    assert "harmony" in ui._sugerencia_error_preparacion(
+        "Harmony finalizó sin todas las capas válidas"
+    ).lower()
+    assert "área" in ui._sugerencia_error_preparacion(
+        "COG_DEMASIADO_GRANDE: supera presupuesto"
+    ).lower() or "aoi" in ui._sugerencia_error_preparacion(
+        "COG_DEMASIADO_GRANDE: supera presupuesto"
+    ).lower()
+
+
+def test_interfaz_error_preparacion_real_arriba_del_boton_analizar():
+    """La causa no debe quedar oculta en un expander ni repetida más abajo."""
+    import ast
+    from pathlib import Path
+
+    archivo = Path(ui.__file__)
+    codigo = archivo.read_text(encoding="utf-8")
+    arbol = ast.parse(codigo)
+    funcs = {n.name: n for n in arbol.body if isinstance(n, ast.FunctionDef)}
+    progreso = ast.get_source_segment(codigo, funcs["_progreso_pie_sar"])
+    accion = ast.get_source_segment(codigo, funcs["accion_principal"])
+    seguimiento = ast.get_source_segment(codigo, funcs["_seguimiento"])
+    assert "_error_preparacion_publico(error)" in progreso
+    assert "_sugerencia_error_preparacion(error)" in progreso
+    assert 'with st.expander(tr("Ver detalle del error"' not in progreso
+    assert '_progreso_pie_sar()' in accion
+    assert 'key="v9_analizar"' in accion
+    assert 'st.warning(tr("La preparación NISAR falló"' not in seguimiento
