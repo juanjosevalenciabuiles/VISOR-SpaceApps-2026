@@ -1,0 +1,22 @@
+# V.I.S.O.R. — Deployment-only exclusions for Replit
+# Based on verified functional SAR version 3f67ecb.
+# This file does NOT delete files from the workspace or modify scientific data.
+# Keep .venv for start.sh. Keep all COG and SAR output until we audit them.
+#
+# Git history is unnecessary for the running web application (~4.9 GiB).
+.git/
+# Replit's legacy Python package install is not used by start.sh,
+# which runs the isolated .venv (~767 MiB).
+.pythonlibs/
+# Build and QA artifacts, not used by the production app.
+.cache/
+.pytest_cache/
+__pycache__/
+*.pyc
+tests/
+informes/
+exportaciones/
+# Never bundle local secrets; use Replit deployment secrets instead.
+.env
+.env.*
+.streamlit/secrets.toml
