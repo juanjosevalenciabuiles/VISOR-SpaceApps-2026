@@ -4,6 +4,7 @@ from html import escape
 import streamlit as st
 
 from utils import procedencia
+from utils.i18n import tr
 from utils.config import ADVERTENCIA_GENERAL, Fenomeno
 from utils.geotiff import Capa
 from utils.procedencia import Procedencia
@@ -46,7 +47,7 @@ def insignia(estado: Procedencia | None) -> str:
     if estado is None:
         estado = Procedencia(procedencia.NO_DECLARADA, "Procedencia no evaluada.")
     return (f'<span class="mc-insignia {CLASE_INSIGNIA[estado.estado]}" title="{escape(estado.descripcion)}">'
-            f"{escape(estado.etiqueta)}</span>")
+            f"{escape(tr(estado.etiqueta, {procedencia.DEMO: 'DEMO', procedencia.NO_DECLARADA: 'SOURCE UNVERIFIED', procedencia.REAL_SIN_VALIDAR: 'REAL · UNVALIDATED', procedencia.VALIDADO: 'VALIDATED'}.get(estado.estado, estado.etiqueta)))}</span>")
 
 
 def render(fenomeno: Fenomeno, capa: Capa | None, error: str | None) -> None:

@@ -7,3 +7,4 @@ scipy==1.18.1
 joblib==1.6.0
 rasterio==1.5.2
 folium>=0.17
+matplotlib

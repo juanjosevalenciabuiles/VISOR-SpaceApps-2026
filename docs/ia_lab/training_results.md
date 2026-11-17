@@ -1,6 +1,6 @@
 # Training results
 
-Source: `_ml_entrenamiento/entrenamiento_prediccion_inundaciones.ipynb` and `_ml_entrenamiento/salidas/`.
+Source: `ia_lab/entrenamiento/entrenamiento_prediccion_inundaciones.ipynb` and `ia_lab/entrenamiento/salidas/`.
 
 ## Model A · when (high water at Quibdó, 3 days ahead)
 
@@ -64,4 +64,4 @@ Test results, feature set 2:
 
 ## Figures
 
-`_ml_entrenamiento/salidas/`: `A_comparacion_pr_auc.png`, `A_anticipacion.png`, `A_eventos_2026.png`, `B_comparacion_e_importancia.png`, `B_mapa_E6_A_T148.png`, `grafica_aciertos.png`.
+`ia_lab/entrenamiento/salidas/`: `A_comparacion_pr_auc.png`, `A_anticipacion.png`, `A_eventos_2026.png`, `B_comparacion_e_importancia.png`, `B_mapa_E6_A_T148.png`, `grafica_aciertos.png`.

@@ -433,10 +433,16 @@ def buscar(oeste, sur, este, norte, inicio, fin, madurez: str = "VALIDATED",
     avisos = []
     if madurez.upper() == "VALIDATED" and d0 < INICIO_VALIDATED:
         avisos.append("VALIDATED solo cubre adquisiciones desde el 21-oct-2026; antes de esa fecha no habrá resultados.")
+        if d1 < INICIO_VALIDATED:
+            avisos.append("Todo el período solicitado es anterior a VALIDATED: prueba PROVISIONAL (si el catálogo la ofrece) o busca Sentinel-1 como fuente distinta. No se cambian las fechas automáticamente.")
     if len(datos["items"]) >= int(max_resultados):
         avisos.append("Se alcanzó el máximo de resultados: puede haber más escenas. Reduce el período.")
     if not candidatos:
-        avisos.append("El catálogo no devolvió escenas GCOV utilizables para esta región y período.")
+        if datos["items"]:
+            avisos.append("El catálogo respondió con registros, pero ninguno superó los filtros de geometría, cobertura, polarización o calidad. Revisa los descartes: no significa que el satélite no observó la zona.")
+        else:
+            avisos.append("El catálogo respondió sin registros para esta colección, AOI y fechas exactas. No se puede inferir ausencia de observación de otros sensores ni colecciones.")
+        avisos.append("Puedes probar otro período o la colección PROVISIONAL de NISAR, o consultar Sentinel-1 por separado. No se sustituye la fuente ni se amplían fechas sin tu elección.")
     elif not pares:
         avisos.append("No hay ningún par compatible: se puede inspeccionar una escena única, sin cálculo de cambio.")
     return ResultadoNISAR(region, d0, d1, madurez.upper(), url_consulta(parametros), len(datos["items"]),

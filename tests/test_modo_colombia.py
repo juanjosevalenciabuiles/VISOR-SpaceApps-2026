@@ -78,8 +78,8 @@ def test_co01_primera_apertura(monkeypatch):
     at = _app(monkeypatch)
     assert not at.exception
     texto = _texto(at)
-    assert 'id="insignia-colombia"' in texto and "COLOMBIA · Área de estudio habilitada" in texto
-    assert at.session_state["resultado_activo"] is None and "SIN RESULTADO" in texto
+    assert 'id="insignia-colombia"' in texto and ("COLOMBIA · Área de estudio habilitada" in texto or "COLOMBIA · STUDY AREA ENABLED" in texto)
+    assert at.session_state["resultado_activo"] is None and ("SIN RESULTADO" in texto or "NO RESULT" in texto)
     assert at.session_state["capa_sar"] is False, "DEMO apagada"
     from components import mapa
     html = mapa.mapa_fijo().get_root().render()
@@ -87,7 +87,8 @@ def test_co01_primera_apertura(monkeypatch):
     compacto = "".join(html.split())
     assert "center:[4.6,-74.3]" in compacto and '"zoom":5' in compacto
     assert '"maxBounds":[[-8.0,-86.0,],[17.0,-62.0,],]' in compacto, "paneo limitado a Colombia con margen"
-    assert "MGN 2025, DANE" in html and '"attribution"' in html and "Fuera de Colombia" in html
+    assert "MGN 2025, DANE" in html and '"attribution"' in html
+    assert "Fuera de Colombia" in html or "Outside Colombia" in html
 
 
 # ---------------------------------------------------------------------------

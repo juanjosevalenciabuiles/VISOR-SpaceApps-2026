@@ -95,7 +95,7 @@ def test_osm_sin_clave_con_politica_y_oscuro_solo_por_css():
 
 def test_aviso_de_teselas_caidas_va_en_el_mapa_fijo():
     texto = mapa.mapa_fijo().get_root().render()
-    assert "tileerror" in texto and "El mapa base no responde" in texto and "visor-aviso-teselas" in texto
+    assert "tileerror" in texto and "Basemap tiles unavailable" in texto and "visor-aviso-teselas" in texto
 
 
 def test_proveedores_y_atribuciones():
@@ -307,6 +307,9 @@ def test_capa_de_contexto_sin_datos_no_agrega_nada(monkeypatch, capa):
 def test_app_cambia_de_fondo_y_de_capas_sin_errores(monkeypatch):
     from streamlit.testing.v1 import AppTest
 
+    # Solo QA: conservar selectores de fenómenos DEMO que la entrega pública oculta.
+    monkeypatch.setenv("VISOR_MOSTRAR_DEMO", "1")
+    monkeypatch.setenv("VISOR_FENOMENOS_LEGACY", "1")
     monkeypatch.chdir(RAIZ)
     at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=60).run()
     assert not at.exception
@@ -315,12 +318,13 @@ def test_app_cambia_de_fondo_y_de_capas_sin_errores(monkeypatch):
         return " ".join(m.value for m in at.markdown)
 
     # Sin clave, CARTO no se ofrece y se dice por qué; el fondo inicial es el oscuro de OSM.
-    assert at.selectbox(key="mapa_base").value == "osm_oscuro"
-    assert at.selectbox(key="mapa_base").options == [MAPAS_BASE[k].nombre for k in mapas_base.ofrecidos()]
+    assert at.selectbox(key="dock_mapa_base").value == "osm_oscuro"
+    assert at.selectbox(key="dock_mapa_base").options == [MAPAS_BASE[k].nombre for k in mapas_base.ofrecidos()]
     assert "No disponibles aquí" in textos() and "CARTO_API_KEY" in textos()
     for clave in mapas_base.ofrecidos():
-        at.selectbox(key="mapa_base").set_value(clave).run()
+        at.selectbox(key="dock_mapa_base").set_value(clave).run()
         assert not at.exception and len(at.error) == 0
+        assert at.session_state["mapa_base"] == clave
         assert MAPAS_BASE[clave].proveedor.split(" ")[0] in textos()   # créditos del fondo activo
 
     at.toggle(key="ctx_hidrografia").set_value(True).run()
@@ -330,9 +334,9 @@ def test_app_cambia_de_fondo_y_de_capas_sin_errores(monkeypatch):
 
     for fenomeno in FENOMENOS:                         # el fondo elegido se conserva
         at.radio(key="fenomeno").set_value(fenomeno).run()
-        assert not at.exception and at.selectbox(key="mapa_base").value == "satelital"
+        assert not at.exception and at.selectbox(key="dock_mapa_base").value == "satelital"
     at.toggle(key="capa_sar").set_value(True).run()    # DEMO encendida a propósito
-    assert not at.exception and at.selectbox(key="mapa_base").value == "satelital"
+    assert not at.exception and at.selectbox(key="dock_mapa_base").value == "satelital"
     assert at.session_state["resultado_activo"] is None
 
 
@@ -342,6 +346,6 @@ def test_app_con_clave_carto_ofrece_carto_y_lo_usa_por_defecto(monkeypatch):
     monkeypatch.setenv("CARTO_API_KEY", "abc123")
     monkeypatch.chdir(RAIZ)
     at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=60).run()
-    assert at.selectbox(key="mapa_base").value == "carto_oscuro"
-    assert len(at.selectbox(key="mapa_base").options) == len(MAPAS_BASE)
+    assert at.selectbox(key="dock_mapa_base").value == "carto_oscuro"
+    assert len(at.selectbox(key="dock_mapa_base").options) == len(MAPAS_BASE)
     assert "No disponibles aquí" not in " ".join(m.value for m in at.markdown)

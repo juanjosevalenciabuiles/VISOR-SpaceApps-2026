@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from components import barra_lateral, herramientas_sar, interfaz, resultados
+from components import barra_lateral, herramientas_sar, interfaz, resultados, panel_capas
 from utils import lugares
 
 
@@ -62,7 +62,11 @@ def test_lo_tecnico_va_plegado_y_el_boton_a_la_vista():
     assert ficha.index("leyenda_html(res)") < ficha.index("res-detalles-tecnicos") < ficha.index("Datos de origen")
     analisis = inspect.getsource(herramientas_sar.paso_analisis)
     assert 'key="sar_avanzado"' in analisis and "expanded=False" in analisis
+    capas = inspect.getsource(panel_capas.render)
+    assert capas.index('tr("Cartografía y fondo", "Basemaps and cartography")') < capas.index("No disponibles aquí")
+    assert 'key="dock_mapa_base"' in capas
     explorador = inspect.getsource(barra_lateral.render)
-    assert explorador.index('key="nota_mapa_base"') < explorador.index("No disponibles aquí")
+    assert "Las capas ya se controlan en un dock fijo" in explorador
+    assert "CAPAS DEL MAPA" in capas
     assert all(len(p) <= 13 for p in interfaz.PASOS_SAR), "los nombres de los pasos caben en la pestaña"
     assert "CONCEPTUAL" not in inspect.getsource(interfaz.linea_temporal)

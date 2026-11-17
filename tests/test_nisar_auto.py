@@ -81,3 +81,59 @@ def test_preparar_con_producto_simulado_no_lo_publica_como_nisar(monkeypatch, tm
         auto.preparar(p, registro, tmp_path / "crudos", tmp_path / "recortes")
     assert llamadas == ["NISAR_UNICA"]
     assert not list((tmp_path / "recortes").glob("*.tif")) if (tmp_path / "recortes").exists() else True
+
+
+
+def test_harmony_presupuesto_1gib_por_par_y_saldo_entre_fechas(monkeypatch, tmp_path):
+    """No descarga nada real: ambas fechas comparten UN presupuesto total."""
+    from utils import nisar_harmony as harmony
+
+    plan = auto.planear(resultado(), max_gb=5)
+    fake_caps = {"madurez": "VALIDATED"}
+    monkeypatch.setattr(auto.shutil, "disk_usage", lambda _: NS(free=3 * 1024**3))
+    monkeypatch.setattr(harmony, "especificar", lambda c, aoi, caps, **kw: NS(
+        granule=c.granule, bbox=aoi, solo_cambio=kw.get("solo_cambio")
+    ))
+    llamadas = []
+
+    def obtener(spec, carpeta, **kwargs):
+        llamadas.append((spec, kwargs["limite_bytes"]))
+        return {"bytes_totales": 450 * 1024**2, "carpeta_relativa": spec.granule,
+                "archivos": [{"archivo": "HHHH.tif"}]}
+
+    monkeypatch.setattr(harmony, "obtener", obtener)
+    plan.id_par_seleccionado = "id_de_prueba"
+    salida = auto.preparar_harmony(
+        plan, carpeta=tmp_path, max_mb=1024, caps=fake_caps, cliente=object()
+    )
+    assert len(llamadas) == 2
+    assert llamadas[0][1] == 1024 * 1024**2
+    assert llamadas[1][1] == (1024 - 450) * 1024**2
+    assert all(c[0].solo_cambio is True for c in llamadas)
+    assert salida["bytes_totales"] == 900 * 1024**2
+    assert len(salida["escenas"]) == 2
+
+
+def test_harmony_limite_1gib_no_permite_sobrepasar_ni_descargar_sin_espacio(
+    monkeypatch, tmp_path,
+):
+    """1 GiB es techo, no permiso para agotar el disco ni abrir red."""
+    plan = auto.planear(resultado(), max_gb=5)
+    llamadas = []
+    monkeypatch.setattr(auto.shutil, "disk_usage", lambda _: NS(free=1300 * 1024**2))
+    from utils import nisar_harmony as harmony
+    monkeypatch.setattr(harmony, "especificar",
+                        lambda *a, **kw: llamadas.append("spec"))
+    monkeypatch.setattr(harmony, "obtener",
+                        lambda *a, **kw: llamadas.append("descarga"))
+    with pytest.raises(auto.ErrorAutoNISAR, match="Espacio insuficiente"):
+        auto.preparar_harmony(
+            plan, carpeta=tmp_path, max_mb=1024,
+            caps={"madurez": "VALIDATED"}, cliente=object(),
+        )
+    with pytest.raises(auto.ErrorAutoNISAR, match="64 y 1024"):
+        auto.preparar_harmony(
+            plan, carpeta=tmp_path, max_mb=1025,
+            caps={"madurez": "VALIDATED"}, cliente=object(),
+        )
+    assert not llamadas, "el control de recursos ocurre antes de crear solicitudes"

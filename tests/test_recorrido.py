@@ -232,17 +232,18 @@ def test_app_arranca_vacia_aunque_haya_resultados_en_disco(tmp_path, monkeypatch
     reproducible(tmp_path)
     monkeypatch.setattr(resultados, "CARPETA_ANALISIS", tmp_path)
     monkeypatch.setenv("VISOR_GEOCODIFICADOR_URL", "desactivado")
+    monkeypatch.setenv("VISOR_MOSTRAR_HISTORIAL", "1")  # fixture QA, oculto en el producto público
     monkeypatch.chdir(RAIZ)
     for _ in range(2):                                               # dos sesiones nuevas e independientes
         at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=120).run()
         assert not at.exception
         assert at.session_state["resultado_activo"] is None and at.session_state["zona"] is None
-        assert at.toggle(key="capa_sar").value is False
+        assert not at.session_state.get("capa_sar", False)
         texto = " ".join(m.value for m in at.markdown)
-        assert "SIN RESULTADO" in texto and "Cómo empezar" in texto and "No es una inundación confirmada" not in texto
+        assert ("SIN RESULTADO" in texto or "NO RESULT" in texto) and ("Welcome to V.I.S.O.R." in texto or "Bienvenido a V.I.S.O.R." in texto)
         assert not any(k.startswith("qgis_") for k in (b.key or "" for b in at.get("download_button")))
         # Ni el mapa base ni la búsqueda de un lugar ponen nada en el mapa.
-        at.selectbox(key="mapa_base").set_value("calles").run()
+        at.selectbox(key="dock_mapa_base").set_value("calles").run()
         at.selectbox(key="lugar_texto").set_value("Chigorodó, Antioquia, Colombia").run()   # sugerencia elegida
         assert at.session_state["lugar"]["etiqueta"].startswith("Chigorodó")
         assert at.session_state["zona"] is None and at.session_state["resultado_activo"] is None

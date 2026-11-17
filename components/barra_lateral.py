@@ -14,13 +14,15 @@ from html import escape
 import streamlit as st
 
 from components import flujo, leyenda
+from utils.i18n import idioma, tr
+from utils.etiquetas_resultados import nombre_resultado
 from components.panel_info import insignia
 from utils import alcance_geografico, lugares, sesion
 from utils import mapas_base
-from utils.capas_contexto import CAPAS_CONTEXTO, disponibles, recortar
+from utils.capas_contexto import CAPAS_CONTEXTO, disponibles
 from utils.config import FENOMENOS, Fenomeno, carto_estado
 from utils.geotiff import Capa
-from utils.mapas_base import MAPA_BASE_PREDETERMINADO, MAPAS_BASE, obtener
+from utils.mapas_base import MAPA_BASE_PREDETERMINADO, obtener
 
 
 @dataclass
@@ -95,7 +97,7 @@ def _ir_a_lugar(lugar, ir_a) -> None:
         dentro = zona is not None and zona[0] <= lugar.longitud <= zona[2] and zona[1] <= lugar.latitud <= zona[3]
         if not dentro:
             flujo.limpiar_resultado(f"Se retiró el resultado del mapa al ir a {lugar.etiqueta}: corresponde a otra "
-                                    "zona. Sigue disponible en el Historial.")
+                                    "zona. El archivo original se conserva.")
     ir_a(lugar.latitud, lugar.longitud, lugar.zoom)
 
 
@@ -121,18 +123,17 @@ def buscador_lugar(ir_a, inicio=None) -> None:
     with st.container(horizontal=True, vertical_alignment="center", key="buscador", gap="small"):
         # Las sugerencias son una lista local. Otro texto o unas coordenadas también valen: Enter.
         st.selectbox(
-            "¿Qué lugar quieres analizar?", options=list(lugares.sugerencias()), index=None, key="lugar_texto",
+            tr("¿Qué lugar quieres analizar?", "Where would you like to explore?"), options=list(lugares.sugerencias()), index=None, key="lugar_texto",
             accept_new_options=True, on_change=_buscar_lugar, args=(ir_a,), label_visibility="collapsed",
-            placeholder="Busca un municipio o lugar en Colombia" if colombia else "Busca una ciudad o un lugar",
-            help=("Escribe y elige una sugerencia; también puedes escribir otro lugar o unas coordenadas "
-                  "(7.67, -76.68) y pulsar Enter. " +
-                  ("Modo Colombia: búsqueda y análisis limitados al país. Municipios y contorno: DANE, MGN 2025; "
-                   "datos derivados por ytolosa/mapas-colombia, CC BY 4.0." if colombia else "")))
-        st.button("Buscar", key="lugar_buscar", icon=":material/search:", type="primary", on_click=_buscar_lugar,
-                  args=(ir_a,), help="Buscar lo escrito (o unas coordenadas: 7.67, -76.68)")
+            placeholder=(tr("Busca un municipio o lugar en Colombia", "Search for a place in Colombia") if colombia
+                         else tr("Busca una ciudad o un lugar", "Search for a city or place")),
+            help=tr("Escribe un lugar o coordenadas (7.67, -76.68) y pulsa Enter.",
+                    "Type a place or coordinates (7.67, -76.68) and press Enter."))
+        st.button(tr("Buscar", "Search"), key="lugar_buscar", icon=":material/search:", type="primary", on_click=_buscar_lugar,
+                  args=(ir_a,), help=tr("Buscar un lugar o coordenadas.", "Search for a place or coordinates."))
         if inicio is not None:
-            st.button("Vista inicial", key="btn_inicio", icon=":material/home:", on_click=inicio,
-                      help="Volver a la vista general")
+            st.button(tr("Vista inicial", "Initial view"), key="btn_inicio", icon=":material/home:", on_click=inicio,
+                      help=tr("Volver a la vista general", "Return to overview"))
     hallazgo = st.session_state.get("lugares_encontrados")
     if not hallazgo:
         return
@@ -145,84 +146,317 @@ def buscador_lugar(ir_a, inicio=None) -> None:
         st.markdown(f'<div class="mc-aviso">No se encontró «{escape(hallazgo["consulta"])}».{alcance} '
                     "Puedes mover el mapa a mano y dibujar la zona.</div>", unsafe_allow_html=True)
     elif len(encontrados) > 1:
-        st.markdown('<div class="visor-leyenda-nota">Hay varias coincidencias. Elige una:</div>',
-                    unsafe_allow_html=True)
+        st.caption(tr("Hay varias coincidencias. Elige una:", "Several matches found. Choose one:"))
         for i, lugar in enumerate(encontrados):
             st.button(lugar.etiqueta, key=f"lugar_ir_{i}", icon=":material/location_on:", type="tertiary",
                       on_click=_elegir_lugar, args=(lugar, ir_a))
         st.markdown(_nota_fuente(hallazgo["fuente"]), unsafe_allow_html=True)
 
 
+# Presets exploratorios sobre corredores fluviales urbanos. Son rectángulos
+# aproximados para escoger una AOI, NO huellas de inundación ni cobertura NISAR.
+# Chigorodó: extensión estimada de la captura aprobada por el usuario
+# (Turbo / Chigorodó, 32,6 % / 66,4 % visibles en la captura). La imagen
+# carece de coordenadas impresas; no presentar estos límites como exactos.
+# NO reemplazar AOI_CHIGORODO de utils/config.py: es un AOI científico
+# histórico distinto, utilizado por pruebas y archivos ya generados.
+# Río Chigorodó: CORPOURABA; río Atrato en Quibdó: Gobierno del Chocó.
+# https://corpouraba.gov.co/2026/06/02/corpouraba-participo-en-jornada-de-revision-e-inspeccion-en-la-parte-baja-del-rio-chigorodo/
+# https://turismo.choco.gov.co/subregion-atrato/
+RECOMENDACIONES_AOI = {
+    "chigorodo": {
+        "municipio": "Chigorodó",
+        "limites": (-76.825, 7.568, -76.648, 7.676),
+        "nombre_es": "Chigorodó · río Chigorodó",
+        "nombre_en": "Chigorodó · Chigorodó River",
+    },
+    "choco_atrato": {
+        "municipio": "Quibdó",
+        "limites": (-76.70, 5.66, -76.62, 5.73),
+        "nombre_es": "Chocó · río Atrato (Quibdó)",
+        "nombre_en": "Chocó · Atrato River (Quibdó)",
+    },
+    # Rectángulos exploratorios aproximados: incluyen el lugar de referencia,
+    # NO constituyen una cuenca oficial ni aseguran cobertura NISAR disponible.
+    "carepa": {
+        "municipio": "Carepa",
+        "limites": (-76.71, 7.72, -76.61, 7.80),
+        "nombre_es": "Carepa · río Carepa",
+        "nombre_en": "Carepa · Carepa River",
+    },
+    "apartado": {
+        "municipio": "Apartadó",
+        "limites": (-76.70, 7.835, -76.57, 7.93),
+        "nombre_es": "Apartadó · río Apartadó",
+        "nombre_en": "Apartadó · Apartadó River",
+    },
+    "caucasia": {
+        "municipio": "Caucasia",
+        "limites": (-75.245, 7.94, -75.14, 8.045),
+        "nombre_es": "Caucasia · río Cauca",
+        "nombre_en": "Caucasia · Cauca River",
+    },
+    "choco_cabi": {
+        "municipio": "Quibdó",
+        "limites": (-76.705, 5.635, -76.605, 5.705),
+        "nombre_es": "Chocó · río Cabí (Quibdó)",
+        "nombre_en": "Chocó · Cabí River (Quibdó)",
+    },
+}
+
+
+def _ampliar_area_recomendada(limites) -> tuple[float, float, float, float]:
+    """AOI recomendada compacta y cuadrada EN KM, dentro de Colombia.
+
+    El antiguo objetivo de 87 % del máximo producía rectángulos extensos
+    poco útiles al elegir pares CMR. Se limita a un 40 % del presupuesto
+    estimado (lado ~76 km a 30 m), sin tocar el tope científico. La zona
+    fluvial original queda completamente dentro, y los desplazamientos
+    permiten acercar el cuadrado al interior desde costas/fronteras.
+    Solo se calcula al pulsar la recomendación, nunca al mover el mapa.
+    """
+    import math
+
+    from utils.analisis_sar import MAX_PIXELES
+
+    base = sesion.validar_zona(limites)  # no cambiar estado si falla
+    o, sur, e, n = base
+    lat_ref = (sur + n) / 2
+    km_lon = 111.32 * math.cos(math.radians(lat_ref))
+    km_lat = 111.32
+    ancho_km, alto_km = sesion.dimensiones_km(base)
+    lado_min = max(ancho_km, alto_km)
+    objetivo = int(MAX_PIXELES * 0.40)
+    # Un margen para redondeos geográficos y estimaciones discretas de píxel.
+    lado_max = math.sqrt(objetivo) * sesion.RESOLUCION_ESTIMADA_M / 1000 * 0.995
+    if lado_min >= lado_max:
+        return base
+
+    mejor = base
+    mejor_lado = 0.0
+
+    # 0.5 centra el rectángulo; las demás posiciones lo desplazan hacia
+    # tierra firme SIN recortar ningún extremo del corredor original.
+    desplazamientos = (0.5, 0.25, 0.75, 0.0, 1.0)
+    for fx in desplazamientos:
+        for fy in desplazamientos:
+            def cuadrado(lado_km, fx=fx, fy=fy):
+                extra_lon = max(0.0, lado_km - ancho_km) / km_lon
+                extra_lat = max(0.0, lado_km - alto_km) / km_lat
+                return (
+                    round(o - fx * extra_lon, 5),
+                    round(sur - fy * extra_lat, 5),
+                    round(e + (1 - fx) * extra_lon, 5),
+                    round(n + (1 - fy) * extra_lat, 5),
+                )
+
+            # Si ni el cuadrado mínimo cabe en Colombia, ampliar solo
+            # empeoraría el problema: explorar otra posición.
+            try:
+                sesion.validar_zona(cuadrado(lado_min))
+            except sesion.ErrorZona:
+                continue
+            bajo, alto = lado_min, lado_max
+            for _ in range(12):
+                medio = (bajo + alto) / 2
+                posible = cuadrado(medio)
+                if sesion.pixeles_estimados(posible) > objetivo:
+                    alto = medio
+                    continue
+                try:
+                    valido = sesion.validar_zona(posible)
+                except sesion.ErrorZona:
+                    alto = medio
+                    continue
+                bajo = medio
+                if medio > mejor_lado:
+                    mejor_lado, mejor = medio, valido
+            if mejor_lado >= lado_max * 0.995:
+                return mejor
+
+    # La geometría científica prevalece sobre una estética cuadrada si el
+    # litoral/una frontera impide contener íntegro el sector original.
+    return mejor
+
+
+def _seleccionar_recomendacion(clave: str, centrar) -> None:
+    """Un clic confirma la AOI, la encuadra y muestra su ficha; NUNCA inicia SAR.
+
+    Validar primero: ante una zona inválida, no se pierde el trabajo actual.
+    Un mapa nuevo evita que un dibujo Leaflet viejo reemplace este preset.
+    """
+    recomendacion = RECOMENDACIONES_AOI[clave]
+    try:
+        limites = _ampliar_area_recomendada(recomendacion["limites"])
+    except sesion.ErrorZona as exc:
+        st.session_state["error_recomendacion"] = str(exc)
+        return
+    encontrados = lugares.buscar_local(recomendacion["municipio"])
+    lugar = next((x for x in encontrados if x.nombre == recomendacion["municipio"]), None)
+    if lugar is None:
+        st.session_state["error_recomendacion"] = tr(
+            "No se pudo localizar el municipio recomendado.",
+            "Could not locate the recommended municipality.",
+        )
+        return
+
+    from components import v9_experiencia
+    v9_experiencia._limpiar_v9()  # no reutilizar preparaciones COG de otra AOI
+    st.session_state["trabajo_activo"] = None
+    st.session_state["trabajo_publicado"] = None
+    flujo.quitar_zona()          # retira solo referencias de sesión, conserva GeoTIFF
+    st.session_state["mapa_dibujo"] = None
+    st.session_state["visor_modo_muestra_real"] = False
+    st.session_state["lugar"] = {
+        "etiqueta": lugar.etiqueta, "latitud": lugar.latitud,
+        "longitud": lugar.longitud, "fuente": lugar.fuente,
+    }
+    flujo.confirmar_zona(limites, tr("zona fluvial sugerida", "suggested riverside area"))
+    # La sugerencia ya seleccionó su propio municipio: no conservar el texto
+    # de una búsqueda anterior (por ejemplo Quibdó antes de elegir Murindó).
+    st.session_state["lugar_texto"] = None
+    st.session_state["lugares_encontrados"] = None
+    st.session_state["recomendacion_aoi_actual"] = clave
+    st.session_state["recomendacion_aoi_limites"] = limites
+    st.session_state["error_recomendacion"] = None
+    # Un clic deja la AOI seleccionada y abre SAR Tools, sin consultar NASA
+    # ni lanzar Harmony. Al cerrar SAR se vuelve al Explorador.
+    st.session_state["ui_explorador_previo"] = True
+    st.session_state["ui_explorador"] = False
+    st.session_state["ui_sar"] = "abierto"
+    st.session_state["visor_aoi_recomendacion_seq"] = (
+        int(st.session_state.get("visor_aoi_recomendacion_seq", 0)) + 1)
+    centrar(limites)
+
+
+def _boton_zona_recomendada(clave: str, recomendacion: dict, centrar) -> None:
+    """Mismo comportamiento para todas las AOI: seleccionar y abrir SAR, sin descargar."""
+    seleccionada = st.session_state.get("recomendacion_aoi_actual") == clave and (
+        flujo.zona_confirmada() == st.session_state.get("recomendacion_aoi_limites"))
+    st.button(
+        recomendacion["nombre_es"] if idioma() == "es" else recomendacion["nombre_en"],
+        key=f"recom_{clave}", icon=":material/water_drop:",
+        type="primary" if seleccionada else "secondary",
+        use_container_width=True, on_click=_seleccionar_recomendacion, args=(clave, centrar),
+        help=tr("Selecciona la zona y abre las herramientas SAR sin iniciar descargas.",
+                "Select the area and open SAR tools without starting downloads."),
+    )
+
+
+def recomendaciones_analisis(centrar) -> None:
+    """Dos zonas principales y cuatro adicionales plegables para no saturar el mapa."""
+    st.markdown(
+        f'<div class="mc-titulo-panel">{tr("Zonas recomendadas", "Suggested study areas")}</div>',
+        unsafe_allow_html=True,
+    )
+    st.caption(tr(
+        "Zonas fluviales casi cuadradas y de tamaño moderado. "
+        "Comprueba siempre la cobertura NISAR antes de analizar.",
+        "Compact, nearly square riverside areas. "
+        "Always check NISAR coverage before analyzing.",
+    ))
+    principales = ("chigorodo", "choco_atrato")
+    for clave in principales:
+        _boton_zona_recomendada(clave, RECOMENDACIONES_AOI[clave], centrar)
+    adicionales = [(clave, datos) for clave, datos in RECOMENDACIONES_AOI.items()
+                   if clave not in principales]
+    with st.expander(tr(f"Más zonas recomendadas ({len(adicionales)})",
+                        f"More suggested areas ({len(adicionales)})"),
+                     expanded=False):
+        for clave, recomendacion in adicionales:
+            _boton_zona_recomendada(clave, recomendacion, centrar)
+    if st.session_state.get("error_recomendacion"):
+        st.error(st.session_state["error_recomendacion"])
+
+
 def lugar_ubicado(abrir_zona=None) -> None:
     """En el Explorador: dónde quedó el mapa tras la búsqueda y el paso siguiente (definir la zona)."""
     if alcance_geografico.restringido():
-        st.markdown('<div class="visor-leyenda-nota" id="nota-modo-colombia">Modo Colombia · solo territorio '
-                    "colombiano</div>", unsafe_allow_html=True)
+        st.caption(tr("Solo territorio colombiano", "Colombia only"))
     lugar = st.session_state.get("lugar")
     if lugar:
-        st.markdown(f'<div class="mc-resultado"><span class="mc-insignia mc-insignia-tenue">UBICADO</span>'
-                    f'{escape(lugar["etiqueta"])}</div>{_nota_fuente(lugar["fuente"])}', unsafe_allow_html=True)
+        st.markdown(f'<div class="mc-resultado"><span class="mc-insignia mc-insignia-tenue">'
+                    f'{tr("UBICADO", "LOCATED")}</span>{escape(lugar["etiqueta"])}</div>',
+                    unsafe_allow_html=True)
     if abrir_zona is not None:
-        st.button("Definir la zona de análisis", key="lugar_definir_zona", icon=":material/crop_free:",
-                  on_click=abrir_zona, help="Abre Herramientas SAR en el paso 1: dibuja la zona sobre el mapa.")
+        st.button(tr("Definir la zona de análisis", "Define study area"), key="lugar_definir_zona", icon=":material/crop_free:",
+                  on_click=abrir_zona, help=tr("Dibuja la zona en el mapa.", "Draw your study area on the map."))
 
 
-def _ver_historico(id_resultado: str) -> None:
+def _ver_historico(id_resultado: str, limites=None) -> None:
+    """Abrir histórico solo mediante View, centrarlo y cancelar seguimientos previos."""
+    from components import interfaz, v9_experiencia
+    v9_experiencia._limpiar_v9()
+    # Un trabajo legacy de otra zona tampoco puede volver a publicar un resultado.
+    st.session_state["trabajo_activo"] = None
+    st.session_state["trabajo_publicado"] = None
+    flujo.quitar_zona()
+    st.session_state["lugar"] = None
     flujo.activar(id_resultado, sesion.HISTORICO)
+    st.session_state["visor_capa_resultado_visible"] = True
+    st.session_state["ui_info"] = False
+    st.session_state["ui_sar"] = "cerrado"
+    # Solo al pulsar View: los siguientes pan/zoom no vuelven a centrarlo.
+    if limites is not None:
+        interfaz.centrar_en(tuple(limites))
 
 
 def _controles_resultados(resultados: list, centrar=None, activo=None) -> dict[str, float]:
     """Un único resultado en el mapa: el del último análisis de esta sesión o el que se abra a
     propósito desde el historial. Lo que hay en data/analisis/ NO se dibuja por existir."""
-    st.caption("RESULTADO EN EL MAPA")
+    st.caption(tr("RESULTADO ACTIVO", "ACTIVE RESULT"))
     activos: dict[str, float] = {}
     if st.session_state.get("aviso_resultado"):
         st.markdown(f'<div class="mc-aviso">{escape(st.session_state["aviso_resultado"])}</div>',
                     unsafe_allow_html=True)
     if activo is None:
-        st.markdown('<div class="visor-leyenda-nota" id="sin-resultado">Ninguno. Aparecerá aquí cuando termines un '
-                    "análisis en Herramientas SAR o abras uno del historial.</div>", unsafe_allow_html=True)
+        st.caption(tr("Sin GeoTIFF seleccionado.", "No GeoTIFF selected."))
     else:
         st.markdown(
-            f'<div class="mc-resultado"><span class="mc-insignia mc-insignia-origen">{flujo.etiqueta_origen()}</span>'
-            f"{insignia(activo.capa.procedencia)}<code>{escape(activo.ruta.name)}</code></div>",
+            f'<div class="mc-resultado"><span class="mc-insignia mc-insignia-origen">{tr(flujo.etiqueta_origen(), "HISTORICAL" if flujo.es_historico() else "CURRENT ANALYSIS")}</span>'
+            f"{insignia(activo.capa.procedencia)}<span>{escape(nombre_resultado(activo, idioma()))}</span></div>",
             unsafe_allow_html=True)
-        activos[activo.id] = st.slider("Opacidad del resultado", 0.0, 1.0, 0.85, 0.05, key="res_opacidad")
+        # El interruptor y la opacidad residen en el selector persistente.
+        if st.session_state.get("visor_capa_resultado_visible", True):
+            activos[activo.id] = float(st.session_state.get("res_opacidad", 0.85))
+        else:
+            st.caption(tr("Resultado oculto desde «Capas del mapa». No se borró.", "Result hidden using Map Layers; it was not deleted."))
         with st.container(horizontal=True):
             if centrar is not None:
-                st.button("Centrar", key="res_centrar", icon=":material/center_focus_strong:", type="tertiary",
+                st.button(tr("Centrar", "Center"), key="res_centrar", icon=":material/center_focus_strong:", type="tertiary",
                           on_click=centrar, args=(activo.capa.limites,))
-            st.button("Limpiar resultado", key="res_limpiar", icon=":material/layers_clear:", type="tertiary",
+            st.button(tr("Limpiar resultado", "Clear result"), key="res_limpiar", icon=":material/layers_clear:", type="tertiary",
                       on_click=flujo.limpiar_resultado,
-                      help="Lo quita del mapa. No borra ningún archivo: sigue en el historial.")
-    dibujables = [r for r in resultados if r.dibujable]
-    ocultos = [r for r in resultados if not r.dibujable]
-    with st.expander(f"Historial ({len(dibujables)})", expanded=False, key="historial"):
-        st.markdown('<div class="visor-leyenda-nota">Resultados guardados en <code>data/analisis/</code> por '
-                    "análisis anteriores. Ninguno se muestra hasta que pulses «Ver»; abrirlo no ejecuta un "
-                    "análisis nuevo.</div>", unsafe_allow_html=True)
-        if not dibujables:
-            st.markdown('<div class="visor-leyenda-nota">Todavía no hay resultados guardados.</div>',
-                        unsafe_allow_html=True)
-        if st.session_state.get("resultados_fuera_de_alcance"):
-            st.markdown(f'<div class="visor-leyenda-nota" id="historial-fuera">'
-                        f'{st.session_state["resultados_fuera_de_alcance"]} resultado(s) guardado(s) de zonas fuera de '
-                        "Colombia no se muestran en esta versión (los archivos no se tocan).</div>",
-                        unsafe_allow_html=True)
-        for res in dibujables:
-            st.markdown(f'<div class="mc-resultado">{insignia(res.capa.procedencia)}'
-                        f'<code>{escape(res.ruta.name)}</code></div>'
-                        f'<div class="visor-leyenda-nota">{escape(res.nombre)} · {escape(_fecha_archivo(res))}</div>',
-                        unsafe_allow_html=True)
-            st.button("Ver", key=f"hist_ver_{res.id}", icon=":material/history:", type="tertiary",
-                      on_click=_ver_historico, args=(res.id,), disabled=activo is not None and activo.id == res.id,
-                      help="Lo muestra en el mapa rotulado como HISTÓRICO.")
-        if ocultos:
-            st.markdown(
-                f'<details class="mc-detalles mc-resultado-off"><summary>{len(ocultos)} archivo(s) no se muestran'
-                "</summary>" + "".join(f'<div class="visor-leyenda-nota"><code>{escape(r.ruta.name)}</code> · '
-                                       f"{escape(r.error or 'No se puede mostrar.')}</div>" for r in ocultos)
-                + "</details>", unsafe_allow_html=True)
+                      help=tr("Retira el resultado del mapa sin borrar archivos.",
+                                  "Removes the result from the map without deleting files."))
+    # Solo QA explícita puede recuperar históricos de datos sintéticos.
+    # Jamás se muestra este selector en la experiencia pública por defecto.
+    if os.environ.get("VISOR_MOSTRAR_HISTORIAL") == "1":
+        dibujables = [r for r in resultados if r.dibujable]
+        ocultos = [r for r in resultados if not r.dibujable]
+        with st.expander(f"{tr('Historial', 'History')} ({len(dibujables)})", expanded=False, key="historial"):
+            # Elegir un resultado histórico siempre exige pulsar View.
+            if not dibujables:
+                st.caption(tr("No hay resultados guardados.", "No saved results."))
+            if st.session_state.get("resultados_fuera_de_alcance"):
+                st.markdown(f'<div class="visor-leyenda-nota" id="historial-fuera">'
+                            f'{st.session_state["resultados_fuera_de_alcance"]} resultado(s) guardado(s) de zonas fuera de '
+                            "Colombia no se muestran en esta versión (los archivos no se tocan).</div>",
+                            unsafe_allow_html=True)
+            for res in dibujables:
+                st.markdown(f'<div class="mc-resultado">{insignia(res.capa.procedencia)}'
+                            f'<span>{escape(nombre_resultado(res, idioma()))}</span></div>',
+                            unsafe_allow_html=True)
+                st.button(tr("Ver", "View"), key=f"hist_ver_{res.id}", icon=":material/history:", type="tertiary",
+                          on_click=_ver_historico, args=(res.id, res.capa.limites),
+                          disabled=activo is not None and activo.id == res.id,
+                          help=tr("Abrir explícitamente este GeoTIFF anterior.", "Explicitly open this historical GeoTIFF."))
+            if ocultos:
+                st.markdown(
+                    f'<details class="mc-detalles mc-resultado-off"><summary>{len(ocultos)} archivo(s) no se muestran'
+                    "</summary>" + "".join(f'<div class="visor-leyenda-nota"><code>{escape(r.ruta.name)}</code> · '
+                                           f"{escape(r.error or 'No se puede mostrar.')}</div>" for r in ocultos)
+                    + "</details>", unsafe_allow_html=True)
     return activos
 
 
@@ -244,89 +478,65 @@ def render(contenedor=None, titulo: bool = True, resultados: list | None = None,
         if titulo:
             st.markdown('<div class="visor-lateral-titulo">🛰️ V.I.S.O.R.</div>', unsafe_allow_html=True)
 
-        if abrir_zona is not None:
+        if centrar is not None:
+            recomendaciones_analisis(centrar)
+
+        # La ficha «LOCATED» es solo para explorar antes del análisis.
+        # Si SAR Tools está abierto o ya hay resultado, no renderizarla
+        # detrás del panel: daba la impresión de tener información duplicada
+        # a la izquierda. Wikipedia permanece exclusivamente en Information.
+        if (abrir_zona is not None and activo is None
+                and st.session_state.get("ui_explorador", True)
+                and st.session_state.get("ui_sar") != "abierto"):
             lugar_ubicado(abrir_zona)
 
         activos = _controles_resultados(resultados, centrar, activo) if resultados is not None else {}
 
-        st.caption("MAPA BASE")
-        opciones = mapas_base.ofrecidos()
-        anterior = st.session_state.get("mapa_base")
-        if anterior not in opciones:
-            st.session_state["mapa_base"] = mapas_base.predeterminado()
-            if anterior in MAPAS_BASE:      # el fondo elegido dejó de estar disponible: se dice, no se oculta
-                st.session_state["aviso_mapa_base"] = (
-                    f"{MAPAS_BASE[anterior].nombre} dejó de estar disponible "
-                    f"({mapas_base.no_ofrecidos().get(anterior, 'sin respuesta')}); se cambió a "
-                    f"{MAPAS_BASE[st.session_state['mapa_base']].nombre}.")
-        if mapas_base.todos_caidos():
-            st.markdown('<div class="mc-aviso" id="aviso-sin-mapas">Ningún mapa base respondió a la última '
-                        "comprobación desde el servidor (ver «Estado del sistema»). Se siguen ofreciendo; si el "
-                        "fondo no carga en tu navegador, el mapa avisará.</div>", unsafe_allow_html=True)
-        if st.session_state.get("aviso_mapa_base"):
-            st.markdown(f'<div class="mc-aviso" id="aviso-mapa-base">{escape(st.session_state["aviso_mapa_base"])}'
-                        "</div>", unsafe_allow_html=True)
-        mapa_base = st.selectbox(
-            "Mapa base",
-            options=opciones,
-            format_func=lambda k: MAPAS_BASE[k].nombre,
-            help="Cambia solo el fondo. Los resultados, la zona, la ubicación y el zoom se conservan.",
-            key="mapa_base",
-            on_change=lambda: st.session_state.pop("aviso_mapa_base", None),
-        )
-        faltan = mapas_base.no_ofrecidos()
-        with st.expander("Sobre este mapa base", expanded=False, key="nota_mapa_base"):   # detalle técnico, plegado
-            st.markdown(
-                f'<div class="visor-leyenda-nota visor-nota-base">{escape(MAPAS_BASE[mapa_base].uso)}</div>',
-                unsafe_allow_html=True,
-            )
-            if faltan:
-                st.markdown('<div class="visor-leyenda-nota">No disponibles aquí: ' + "; ".join(
-                    f"{escape(MAPAS_BASE[k].nombre)} ({escape(m)})" for k, m in faltan.items()) + ".</div>",
-                    unsafe_allow_html=True)
-
-        st.caption("INFORMACIÓN GEOGRÁFICA")
-        hay = disponibles()
-        hidrografia = _interruptor_contexto("hidrografia", hay["hidrografia"])
-        vias = _interruptor_contexto("vias", hay["vias"])
-        mostrar_referencia = st.toggle("Área de referencia (Antioquia)", value=False, key="referencia",
-                                       help="Rectángulo aproximado de Antioquia, solo como referencia visual.")
+        # El dock persistente es el ÚNICO lugar con widgets de capas.
+        # Aquí solo leemos su estado para construir Controles; el explorador
+        # nunca duplica claves Streamlit ni altera el mapa por sí solo.
+        # Las capas ya se controlan en un dock fijo, no repetir instrucciones.
+        mapa_base = st.session_state.get("mapa_base") or mapas_base.predeterminado()
+        disponibles_locales = disponibles()
+        hidrografia = bool(st.session_state.get("ctx_hidrografia", False)
+                           and disponibles_locales.get("hidrografia", False))
+        vias = bool(st.session_state.get("ctx_vias", False)
+                    and disponibles_locales.get("vias", False))
+        mostrar_referencia = bool(st.session_state.get("referencia", False))
         limites, zoom = (None, None)
         if hidrografia or vias:
             from components.mapa import vista_actual
             limites, zoom = vista_actual(st.session_state.get("vista"))
-            for clave, activa in (("hidrografia", hidrografia), ("vias", vias)):
-                datos = recortar(clave, limites, zoom) if activa else None
-                if datos is not None and datos.aviso:
-                    st.markdown(f'<div class="visor-leyenda-nota">{escape(datos.aviso)}</div>', unsafe_allow_html=True)
-                elif datos is not None and not datos.elementos:
-                    st.markdown(f'<div class="visor-leyenda-nota">{escape(CAPAS_CONTEXTO[clave].nombre)}: nada en esta '
-                                "vista a escala general (puede haberlo en el mapa base «Calles»).</div>",
-                                unsafe_allow_html=True)
 
         from components import sistema
-        with st.expander("Estado del sistema", expanded=False, key="sistema"):
+        with st.expander(tr("Estado del sistema", "System status"), expanded=False, key="sistema"):
             sistema.render()
 
-        # Las capas DEMO son sintéticas: apagadas por defecto y solo visibles si se piden a propósito.
-        with st.expander("Demostración (datos sintéticos)", expanded=False, key="demo"):
-            st.markdown('<div class="visor-leyenda-nota">Capas generadas por computador para probar la interfaz. '
-                        "No son observaciones de satélite ni resultados de un análisis.</div>",
-                        unsafe_allow_html=True)
-            mostrar_capa = st.toggle("Mostrar capa DEMO", value=False, key="capa_sar")
-            solo_inundaciones = os.environ.get("VISOR_FENOMENOS_LEGACY") != "1"
-            if solo_inundaciones and st.session_state.get("fenomeno") not in (None, "inundacion"):
-                st.session_state["fenomeno"] = "inundacion"
-            clave = st.radio(
-                "Fenómeno",
-                options=["inundacion"] if solo_inundaciones else list(FENOMENOS),
-                format_func=lambda k: f"{FENOMENOS[k].icono}  {FENOMENOS[k].nombre}",
-                key="fenomeno",
-            )
-            opacidad = st.slider("Opacidad DEMO", 0.0, 1.0, 0.85, 0.05, disabled=not mostrar_capa, key="opacidad_sar")
-            mostrar_huella = st.toggle("Cobertura de la capa DEMO", value=True, disabled=not mostrar_capa,
-                                       key="huella")
-
+        # Material DEMO oculto de la experiencia pública: no es SAR satelital.
+        # Solo QA opt-in por variable de entorno, sin borrar archivos históricos.
+        if os.environ.get("VISOR_MOSTRAR_DEMO") == "1":
+            with st.expander(tr("Demostración (sintético)", "Synthetic demo (QA only)"),
+                             expanded=False, key="demo"):
+                mostrar_capa = st.toggle(tr("Mostrar capa DEMO", "Show DEMO layer"),
+                                         value=False, key="capa_sar")
+                solo_inundaciones = os.environ.get("VISOR_FENOMENOS_LEGACY") != "1"
+                opciones = ["inundacion"] if solo_inundaciones else list(FENOMENOS)
+                clave = st.radio(tr("Fenómeno", "Phenomenon"), options=opciones,
+                                 format_func=lambda k: f"{FENOMENOS[k].icono} {FENOMENOS[k].nombre}",
+                                 key="fenomeno")
+                opacidad = st.slider(tr("Opacidad DEMO", "DEMO opacity"),
+                                     0.0, 1.0, 0.85, 0.05,
+                                     disabled=not mostrar_capa, key="opacidad_sar")
+                mostrar_huella = st.toggle(tr("Cobertura DEMO", "DEMO footprint"),
+                                          value=True, disabled=not mostrar_capa, key="huella")
+        else:
+            st.session_state["capa_sar"] = False
+            mostrar_capa, mostrar_huella, opacidad = False, False, 0.85
+            clave = st.session_state.get("fenomeno", "inundacion")
+            if clave not in FENOMENOS:
+                clave = "inundacion"
+            st.session_state["fenomeno"] = clave
+            # Se conserva la configuración de las capas reales, sin exponer widgets DEMO.
     return Controles(
         clave, mostrar_capa, opacidad, mostrar_huella and mostrar_capa, mostrar_referencia,
         mapa_base, hidrografia, vias, activos, limites, zoom,
@@ -352,12 +562,12 @@ def _creditos(fenomeno: Fenomeno, capa: Capa | None, c: Controles) -> str:
 def render_leyenda(fenomeno: Fenomeno, capa: Capa | None, c: Controles, contenedor=None) -> None:
     """Leyendas, créditos y estado del mapa base. Va aparte porque necesita la capa ya cargada."""
     with contenedor if contenedor is not None else st.sidebar:
-        st.caption("LEYENDA")
+        st.caption(tr("LEYENDA", "LEGEND"))
         if capa is not None:
             leyenda.render(fenomeno, capa)
         leyenda.render_contexto([k for k, activa in (("hidrografia", c.hidrografia), ("vias", c.vias)) if activa])
 
-        st.caption("CRÉDITOS Y FUENTES")
+        st.caption(tr("CRÉDITOS Y FUENTES", "CREDITS AND SOURCES"))
         st.markdown(_creditos(fenomeno, capa, c), unsafe_allow_html=True)
 
         estado = carto_estado()

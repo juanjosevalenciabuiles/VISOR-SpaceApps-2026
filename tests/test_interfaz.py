@@ -105,10 +105,10 @@ def estado(monkeypatch):
 
 
 def test_estado_inicial(estado):
-    assert estado["ui_explorador"] and estado["ui_info"] and estado["ui_sar"] == "cerrado"
+    assert estado["ui_explorador"] and not estado["ui_info"] and estado["ui_sar"] == "cerrado"
     assert estado["vista"] is None
     css = interfaz.css_estado()
-    assert css.startswith(".st-key-panel_sar,.st-key-sar_minimizado{display:none !important}")
+    assert ".st-key-panel_info" in css and ".st-key-panel_sar" in css
     assert "@media (max-width:720px){.st-key-panel_info{bottom:calc(46vh + 38px)" in css   # explorador abierto
 
 
@@ -153,8 +153,9 @@ def test_modo_inmersivo(estado):
     interfaz.alternar_explorador()
     interfaz.alternar_info()
     css = interfaz.css_estado()
-    for panel in ("panel_explorador", "panel_info", "panel_sar", "sar_minimizado"):
+    for panel in ("panel_explorador", "panel_sar", "sar_minimizado"):
         assert f".st-key-{panel}" in css
+    assert ".st-key-panel_info" not in css  # se abrió expresamente con el último clic
 
 
 def test_ir_a_coordenadas_y_volver(estado):
@@ -193,18 +194,25 @@ def test_insignias_de_procedencia():
         procedencia = None
     assert "DEMO" in interfaz.insignia_procedencia(Capa())
     Capa.es_demo = False   # sin evaluación: nunca se supone que es real
-    assert "NO DECLARADA" in interfaz.insignia_procedencia(Capa()) and "REAL" not in interfaz.insignia_procedencia(Capa())
+    assert ("SOURCE UNVERIFIED" in interfaz.insignia_procedencia(Capa())
+            or "NO DECLARADA" in interfaz.insignia_procedencia(Capa()))
     assert "SIN CAPA" in interfaz.insignia_procedencia(None)
-    for estado, texto, clase in ((p.NO_DECLARADA, "PROCEDENCIA NO DECLARADA", "mc-insignia-nodeclarada"),
-                                 (p.REAL_SIN_VALIDAR, "REAL SIN VALIDAR", "mc-insignia-real"),
-                                 (p.VALIDADO, "VALIDADO", "mc-insignia-validado")):
+    for estado, texto, clase in ((p.NO_DECLARADA, "SOURCE UNVERIFIED", "mc-insignia-nodeclarada"),
+                                 (p.REAL_SIN_VALIDAR, "REAL · UNVALIDATED", "mc-insignia-real"),
+                                 (p.VALIDADO, "VALIDATED", "mc-insignia-validado")):
         html = interfaz.insignia(p.Procedencia(estado, "x"))
         assert texto in html and clase in html
 
 
 def test_ayuda_explica_etiquetas_nisar_e_ia():
-    texto = inspect.getsource(interfaz.mostrar_ayuda)
-    for frase in ("DEMO", "REAL SIN VALIDAR", "VALIDADO", "PROCEDENCIA NO DECLARADA", "NISAR", "Sentinel-1", "inteligencia artificial", "no confirma"):
+    from components import bienvenida
+    assert "bienvenida.abrir()" in inspect.getsource(interfaz.mostrar_ayuda)
+    # Los contenidos se trasladaron del diálogo de Ayuda al popup persistente,
+    # donde se presentan en ambos idiomas con búsqueda.
+    texto = "\n".join(contenido for idioma in ("es", "en")
+                      for _, contenido in bienvenida.CAPITULOS[idioma])
+    for frase in ("DEMO", "REAL SIN VALIDAR", "VALIDADO", "PROCEDENCIA NO DECLARADA",
+                  "NISAR", "Sentinel-1", "aprendizaje automático", "no confirma"):
         assert frase in texto
 
 
@@ -231,6 +239,7 @@ def app(monkeypatch):
     from streamlit.testing.v1 import AppTest
 
     monkeypatch.chdir(RAIZ)
+    monkeypatch.setenv("VISOR_MOSTRAR_DEMO", "1")  # QA del comportamiento legacy; público sin DEMO
     return AppTest.from_file(str(RAIZ / "app.py"), default_timeout=60).run()
 
 
@@ -255,12 +264,12 @@ def test_app_tema_cambia_con_el_fenomeno(app):
 
 def test_app_contraer_el_explorador_conserva_sus_valores(app):
     app.radio(key="fenomeno").set_value("deforestacion").run()
-    app.selectbox(key="mapa_base").set_value("topografico").run()
+    app.selectbox(key="dock_mapa_base").set_value("topografico").run()
     app.button(key="cerrar_explorador").click().run()
     assert not app.exception and app.session_state["ui_explorador"] is False
     assert ".st-key-panel_explorador" in textos(app)              # oculto con CSS, no eliminado
     assert app.radio(key="fenomeno").value == "deforestacion"
-    assert app.selectbox(key="mapa_base").value == "topografico"
+    assert app.selectbox(key="dock_mapa_base").value == "topografico"
     assert "--theme-rgb:100, 223, 167" in textos(app)
     app.button(key="btn_explorador").click().run()
     assert app.session_state["ui_explorador"] is True and app.radio(key="fenomeno").value == "deforestacion"
@@ -296,18 +305,18 @@ def test_barra_superior_separa_fenomeno_demo_de_resultado_real():
     fen = FENOMENOS["inundacion"]
     # Sin capa ni resultado lo dice; nunca muestra la DEMO por su cuenta.
     vacio = interfaz.estado_html(fen, None)
-    assert "SIN RESULTADO" in vacio and "DEMO" not in vacio
+    assert ("NO RESULT" in vacio or "SIN RESULTADO" in vacio) and "DEMO" not in vacio
     solo = interfaz.estado_html(fen, demo)
-    assert "DEMO · DATOS SINTÉTICOS" in solo and "Resultado SAR" not in solo and ">Demostración<" in solo
+    assert "DEMO" in solo and "Resultado SAR" not in solo and ">Demostración<" in solo
     ambos = interfaz.estado_html(fen, demo, [real])
     # Las dos insignias aparecen, cada una en su grupo rotulado, y en ese orden.
-    i_fen, i_demo = ambos.index(">Demostración<"), ambos.index("DEMO · DATOS SINTÉTICOS")
-    i_res, i_real = ambos.index(">Resultado SAR<"), ambos.index("REAL SIN VALIDAR")
-    assert i_fen < i_demo < i_res < i_real and "SIN RESULTADO" not in ambos
+    i_fen, i_demo = ambos.index(">Demostración<"), ambos.index("mc-insignia-demo")
+    i_res, i_real = ambos.index(">Resultado SAR<"), ambos.index("mc-insignia-real")
+    assert i_fen < i_demo < i_res < i_real and "NO RESULT" not in ambos and "SIN RESULTADO" not in ambos
     oculta = interfaz.estado_html(fen, demo, [real], capa_visible=False)
-    assert "DEMO" not in oculta and "REAL SIN VALIDAR" in oculta
+    assert "DEMO" not in oculta and ("REAL SIN VALIDAR" in oculta or "REAL · UNVALIDATED" in oculta)
     tres = interfaz.estado_html(fen, None, [real, real, real])
-    assert tres.count("REAL SIN VALIDAR") == 1, "un único resultado en el mapa"
+    assert tres.count("REAL · UNVALIDATED") + tres.count("REAL SIN VALIDAR") == 1, "un único resultado en el mapa"
 
 
 def test_insignias_demo_y_real_no_comparten_color():

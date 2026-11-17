@@ -65,8 +65,9 @@ def test_resultado_reproducible_real_sin_validar(abrir):
     for frase in ("REAL SIN VALIDAR", "VV −7,5 dB · VH −3 dB", "Sentinel-1C", "2026-09-24 → 2026-10-06",
                   "según la ficha de procedencia", "No es una inundación confirmada"):
         assert frase in info, frase
-    linea = p.texto("linea_temporal")
-    assert "2026-09-24" in linea and "2026-10-06" in linea
+    # Ya no se dibuja una línea temporal flotante; las fechas quedan en Information.
+    assert not p.visible("linea_temporal")
+    assert "2026-09-24" in info and "2026-10-06" in info
     # REAL SIN VALIDAR y DEMO no comparten color.
     colores = p.page.evaluate("""()=>[...document.querySelectorAll('.st-key-barra_superior .mc-insignia')]
         .map(e=>[e.innerText, getComputedStyle(e).backgroundColor, getComputedStyle(e).color])""")
@@ -115,3 +116,114 @@ def test_diferencia_db_continua(abrir, servidor):
     with open(d.value.path(), "rb") as f:
         assert verificar_paquete(f.read(), origen, (), continuo=True) == []
     assert hashlib.sha256(origen.read_bytes()).hexdigest() == huella and not p.errores
+
+
+
+def test_seleccionar_otro_historico_centra_y_no_reaparece_el_anterior(abrir, servidor):
+    """Regresión real con Leaflet: View A → View B → pan/zoom conserva solo B."""
+    from utils.resultados import leer_resultado
+
+    p = abrir()
+    p.ver_historico(EXPLORATORIO.removeprefix("res_"))
+    primero = capas_imagen(p)
+    assert len(primero) == 1
+
+    # Forzar encuadre lejos del área del resultado nuevo para verificar el recentrado.
+    p.mapa.evaluate("()=>{map.setView([5.5,-72.5],8)}")
+    p.esperar(650)
+    p.ver_historico("cambio_vv_20260924_20261006_dif_db")
+    segundo = capas_imagen(p)
+    assert len(segundo) == 1, "No pueden quedar dos GeoTIFF al cambiar de historial"
+    assert segundo[0]["src"] != primero[0]["src"], "Sigue visible el GeoTIFF antiguo"
+
+    raster = leer_resultado(
+        servidor.datos / "analisis" / "cambio_VV_20260924_20261006_dif_db.tif"
+    )
+    oeste, sur, este, norte = raster.capa.limites
+    zoom, lat, lon = p.vista()
+    assert abs(lat - (sur + norte) / 2) < 0.05
+    assert abs(lon - (oeste + este) / 2) < 0.05
+
+    p.mapa.evaluate("()=>{map.panBy([65,40]);map.setZoom(map.getZoom()+1)}")
+    p.esperar(1000)
+    tercero = capas_imagen(p)
+    assert len(tercero) == 1 and tercero[0]["src"] == segundo[0]["src"]
+    assert p.mapa_intacto(), "Zoom desmontó el mapa o restauró la capa anterior"
+
+
+
+def test_recomendaciones_fluviales_un_click_crea_zona_y_muestra_info(abrir):
+    """Un clic selecciona/encuadra la AOI, sin activar raster ni calcular SAR."""
+    p = abrir()
+    p.clic("recom_chigorodo")
+    p.esperar_mapa()
+    zoom, lat, lon = p.vista()
+    # El centro cambia con la ampliación segura, pero incluye la AOI aprobada.
+    bounds = p.mapa.evaluate("""() => {
+        const r = Object.values(map._layers).find(l => l instanceof L.Rectangle &&
+            String(l.options.color).toLowerCase() === '#ffffff');
+        if (!r) return null;
+        const b = r.getBounds();
+        return {o:b.getWest(), s:b.getSouth(), e:b.getEast(), n:b.getNorth()};
+    }""")
+    assert bounds and bounds["o"] <= -76.825 and bounds["s"] <= 7.568
+    assert bounds["e"] >= -76.648 and bounds["n"] >= 7.676
+    assert abs(lat - (bounds["s"] + bounds["n"]) / 2) < 0.03
+    assert abs(lon - (bounds["o"] + bounds["e"]) / 2) < 0.03
+    assert p.visible("panel_info") and "Chigorodó" in p.texto("panel_info")
+    assert p.visible("panel_sar"), "la recomendación debe abrir las herramientas SAR"
+    assert p.page.locator("#zona-confirmada").count() == 1
+    assert capas_imagen(p) == [], "un preset no lanza SAR"
+    n = p.mapa.evaluate("""() => Object.values(map._layers).filter(
+        l => l instanceof L.Rectangle &&
+        l.getTooltip()?.getContent()?.includes('Zona de análisis confirmada')
+    ).length""")
+    assert n == 1, "el rectángulo recomendado debe verse en Leaflet"
+
+    # SAR Tools ocupa el lado izquierdo: reabrir Explorer antes del segundo preset.
+    p.clic("btn_explorador")
+    p.clic("recom_choco_atrato")
+    p.esperar_mapa()
+    zoom, lat, lon = p.vista()
+    bounds = p.mapa.evaluate("""() => {
+        const r = Object.values(map._layers).find(l => l instanceof L.Rectangle &&
+            String(l.options.color).toLowerCase() === '#ffffff');
+        const b = r.getBounds();
+        return {o:b.getWest(), s:b.getSouth(), e:b.getEast(), n:b.getNorth()};
+    }""")
+    assert bounds["o"] <= -76.70 and bounds["s"] <= 5.66
+    assert bounds["e"] >= -76.62 and bounds["n"] >= 5.73
+    assert abs(lat - (bounds["s"] + bounds["n"]) / 2) < 0.03
+    assert abs(lon - (bounds["o"] + bounds["e"]) / 2) < 0.03
+    assert p.visible("panel_info") and "Quibdó" in p.texto("panel_info")
+    assert p.visible("panel_sar")
+    assert capas_imagen(p) == []
+    n = p.mapa.evaluate("""() => Object.values(map._layers).filter(
+        l => l instanceof L.Rectangle &&
+        l.getTooltip()?.getContent()?.includes('Zona de análisis confirmada')
+    ).length""")
+    assert n == 1, "la segunda AOI sustituye la primera sin capas residuales"
+
+
+
+def test_boton_analizar_sar_sigue_visible_al_desplazarse_por_panel(abrir):
+    """CTA accesible sin recorrer listas largas de huellas y controles de NISAR."""
+    p = abrir()
+    p.clic("btn_sar")
+    p.esperar()
+    panel = p.page.locator(".st-key-panel_sar").first
+    barra = panel.locator(".st-key-sar_accion_fija").first
+    boton = barra.locator("button").first
+    assert panel.is_visible() and barra.is_visible()
+    assert boton.count() == 1 and boton.is_disabled(), "sin par no debe iniciar Harmony"
+    # El botón está ARRIBA, inmediatamente después de la cabecera, sin scroll.
+    panel.evaluate("el => { el.scrollTop = 0; }")
+    info = barra.evaluate("""el => ({
+        css: getComputedStyle(el).position,
+        panel: el.closest('.st-key-panel_sar') !== null,
+        visible: el.getBoundingClientRect().top >=
+                 el.closest('.st-key-panel_sar').getBoundingClientRect().top &&
+                 el.getBoundingClientRect().bottom <=
+                 el.closest('.st-key-panel_sar').getBoundingClientRect().bottom
+    })""")
+    assert info == {"css": "static", "panel": True, "visible": True}

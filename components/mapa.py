@@ -15,22 +15,28 @@ que se inserta DENTRO del marco del mapa (ESTILO_LIENZO); el marco en sí se
 fija a pantalla completa desde assets/mission_control.css.
 """
 
+import json
+import hashlib
+
 import folium
+import numpy as np
 import streamlit as st
 from folium import MacroElement
 from folium.plugins import Draw, Fullscreen
 from folium.template import Template
 from streamlit_folium import st_folium
 
+from components import flujo
 from components.barra_lateral import Controles
-from utils import geo
+from utils import geo, sesion
 from utils.capas_contexto import CAPAS_CONTEXTO, recortar
 from utils import alcance_geografico
 from utils.config import MAPA_CENTRO, MAPA_ZOOM, Fenomeno
 from utils.geotiff import Capa, a_web_mercator, colorizar_capa, colorizar_categorico
 from utils.mapas_base import MapaBase, obtener, url_teselas
-from utils.diferencia_db import colorizar_diferencia
+from utils.diferencia_db import UMBRAL_TRANSPARENCIA_VISUAL_DB, colorizar_diferencia
 from utils.resultados import ResultadoSAR, _firma
+from utils.i18n import idioma, tr
 
 
 # Estilo que viaja dentro del marco del mapa. Debe ser constante: si cambiara,
@@ -51,6 +57,14 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #06121e; }
 .leaflet-top.leaflet-left { top: auto; left: auto; right: 14px; bottom: 40px;
                display: flex; flex-direction: row-reverse; align-items: flex-end; gap: 8px; }
 .leaflet-top.leaflet-left .leaflet-control { margin: 0 !important; float: none; clear: none; }
+/* Barra de dibujo horizontal: conserva todos los controles sin invadir el
+   panel de Información cuando la ventana es baja (regresión Playwright). */
+.leaflet-draw { display: flex !important; align-items: flex-end; gap: 6px; }
+.leaflet-draw-section { display: flex !important; flex: 0 0 auto; }
+.leaflet-draw-toolbar { display: flex !important; margin: 0 !important; }
+.leaflet-draw-toolbar a { display: block !important; float: none !important; border-bottom: 0 !important;
+                        border-right: 1px solid rgba(255,255,255,.12); }
+.leaflet-draw-toolbar a:last-child { border-right: 0; }
 /* Herramientas de dibujo de la zona (rectángulo, polígono, editar, borrar), encima del zoom.
    Iconos SVG propios: no dependen de la hoja de imágenes del complemento ni de las fuentes. */
 .leaflet-draw-toolbar a { background-color: rgba(8,22,36,.78) !important; background-size: 18px 18px !important;
@@ -65,6 +79,25 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #06121e; }
 .leaflet-control-zoom-fullscreen { background: rgba(8,22,36,.78) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f5f5f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5'/%3E%3C/svg%3E") center/18px 18px no-repeat !important; width: 34px !important; height: 34px !important; }
 .leaflet-fullscreen-on .leaflet-control-zoom-fullscreen { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f5f5f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5'/%3E%3C/svg%3E") !important; }
 .leaflet-draw-actions a { background: rgba(8,22,36,.94); color: #f5f5f7; border-left-color: rgba(255,255,255,.2); }
+/* Acción directa para dibujar una zona arrastrando desde una esquina a la otra. */
+.visor-zona-drag a, .visor-zona-drag a:hover {
+  display: flex !important; align-items: center; justify-content: center; gap: 6px;
+  width: 153px !important; min-height: 38px; line-height: 1.2 !important;
+  color: #06121e !important; font: 700 12px/1.1 system-ui, sans-serif !important;
+  background: #45e4f4 !important; border-radius: 9px; text-decoration: none;
+}
+.visor-zona-drag a:focus-visible { outline: 2px solid #ffd60a; outline-offset: 2px; }
+/* Botón arriba a la izquierda, junto al panel SAR; NO debajo del asistente ECO. */
+.visor-zona-drag {
+  position: fixed !important; top: 94px; left: 388px; right: auto; bottom: auto;
+  z-index: 800 !important; margin: 0 !important; pointer-events: auto;
+}
+@media (max-width: 980px) {
+  .visor-zona-drag { top: 90px; left: 12px; }
+}
+@media (max-width: 720px) {
+  .visor-zona-drag { top: 140px; left: 12px; }
+}
 .leaflet-bar { border: 1px solid rgba(255,255,255,.16) !important; border-radius: 12px !important; overflow: hidden;
                box-shadow: 0 8px 24px rgba(0,0,0,.35) !important; }
 .leaflet-bar a, .leaflet-bar a:hover { background: rgba(8,22,36,.78); color: #f5f5f7; border-bottom-color: rgba(255,255,255,.12);
@@ -111,8 +144,8 @@ class AvisoTeselas(MacroElement):
     capa._visorVigilada = true; var fallos = 0, cargas = 0;
     capa.on('tileerror', function(){ fallos++;
       if (fallos >= 4 && cargas === 0) { caja.className = 'visor-aviso-teselas visible';
-        caja.textContent = 'El mapa base no responde (sin conexión, clave rechazada o límite de uso del proveedor). '
-          + 'Elige otro mapa base en el Explorador. Los análisis y resultados no se ven afectados.'; } });
+        caja.textContent = 'Basemap tiles unavailable (connection, key, or provider limits). '
+          + 'Choose another basemap in Explorer. SAR results are unchanged.'; } });
     capa.on('tileload', function(){ cargas++; caja.className = 'visor-aviso-teselas'; });
   }
   m.eachLayer(vigilar);
@@ -147,7 +180,125 @@ def _modo_colombia(m: folium.Map) -> None:
     # Rótulo cartográfico fijo (abajo a la izquierda, sobre la escala): explica el velo sin taparlo todo.
     m.get_root().html.add_child(folium.Element(
         '<div class="visor-rotulo-fuera" id="rotulo-fuera"><span class="visor-rotulo-muestra"></span>'
-        f"Fuera de Colombia: {alcance_geografico.FUERA.lower()}</div>"))
+        f"{tr('Fuera de Colombia: zona no disponible en esta versión', 'Outside Colombia: area unavailable in this release')}</div>"))
+
+
+class SelectorZonaUnica(MacroElement):
+    """Control nativo Leaflet: un clic activa arrastre y reemplaza el dibujo.
+
+    Hijo del objeto Draw para usar sus nombres estables también cuando
+    streamlit-folium normaliza los IDs de Folium entre reruns.
+    """
+
+    _template = Template("""{% macro script(this, kwargs) %}
+    (function(mapa, dibujos) {
+        // streamlit-folium observa exactamente esta colección de dibujos.
+        window.drawnItems = dibujos;
+
+        // Al iniciar otra selección, el dibujo antiguo deja de estar activo.
+        mapa.on('draw:drawstart', function(e) {
+            if (e.layerType === 'rectangle' || e.layerType === 'polygon') {
+                dibujos.clearLayers();
+            }
+        });
+        // En Leaflet Draw el evento llega después de insertar la capa.
+        // Conservar exclusivamente la última, aun si se usó la barra clásica.
+        mapa.on('draw:created', function(e) {
+            dibujos.clearLayers();
+            dibujos.addLayer(e.layer);
+        });
+
+        var selector = L.control({position: 'topleft'});
+        var en = '{{ this.lang }}' === 'en';
+        selector.onAdd = function() {
+            var contenedor = L.DomUtil.create('div', 'leaflet-control visor-zona-drag');
+            var boton = L.DomUtil.create('a', 'leaflet-bar', contenedor);
+            boton.href = '#';
+            boton.setAttribute('role', 'button');
+            boton.setAttribute('aria-label', en ? 'Draw a study area by dragging' : 'Dibujar zona rectangular arrastrando');
+            boton.title = en ? 'Click and drag between opposite corners' : 'Clic, arrastra desde una esquina hasta la otra y suelta';
+            boton.textContent = en ? '▭ Select area' : '▭ Seleccionar zona';
+            L.DomEvent.disableClickPropagation(contenedor);
+            L.DomEvent.disableScrollPropagation(contenedor);
+            L.DomEvent.on(boton, 'click', L.DomEvent.stop)
+                .on(boton, 'click', function() {
+                    dibujos.clearLayers();
+                    new L.Draw.Rectangle(mapa, {
+                        shapeOptions: {color: '#ffd60a', weight: 2, fillOpacity: 0.05}
+                    }).enable();
+                });
+            return contenedor;
+        };
+        selector.addTo(mapa);
+    })(
+        {{ this._parent._parent.get_name() }},
+        drawnItems_{{ this._parent.get_name() }}
+    );
+    {% endmacro %}""")
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._name = "SelectorZonaUnica"
+        self.lang = idioma()
+
+
+def _identificador_vista_zona(zona: dict | None) -> str:
+    """ID solo de navegacion, estable por AOI; nunca examina el raster."""
+    if not isinstance(zona, dict) or not zona.get("limites"):
+        return "sin_zona"
+    try:
+        bbox = tuple(round(float(v), 6) for v in zona["limites"])
+    except (TypeError, ValueError):
+        return "sin_zona"
+    if len(bbox) != 4 or not all(np.isfinite(v) for v in bbox):
+        return "sin_zona"
+    return hashlib.sha256(json.dumps(bbox).encode("ascii")).hexdigest()[:12]
+
+
+class RecordarVistaNavegador(MacroElement):
+    """Conservar pan/zoom entre remontajes Leaflet sin pedir reruns a Streamlit.
+
+    sessionStorage dura solo esta pestaña; no guarda ni transmite geometrías SAR.
+    El centro/zoom de una navegación explícita enviado por Python tiene prioridad.
+    """
+
+    _template = Template("""{% macro script(this, kwargs) %}
+(function(m) {
+  // Guardar el encuadre por AOI para no recuperar una ciudad antigua.
+  var clave = 'visor-mapa-vista:{{ this.id_zona }}';
+  // Una navegacion explicita desde Python (AOI nueva / buscar) tiene prioridad.
+  if (!{{ this.ignorar_restauracion }}) {
+    try {
+      var guardada = JSON.parse(window.sessionStorage.getItem(clave) || 'null');
+      if (guardada && Number.isFinite(guardada.lat) && Number.isFinite(guardada.lon) &&
+          Number.isFinite(guardada.zoom) && Math.abs(guardada.lat) <= 90 &&
+          Math.abs(guardada.lon) <= 180 && guardada.zoom >= 2 && guardada.zoom <= 22) {
+        m.setView([guardada.lat, guardada.lon], guardada.zoom, {animate: false});
+      }
+    } catch (_) { /* sin almacenamiento: el mapa mantiene la vista normal */ }
+  }
+  function guardar() {
+    try {
+      var centro = m.getCenter(), zoom = m.getZoom();
+      if (Number.isFinite(centro.lat) && Number.isFinite(centro.lng) &&
+          Number.isFinite(zoom)) {
+        window.sessionStorage.setItem(clave, JSON.stringify({
+          lat: centro.lat, lon: centro.lng, zoom: zoom
+        }));
+      }
+    } catch (_) { /* almacenamiento deshabilitado: la navegación sigue funcionando */ }
+  }
+  m.on('moveend', guardar);
+  guardar();
+})({{ this._parent.get_name() }});
+{% endmacro %}""")
+
+    def __init__(self, id_zona: str = "sin_zona",
+                 ignorar_restauracion: bool = False) -> None:
+        super().__init__()
+        self._name = "RecordarVistaNavegador"
+        self.id_zona = id_zona
+        self.ignorar_restauracion = "true" if ignorar_restauracion else "false"
 
 
 def mapa_fijo() -> folium.Map:
@@ -170,19 +321,35 @@ def mapa_fijo() -> folium.Map:
     )
     # folium solo pasa min_zoom a las teselas por defecto (aquí no hay): se fija en el propio mapa.
     m.options["min_zoom"] = limites["min_zoom"]
+    # Transiciones Leaflet más fluidas; mover el mapa ya no recalcula los paneles
+    # Streamlit gracias al fragmento render (solo la AOI fuerza rerun completo).
+    m.options.update({
+        "preferCanvas": True,
+        "zoomAnimation": True,
+        "zoomAnimationThreshold": 8,
+        "wheelDebounceTime": 55,
+        "wheelPxPerZoomLevel": 45,
+    })
     if alcance_geografico.restringido():
         _modo_colombia(m)
+    # Vista por pestaña en el navegador: al cambiar de resultado SAR no saltar
+    # al último zoom registrado antes de la optimización.
+    RecordarVistaNavegador(
+        id_zona=_identificador_vista_zona(st.session_state.get("zona")),
+        ignorar_restauracion=bool(st.session_state.get("mapa_navegacion_explicita")),
+    ).add_to(m)
     m.get_root().header.add_child(folium.Element(ESTILO_LIENZO), name="visor_lienzo")
     # Dibujo de la zona de análisis: solo rectángulo y polígono. Lo dibujado es un borrador;
     # no se convierte en zona hasta confirmarlo en Herramientas SAR («Usar esta zona»).
-    Draw(position="topleft", export=False,
+    control_dibujo = Draw(position="topleft", export=False, show_geometry_on_click=False,
          draw_options={"polyline": False, "circle": False, "marker": False, "circlemarker": False,
                        "rectangle": {"shapeOptions": {"color": "#ffd60a", "weight": 2, "fillOpacity": 0.05}},
                        "polygon": {"allowIntersection": False,
                                    "shapeOptions": {"color": "#ffd60a", "weight": 2, "fillOpacity": 0.05}}},
          edit_options={"edit": True, "remove": True}).add_to(m)
+    control_dibujo.add_child(SelectorZonaUnica())
     # Pantalla completa del mapa (API Fullscreen del navegador; el iframe de Streamlit la permite).
-    Fullscreen(position="topleft", title="Pantalla completa", title_cancel="Salir de pantalla completa",
+    Fullscreen(position="topleft", title=tr("Pantalla completa", "Fullscreen"), title_cancel=tr("Salir de pantalla completa", "Exit fullscreen"),
                force_separate_button=True).add_to(m)
     AvisoTeselas().add_to(m)
     return m
@@ -198,6 +365,11 @@ def grupo_mapa_base(mapa: MapaBase) -> folium.FeatureGroup:
         max_zoom=mapa.max_zoom,
         max_native_zoom=mapa.max_zoom_nativo or mapa.max_zoom,
         no_wrap=True,
+        # Mantener teselas ya vistas al arrastrar, sin descargar en cada
+        # fotograma del zoom. Se conserva el proveedor/licencia original.
+        keep_buffer=4,
+        update_when_zooming=False,
+        update_when_idle=True,
         **({"class_name": mapa.clase_css} if mapa.clase_css else {}),
     ).add_to(grupo)
     return grupo
@@ -215,6 +387,51 @@ def grupo_sar(fenomeno: Fenomeno, capa: Capa, opacidad: float) -> folium.Feature
     return grupo
 
 
+def _soporte_local(mascara: np.ndarray) -> np.ndarray:
+    """Vecinos de la misma señal en 3×3, sin filtros sobre el dato SAR original."""
+    altura, ancho = mascara.shape
+    extendida = np.pad(mascara.astype(np.uint8), 1, mode="constant")
+    soporte = np.zeros((altura, ancho), dtype=np.uint8)
+    for fila in range(3):
+        for columna in range(3):
+            soporte += extendida[fila:fila + altura, columna:columna + ancho]
+    return soporte
+
+
+def realzar_alpha_delta(rgba: np.ndarray, datos: np.ma.MaskedArray) -> np.ndarray:
+    """Mapa exploratorio con disminuciones agrupadas en cian y fondo transparente.
+
+    Reglas SOLO VISUALES: |Δ| ≤ 2 dB invisible, disminuciones ≤ -3 dB
+    destacadas cuando hay al menos 3 píxeles negativos en 3×3; incrementos
+    igualmente agrupados, en segundo plano. No constituye mapa de inundación.
+    No interpola, no altera valores, QA, NoData ni la ficha del GeoTIFF.
+    """
+    imagen = rgba.copy()
+    valores = np.ma.getdata(datos)
+    mascara = np.ma.getmaskarray(datos)
+    validos = (~mascara) & np.isfinite(valores)
+    negativos = validos & (valores < -UMBRAL_TRANSPARENCIA_VISUAL_DB)
+    positivos = validos & (valores > UMBRAL_TRANSPARENCIA_VISUAL_DB)
+    coherentes_neg = negativos & (_soporte_local(negativos) >= 3)
+    coherentes_pos = positivos & (_soporte_local(positivos) >= 3)
+    moderados = coherentes_neg & (valores > -3.0)
+    fuertes = coherentes_neg & (valores <= -3.0)
+    intensos = fuertes & (valores <= -5.0)
+
+    # Todo lo no representado queda transparente, incluidos los píxeles QA
+    # inválidos y los cambios aislados (ruido visual).
+    imagen[..., 3] = 0
+    imagen[moderados, :3] = (76, 190, 255)
+    imagen[moderados, 3] = 115
+    imagen[fuertes, :3] = (0, 227, 255)
+    imagen[fuertes, 3] = 238
+    imagen[intensos, :3] = (24, 113, 255)
+    imagen[intensos, 3] = 248
+    imagen[coherentes_pos, :3] = (255, 145, 64)
+    imagen[coherentes_pos, 3] = 82
+    return imagen
+
+
 @st.cache_data(show_spinner=False, max_entries=16)
 def imagen_resultado(ruta: str, firma: tuple, perfil: str, _res: ResultadoSAR) -> str:
     """PNG (data URL) de un resultado. Colorear y codificar ~1000×1000 px cuesta ~60 ms y se
@@ -223,6 +440,18 @@ def imagen_resultado(ruta: str, firma: tuple, perfil: str, _res: ResultadoSAR) -
     oeste, sur, este, norte = _res.capa.limites
     rgba = (colorizar_diferencia(_res.capa.datos) if _res.perfil.continuo
             else colorizar_categorico(_res.capa.datos, _res.perfil.clases))
+    if _res.perfil.continuo:
+        rgba = realzar_alpha_delta(rgba, _res.capa.datos)
+    # Mostrar los píxeles reales terrestres aunque su huella bounding-box
+    # cruza la costa. Recorte SOLO visual; las matrices y estadísticas siguen
+    # siendo las originales, sin reinterpretar mar ni zonas extranjeras.
+    if (alcance_geografico.restringido()
+            and _res.capa.procedencia is not None
+            and _res.capa.procedencia.es_real
+            and not alcance_geografico.admitida(_res.capa.limites)):
+        dentro = alcance_geografico.mascara_pixeles_colombia(_res.capa)
+        if dentro is not None:
+            rgba[~dentro, 3] = 0
     return image_to_url(a_web_mercator(rgba, sur, norte))
 
 
@@ -356,14 +585,139 @@ def destino_vista(vista: dict | None) -> tuple[list[float] | None, float | None]
     return [float(lat) + n * 1e-9, float(lon)], float(vista["zoom"]) + n * 1e-6
 
 
+def _centro_y_zoom_guardados(vista: dict | None):
+    """Navegación explícita o último encuadre real; nunca volver a zoom_start."""
+    anterior = st.session_state.get("mapa_encuadre_usuario")
+    secuencia = vista.get("n") if vista else None
+    if vista is not None and secuencia != st.session_state.get("mapa_ultimo_destino"):
+        centro, zoom = destino_vista(vista)
+        st.session_state["mapa_ultimo_destino"] = secuencia
+        st.session_state["mapa_encuadre_usuario"] = {"centro": centro, "zoom": zoom}
+        return centro, zoom
+    if isinstance(anterior, dict):
+        return anterior.get("centro"), anterior.get("zoom")
+    return None, None
+
+
+def _guardar_encuadre_usuario() -> None:
+    """Captura el viewport desde el widget ANTES de reconstruir el mapa."""
+    datos = st.session_state.get(st.session_state.get("mapa_widget_key", "mapa"))
+    if not isinstance(datos, dict):
+        return
+    zoom = datos.get("zoom")
+    if not isinstance(zoom, (int, float)) or not np.isfinite(zoom) or not (2 <= zoom <= 22):
+        return
+    centro = datos.get("center")
+    if isinstance(centro, dict):
+        lat, lon = centro.get("lat"), centro.get("lng")
+        centro = [lat, lon] if all(isinstance(v, (int, float)) for v in (lat, lon)) else None
+    if not isinstance(centro, (list, tuple)) or len(centro) != 2:
+        limites = limites_de_vista(datos.get("bounds"))
+        if limites is None:
+            return
+        oeste, sur, este, norte = limites
+        centro = [(sur + norte) / 2, (oeste + este) / 2]
+    try:
+        lat, lon = float(centro[0]), float(centro[1])
+    except (TypeError, ValueError):
+        return
+    if not np.isfinite(lat) or not np.isfinite(lon):
+        return
+    st.session_state["mapa_encuadre_usuario"] = {
+        "centro": [lat, lon], "zoom": float(zoom),
+    }
+
+
+def _sincronizar_zona_dibujada(dibujos: list | None) -> bool:
+    """Al soltar el rectángulo, confirmar una sola AOI sin tocar ningún GeoTIFF.
+
+    El marcador de firma impide confirmar la misma figura de nuevo en un rerun.
+    Si el usuario borra la figura, la zona activa queda deseleccionada.
+    """
+    ultimo = dibujos[-1] if dibujos else None
+    firma = json.dumps(ultimo, sort_keys=True) if ultimo is not None else None
+    if firma == st.session_state.get("mapa_firma_dibujo"):
+        return False
+    st.session_state["mapa_firma_dibujo"] = firma
+    # Retirar el AOI previo y el resultado ligado a él. Los archivos históricos
+    # siguen en disco y el panel del historial no pierde referencias.
+    if st.session_state.get("zona") is not None:
+        flujo.quitar_zona()
+    elif st.session_state.get("resultado_activo") is not None:
+        flujo.limpiar_resultado("Se eligió otra zona; el resultado anterior sigue en el historial.")
+    st.session_state["mapa_dibujo"] = ultimo
+    if ultimo is None:
+        return True
+    for clave in ("v9_firma", "v9_preparacion", "v9_mapa_job",
+                  "v9_publicado", "v9_error", "v9_sugerencias"):
+        st.session_state.pop(clave, None)
+    st.session_state["ui_sar"] = "abierto"
+    st.session_state["ui_explorador"] = False
+    try:
+        limites, geometria = sesion.zona_de_geojson(ultimo)
+        flujo.confirmar_zona(limites, "rectángulo dibujado en el mapa", geometria)
+    except sesion.ErrorZona as exc:
+        # Nunca aceptar un AOI demasiado grande, fuera de Colombia o inválido.
+        st.session_state["error_zona"] = str(exc)
+    return True
+
+
 def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | None = None,
            resultados: list[ResultadoSAR] | tuple = (), extras: list[folium.FeatureGroup] | tuple = (),
-           seguir_vista: bool = False) -> None:
+           seguir_vista: bool = False, seleccionar_par: bool = False) -> None:
     """`extras`: grupos adicionales encima de todo (zona, marcador del lugar y huellas de entrada).
 
     El mapa devuelve el borrador de zona dibujado y su encuadre (para recortar ríos y carreteras a lo
     que se ve y para «usar el área visible»). Nada de lo que devuelve el mapa lanza un análisis."""
-    centro, zoom = destino_vista(vista)
+    # Cada rerun debe recibir resultados, controles y overlays actualizados.
+    # Con @st.fragment el pan/zoom usaba argumentos obsoletos y restauraba el histórico.
+    # Identidad estable del mapa para pan/zoom, nueva al elegir otro GeoTIFF.
+    # Así el componente no conserva overlays anteriores al cambiar el historial.
+    resultado = next(iter(sorted(c.resultados)), "none")
+    clave_widget = "mapa" if resultado == "none" and idioma() == "es" else f"mapa__{resultado}__{idioma()}"
+    # El cambio de AOI remonta Leaflet solo UNA vez, para descartar la vista
+    # guardada y los dibujos del municipio anterior. Pan/zoom conservan la clave.
+    id_zona = _identificador_vista_zona(st.session_state.get("zona"))
+    if id_zona != "sin_zona":
+        clave_widget += f"__zona_{id_zona}"
+    # El mapa es interactivo en el navegador: un pan/zoom normal no necesita
+    # ejecutar de nuevo Streamlit ni volver a serializar los overlays SAR.
+    # Solo la AOI dibujada debe activar el servidor. Las herramientas que
+    # necesitan la extensión visible y las capas de ríos/vías recortadas sí
+    # reciben bounds/zoom/center para actualizarlas mientras se navega.
+    seguir_encuadre = bool(seguir_vista or getattr(c, "hidrografia", False)
+                           or getattr(c, "vias", False))
+    objetos_devuelto = (["all_drawings", "bounds", "zoom", "center"]
+                         if seguir_encuadre else ["all_drawings"])
+    # Un clic en una huella selecciona el par, pero pan/zoom no vuelve a
+    # consultar NASA ni necesita reejecutar Python. Solo activar en este modo.
+    if seleccionar_par:
+        objetos_devuelto.append("last_object_clicked")
+    # streamlit-folium fija returned_objects al montar su iframe: entrar
+    # o salir del modo de seguimiento requiere UNA nueva instancia, no un
+    # remontaje por cada cambio de centro/zoom.
+    if seguir_encuadre:
+        clave_widget += "__seguir_vista"
+    if seleccionar_par:
+        clave_widget += "__pares_nisar"
+    # Solo un clic en una recomendación recrea el componente para limpiar dibujos
+    # antiguos de Leaflet. La clave permanece estable durante pan/zoom.
+    sugerencia_version = int(st.session_state.get("visor_aoi_recomendacion_seq", 0))
+    if sugerencia_version:
+        clave_widget += f"__recomendacion_{sugerencia_version}"
+    clave_anterior = st.session_state.get("mapa_widget_key")
+    remontaje = clave_widget != clave_anterior
+    nueva_navegacion = vista is not None and vista.get("n") != st.session_state.get("mapa_ultimo_destino")
+    if remontaje:
+        st.session_state["mapa_widget_key"] = clave_widget
+        st.session_state["mapa_firma_dibujo"] = None
+    st.session_state["mapa_navegacion_explicita"] = bool(nueva_navegacion)
+    centro, zoom = _centro_y_zoom_guardados(vista)
+    if remontaje and clave_anterior is not None and not nueva_navegacion:
+        # Un cambio de GeoTIFF/seguimiento remonta Leaflet. La vista actual
+        # permanece en sessionStorage del iframe y es más reciente que el
+        # último encuadre enviado al servidor (que ya no recibe cada pan).
+        centro, zoom = None, None
     salida = st_folium(
         mapa_fijo(),
         feature_group_to_add=[*construir_capas(fenomeno, capa, c, resultados), *extras],
@@ -371,15 +725,33 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
         use_container_width=True,
         # streamlit-folium fija esta lista al montar el mapa y no la vuelve a leer: tiene que ser
         # constante. Mover el mapa provoca una recarga ligera (sin recálculo) para conocer el encuadre.
-        returned_objects=["all_drawings", "bounds", "zoom"],
+        returned_objects=objetos_devuelto,
         center=centro,
         zoom=zoom,
-        key="mapa",                   # misma clave siempre: se conserva ubicación y zoom
+        key=clave_widget,            # estable en zoom; nueva al cambiar resultado
+        on_change=_guardar_encuadre_usuario,
     ) or {}
-    dibujos = salida.get("all_drawings") or []
-    st.session_state["mapa_dibujo"] = dibujos[-1] if dibujos else None
+    # El componente puede devolver una actualización parcial (zoom, capas).
+    # Ausencia de all_drawings NO significa que el usuario borró su AOI.
+    nueva_seleccion = (
+        _sincronizar_zona_dibujada(salida["all_drawings"])
+        if salida.get("all_drawings") is not None else False
+    )
     limites = limites_de_vista(salida.get("bounds"))
-    st.session_state["mapa_limites"] = limites if limites is not None and limites[0] < limites[2] else None
+    if limites is not None and limites[0] < limites[2]:
+        st.session_state["mapa_limites"] = limites
+    elif seguir_encuadre:
+        # No pisar el último encuadre solo porque el componente aún está
+        # montándose; queda disponible al moverlo en modo de seguimiento.
+        st.session_state.setdefault("mapa_limites", None)
+    if nueva_seleccion:
+        st.rerun()  # Nueva AOI: refresca también los controles externos al mapa.
+    if seleccionar_par and salida.get("last_object_clicked") is not None:
+        from components import v9_experiencia
+        if v9_experiencia.seleccionar_desde_mapa(
+            salida["last_object_clicked"], clave_widget
+        ):
+            st.rerun()  # Solo selección explícita; nunca pan/zoom.
 
 
 def limites_de_vista(bounds) -> tuple[float, float, float, float] | None:

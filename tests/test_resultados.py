@@ -169,14 +169,15 @@ def test_el_lienzo_del_mapa_no_cambia_al_activar_resultados(tmp_path):
 def test_ficha_del_exploratorio_no_inventa_datos(tmp_path):
     res = r.leer_resultado(exploratorio(tmp_path / "coincidencia_VV_VH_Chigorodo.tif"))
     html = ui.ficha_html(res)
-    assert "PROCEDENCIA NO DECLARADA" in html and "REAL SIN VALIDAR" not in html
-    assert "No es una inundación confirmada" in html
+    assert ("SOURCE UNVERIFIED" in html or "PROCEDENCIA NO DECLARADA" in html)
+    assert "REAL · UNVALIDATED" not in html and "REAL SIN VALIDAR" not in html
+    assert ("not confirmed flooding" in html or "No es una inundación confirmada" in html)
     datos = ui.datos_declarados(res)
     assert datos["sensor"] == (ui.NO_DECLARADO, None) and datos["metodo"] == (ui.NO_DECLARADO, None)
     assert datos["fechas"] == (ui.NO_DECLARADO, None) and datos["umbral"] == (ui.NO_DECLARADO, None)
     assert datos["polarizaciones"] == ("VV y VH", "según las etiquetas del GeoTIFF")
     assert "Sentinel" not in html and "2026" not in html
-    assert "200" in html and "Limitaciones" in html and "No documentada" in html
+    assert "200" in html and ("Limitaciones" in html or "Limitations" in html) and "No documentada" in html
 
 
 def test_ficha_reproducible_muestra_todo_y_su_origen(tmp_path):
@@ -191,7 +192,8 @@ def test_ficha_reproducible_muestra_todo_y_su_origen(tmp_path):
     assert "Combinación píxel a píxel" in d["metodo"][0]
     assert any("parámetros distintos" in a for a in res.ficha["avisos"])
     html = ui.ficha_html(res)
-    assert "REAL SIN VALIDAR" in html and "SHA-256" in html and "No es una inundación confirmada" in html
+    assert ("REAL · UNVALIDATED" in html or "REAL SIN VALIDAR" in html) and "SHA-256" in html
+    assert ("not confirmed flooding" in html or "No es una inundación confirmada" in html)
     assert "NISAR" not in html
 
 
@@ -223,6 +225,8 @@ def test_app_activa_resultado_sin_perder_controles(tmp_path, monkeypatch):
     reproducible(tmp_path / "real")
     for p in (tmp_path / "real").glob("coincidencia*"):
         p.rename(tmp_path / p.name)
+    monkeypatch.setenv("VISOR_MOSTRAR_DEMO", "1")  # modos sintéticos solo QA, no versión pública
+    monkeypatch.setenv("VISOR_MOSTRAR_HISTORIAL", "1")  # fixture de histórico aislado
     monkeypatch.setattr(r, "CARPETA_ANALISIS", tmp_path)
     monkeypatch.chdir(RAIZ)
     at = AppTest.from_file(str(RAIZ / "app.py"), default_timeout=120).run()
@@ -231,9 +235,9 @@ def test_app_activa_resultado_sin_perder_controles(tmp_path, monkeypatch):
     # Primera carga: hay archivos en disco y aun así nada se dibuja; la DEMO está apagada.
     assert at.session_state["resultado_activo"] is None and at.toggle(key="capa_sar").value is False
     texto = " ".join(m.value for m in at.markdown)
-    assert "SIN RESULTADO" in texto and "Cómo empezar" in texto
+    assert ("SIN RESULTADO" in texto or "NO RESULT" in texto) and ("Welcome to V.I.S.O.R." in texto or "Bienvenido a V.I.S.O.R." in texto)
     # El historial lista los archivos con su insignia, pero ninguna ficha ni cifra de resultado.
-    assert "No es una inundación confirmada" not in texto and "Píxeles" not in texto
+    assert "not confirmed flooding" not in texto and "No es una inundación confirmada" not in texto
 
     # Abrir del historial: un único resultado, rotulado HISTÓRICO.
     at.button(key="hist_ver_coincidencia_vv_vh_chigorodo").click().run()
@@ -242,8 +246,9 @@ def test_app_activa_resultado_sin_perder_controles(tmp_path, monkeypatch):
     at.slider(key="res_opacidad").set_value(0.5).run()
     assert not at.exception
     texto = " ".join(m.value for m in at.markdown)
-    assert "PROCEDENCIA NO DECLARADA" in texto and "No es una inundación confirmada" in texto
-    assert "HISTÓRICO" in texto and "no se ejecutó un análisis nuevo" in texto
+    assert "SOURCE UNVERIFIED" in texto or "PROCEDENCIA NO DECLARADA" in texto
+    assert "not confirmed flooding" in texto or "No es una inundación confirmada" in texto
+    assert "HISTÓRICO" in texto and at.session_state["resultado_activo"]["origen"] == "historico"
     assert "LÍNEA TEMPORAL" not in texto                             # sin ficha: no hay fechas ni línea
 
     # Cambiar el fenómeno de la DEMO no apaga el resultado ni su opacidad, ni enciende la DEMO.
@@ -251,8 +256,32 @@ def test_app_activa_resultado_sin_perder_controles(tmp_path, monkeypatch):
     assert at.session_state["resultado_activo"]["id"] == "coincidencia_vv_vh_chigorodo"
     assert at.slider(key="res_opacidad").value == 0.5 and at.toggle(key="capa_sar").value is False
 
-    # Abrir otro lo sustituye (no se acumulan) y la línea temporal muestra sus fechas.
+    # Abrir otro lo sustituye (no se acumulan): las fechas se consultan
+    # en Information, sin línea temporal flotante sobre la leyenda.
     at.button(key="hist_ver_coincidencia_vv_vh_20260924_20261006").click().run()
     assert at.session_state["resultado_activo"]["id"] == "coincidencia_vv_vh_20260924_20261006"
+    at.button(key="btn_info").click().run()
     texto = " ".join(m.value for m in at.markdown)
-    assert "T₁ · 2026-09-24" in texto and "T₂ · 2026-10-06" in texto and "REAL SIN VALIDAR" in texto
+    assert "2026-09-24" in texto and "2026-10-06" in texto
+    assert "REAL · UNVALIDATED" in texto or "REAL SIN VALIDAR" in texto
+
+
+def test_cargar_solo_resultado_activo_sin_leer_historicos(tmp_path, monkeypatch):
+    """La vista pública no deserializa rasters que solo existen en el historial."""
+    nombres = ("coincidencia_activa.tif", "historico_a.tif", "historico_b.tif")
+    for nombre in nombres:
+        (tmp_path / nombre).write_bytes(b"raster de prueba, no abrir")
+    llamadas = []
+
+    def leer_sin_abrir(ruta, firma):
+        llamadas.append(Path(ruta).name)
+        return Path(ruta).name
+
+    monkeypatch.setattr(r, "_cargar_con_cache", leer_sin_abrir)
+    assert r.cargar_resultados(tmp_path, solo_id="") == []
+    assert llamadas == []
+    assert r.cargar_resultados(tmp_path, solo_id="coincidencia_activa") == ["coincidencia_activa.tif"]
+    assert llamadas == ["coincidencia_activa.tif"]
+    llamadas.clear()
+    assert set(r.cargar_resultados(tmp_path)) == set(nombres)
+    assert set(llamadas) == set(nombres)

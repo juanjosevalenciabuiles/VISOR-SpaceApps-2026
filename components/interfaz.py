@@ -20,12 +20,14 @@ from html import escape
 
 import streamlit as st
 
-from components import barra_lateral, eco, flujo, panel_info
+from components import barra_lateral, bienvenida, eco, flujo, panel_info
 from components import contexto_zona
 from components import herramientas_sar as herramientas
+from components import v9_experiencia
 from components import resultados as ui_resultados
 from components.barra_lateral import Controles
 from components.panel_info import insignia
+from utils.i18n import tr
 from utils import alcance_geografico
 from utils.config import MAPA_CENTRO, MAPA_ZOOM, Fenomeno
 from utils import procedencia, trabajos
@@ -33,7 +35,7 @@ from utils.geotiff import Capa
 
 ESTADO_INICIAL = {
     "ui_explorador": True,              # panel izquierdo de exploración
-    "ui_info": True,                    # panel científico de la derecha
+    "ui_info": False,                   # panel derecho opt-in para no tapar el mapa
     "ui_sar": "cerrado",                # "cerrado" | "abierto" | "minimizado"
     "ui_explorador_previo": True,       # cómo estaba el explorador antes de abrir SAR
     "vista": None,                      # {"centro": [lat, lon], "zoom": z, "n": k}
@@ -48,6 +50,10 @@ def inicializar_estado() -> None:
     flujo.inicializar()
     if st.session_state["ui_sar"] not in ESTADOS_SAR:
         st.session_state["ui_sar"] = "cerrado"
+    # Migrar una sola vez pestañas antiguas: no abrir contexto redundante al volver.
+    if not st.session_state.get("visor_ux_compacto_migrado"):
+        st.session_state["ui_info"] = False
+        st.session_state["visor_ux_compacto_migrado"] = True
 
 
 # ---------------------------------------------------------------------------
@@ -139,6 +145,11 @@ def css_estado() -> str:
     if st.session_state["ui_sar"] != "minimizado":
         ocultos.append(".st-key-sar_minimizado")
     css = (",".join(ocultos) + "{display:none !important}") if ocultos else ""
+    if not st.session_state.get("ui_capas_abierto", True):
+        css += (".st-key-panel_capas_body{display:none !important}"
+                "@media(min-width:721px){.st-key-panel_info{"
+                "top:calc(var(--mc-arriba) + 72px) !important;"
+                "max-height:calc(100vh - var(--mc-arriba) - 260px) !important}}")
     if st.session_state["ui_explorador"]:
         # Móvil: ambas son hojas inferiores; con el explorador abierto, la información sube.
         css += ("@media (max-width:720px){.st-key-panel_info{bottom:calc(46vh + 38px) !important;"
@@ -162,48 +173,10 @@ def insignia_procedencia(capa: Capa | None) -> str:
     return insignia(capa.procedencia)
 
 
-@st.dialog("Ayuda · V.I.S.O.R.", width="large")
 def mostrar_ayuda() -> None:
-    st.markdown(
-        """
-**Cómo usar el visor**
+    """El botón Ayuda reabre la guía persistente, nunca un modal."""
+    bienvenida.abrir()
 
-- El mapa ocupa toda la pantalla. Arrástralo y usa la rueda o los botones **+ / −** para el zoom.
-- Al abrir, el mapa está vacío: **no hay ningún resultado hasta que analices** o abras uno del historial.
-- **Buscador** (arriba a la izquierda): escribe un municipio y elige una sugerencia; también acepta
-  coordenadas (`7.67, -76.68`). El botón de la casa vuelve a la vista general.
-- **Explorador** (izquierda): controla el resultado en el mapa, el historial y el mapa base.
-- **Información** (derecha): qué muestra el resultado, de dónde viene, leyenda y créditos.
-- **Herramientas SAR**: define la zona (dibújala con las herramientas ▭ y ⬠ del mapa), busca imágenes,
-  elige dos fechas y pulsa **Analizar**. Solo entonces aparece el resultado, uno a la vez.
-- **Historial** (explorador): resultados guardados de análisis anteriores. Se abren con «Ver» y quedan
-  rotulados como HISTÓRICO; abrirlos no ejecuta nada.
-- Si cambias la zona, las fechas o los parámetros, el resultado anterior se retira del mapa (el archivo
-  no se borra).
-- **Demostración** (explorador): capas sintéticas de ejemplo, apagadas por defecto.
-- Cierra los paneles para ver el mapa completo; vuelve a abrirlos desde la barra superior.
-
-**Qué significan las etiquetas**
-
-| Etiqueta | Significado |
-| --- | --- |
-| DEMO | Datos sintéticos generados para probar la interfaz. No son observaciones. |
-| PROCEDENCIA NO DECLARADA | Falta una ficha de procedencia completa: no se puede afirmar de qué datos ni de qué proceso sale la capa. |
-| REAL SIN VALIDAR | Producto derivado de datos satelitales reales, con ficha de procedencia completa; resultado exploratorio. |
-| VALIDADO | Además, respaldado por una verificación independiente documentada en su ficha. |
-
-Las etiquetas REAL SIN VALIDAR y VALIDADO nunca se asignan por defecto: exigen una ficha JSON que
-corresponda exactamente al archivo (huella SHA-256).
-
-Un cambio de retrodispersión de radar **no confirma** una inundación ni ningún otro fenómeno.
-
-**Datos de radar.** NISAR (NASA-ISRO, banda L) es el sensor principal para estudiar inundaciones;
-Sentinel-1 (ESA/Copernicus, banda C) queda como respaldo. Un GCOV no confirma una inundación.
-
-**Uso de inteligencia artificial.** Parte del código y de la documentación de V.I.S.O.R. se
-desarrolló con asistencia de IA (Claude, de Anthropic), bajo revisión del equipo.
-"""
-    )
 
 
 def estado_html(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple = (),
@@ -218,15 +191,15 @@ def estado_html(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple = (
             f"{insignia_procedencia(capa)}</span>")
     if activos:
         res = "".join(
-            f'<span class="mc-chip mc-chip-res">{escape(r.nombre)}</span>'
-            f'<span class="mc-insignia mc-insignia-origen">{flujo.etiqueta_origen()}</span>'
+            f'<span class="mc-chip mc-chip-res">{escape(ui_resultados.nombre_visible(r.perfil) if getattr(r, 'perfil', None) is not None else r.nombre)}</span>'
+            f'<span class="mc-insignia mc-insignia-origen">{tr(flujo.etiqueta_origen(), "HISTORICAL" if flujo.es_historico() else "CURRENT ANALYSIS")}</span>'
             f"{insignia(r.capa.procedencia)}" for r in list(activos)[:1])
         grupos.append('<span class="mc-grupo" title="Resultado en el mapa"><span class="mc-grupo-rot">Resultado SAR'
                       f"</span>{res}</span>")
     if not grupos:
         grupos.append('<span class="mc-grupo" title="No hay ningún resultado en el mapa">'
-                      '<span class="mc-insignia mc-insignia-tenue">SIN RESULTADO</span>'
-                      '<span class="mc-grupo-nota">Busca un lugar, define la zona y analiza</span></span>')
+                      f'<span class="mc-insignia mc-insignia-tenue">{tr("SIN RESULTADO", "NO RESULT")}</span>'
+                      f'<span class="mc-grupo-nota">{tr("Busca un lugar, define la zona y analiza", "Search for a place, select an area and analyze")}</span></span>')
     return '<div class="mc-estado">' + '<span class="mc-separador"></span>'.join(grupos) + "</div>"
 
 
@@ -235,21 +208,58 @@ def barra_superior(fenomeno: Fenomeno, capa: Capa | None, activos: list | tuple 
     with st.container(key="barra_superior", horizontal=True, vertical_alignment="center", gap="small"):
         sub = ('<span class="mc-marca-sub mc-insignia-pais" id="insignia-colombia" title="En esta versión solo se '
                'explora y analiza el territorio colombiano (continental e insular).">'
-               f'<span class="mc-insignia-larga">{escape(alcance_geografico.INSIGNIA)}</span>'
+               f'<span class="mc-insignia-larga">{escape(tr(alcance_geografico.INSIGNIA, "COLOMBIA · STUDY AREA ENABLED"))}</span>'
                '<span class="mc-insignia-corta">COLOMBIA</span></span>' if alcance_geografico.restringido()
                else '<span class="mc-marca-sub">Mission Control · Earth Explorer</span>')
-        st.markdown(f'<div class="mc-marca"><span class="mc-marca-nombre">V.I.S.O.R.</span>{sub}</div>',
+        st.markdown('<div class="mc-marca"><span class="mc-marca-linea">'
+                    '<span class="mc-marca-nombre">V.I.S.O.R.</span>'
+                    '<span class="mc-marca-olas" role="img" aria-label="Agua e inundaciones" '
+                    'title="Observación de agua e inundaciones">'
+                    '<svg viewBox="0 0 42 32" width="33" height="27" '
+                    'fill="none" xmlns="http://www.w3.org/2000/svg">'
+                    '<path d="M2 10 C8 4, 14 4, 20 10 S32 16,40 10" '
+                    'stroke="#38ddf5" stroke-width="2.8" stroke-linecap="round"/>'
+                    '<path d="M2 19 C8 13,14 13,20 19 S32 25,40 19" '
+                    'stroke="#b8f3ff" stroke-width="2.8" stroke-linecap="round"/>'
+                    '<path d="M5 28 Q20 22 37 28" stroke="#38ddf5" '
+                    'stroke-width="2.8" stroke-linecap="round"/>'
+                    '</svg></span></span>' + sub + '</div>',
                     unsafe_allow_html=True, width="content")
         st.markdown(estado_html(fenomeno, capa, activos, capa_visible), unsafe_allow_html=True, width="content")
         st.space("stretch")
-        st.button("Explorador", key="btn_explorador", help="Explorador: buscar lugar, resultado en el mapa, historial y mapa base", icon=":material/layers:", on_click=alternar_explorador,
+        st.button(tr("Explorador", "Explorer"), key="btn_explorador", help=tr("Explorador: búsqueda y análisis actual", "Search and current SAR result"), icon=":material/layers:", on_click=alternar_explorador,
                   type="primary" if st.session_state["ui_explorador"] else "secondary")
-        st.button("Información", key="btn_info", help="Información científica de las capas activas", icon=":material/info:", on_click=alternar_info,
+        st.button(tr("Información", "Information"), key="btn_info", help=tr("Resumen del lugar y procedencia SAR", "Place summary and SAR provenance"), icon=":material/info:", on_click=alternar_info,
                   type="primary" if st.session_state["ui_info"] else "secondary")
-        st.button("Herramientas SAR", key="btn_sar", help="Herramientas SAR: área, escenas, análisis y resultados", icon=":material/satellite_alt:", on_click=abrir_sar,
+        if activos:
+            st.button(tr("Nuevo análisis", "New analysis"), key="btn_nuevo_analisis",
+                      help="Elegir otra zona sin borrar los GeoTIFF del historial",
+                      icon=":material/add_location_alt:",
+                      on_click=v9_experiencia._nuevo_analisis, args=(True,),
+                      type="primary")
+        st.button(tr("Herramientas SAR", "SAR tools"), key="btn_sar", help=tr("Área, escenas y análisis SAR", "SAR area, scenes and analysis"), icon=":material/satellite_alt:", on_click=abrir_sar,
                   type="primary" if st.session_state["ui_sar"] == "abierto" else "secondary")
-        if st.button("Ayuda", key="btn_ayuda", help="Ayuda y estados de procedencia", icon=":material/help:"):
-            mostrar_ayuda()
+        if st.button(
+            tr("Laboratorio IA", "AI Laboratory"), key="btn_laboratorio_ia", icon=":material/science:",
+            help="Resultados históricos de aprendizaje automático del Atrato. "
+                 "Página experimental independiente, no alerta actual.",
+            type="secondary",
+        ):
+            st.switch_page("pages/3_Laboratorio_IA.py")
+        st.button(tr("Ayuda", "Guide"), key="btn_ayuda",
+                  help=tr("Reabrir la guía de uso", "Reopen the user guide"),
+                  icon=":material/help:", on_click=mostrar_ayuda)
+
+
+def acceso_laboratorio_ia() -> None:
+    """Acceso permanente y legible aunque la barra superior recorte botones."""
+    with st.container(key="acceso_laboratorio_ia"):
+        if st.button(
+            tr("🧪 Laboratorio IA", "🧪 AI Laboratory"), key="btn_ia_flotante", type="primary",
+            help="Abrir la demostración histórica del Atrato, independiente del SAR.",
+            use_container_width=True,
+        ):
+            st.switch_page("pages/3_Laboratorio_IA.py")
 
 
 def buscador() -> None:
@@ -262,9 +272,18 @@ def panel_explorador(resultados: list | None = None, activo=None) -> Controles:
     panel = st.container(key="panel_explorador")
     with panel:
         with st.container(horizontal=True, vertical_alignment="center", key="cabecera_explorador"):
-            st.markdown('<div class="mc-titulo-panel">Explorador</div>', unsafe_allow_html=True)
-            st.button("Contraer", key="cerrar_explorador", icon=":material/chevron_left:", type="tertiary",
+            st.markdown(f'<div class="mc-titulo-panel">{tr("Explorador", "Explorer")}</div>', unsafe_allow_html=True)
+            st.button(tr("Contraer", "Collapse"), key="cerrar_explorador", icon=":material/chevron_left:", type="tertiary",
                       on_click=alternar_explorador)
+        st.page_link(
+            "pages/3_Laboratorio_IA.py", label=tr("🧪 Abrir Laboratorio IA", "🧪 Open AI Laboratory"),
+            help="Resultados históricos del Atrato y modelos A y B; no es una alerta actual.",
+            use_container_width=True,
+        )
+        st.button(tr("Ver datos reales · modo jurado", "View real data · jury mode"), key="visor_boton_muestra_real",
+                  icon=":material/satellite_alt:", type="primary", use_container_width=True,
+                  on_click=lambda: st.session_state.__setitem__("visor_modo_muestra_real", True),
+                  help="Abre GeoTIFF y tomas NISAR ya guardados, sin consultar ni descargar datos.")
     return barra_lateral.render(panel, titulo=False, resultados=resultados or [], centrar=centrar_en,
                                 activo=activo, ir_a=ir_a, abrir_zona=abrir_sar)
 
@@ -279,41 +298,59 @@ GUIA_INICIO = (
     '<li><span class="mc-paso-num">3</span><div><b>Analiza con radar</b><small>Busca NISAR primero; Sentinel-1 es respaldo. Compara dos fechas: '
     "solo entonces se calcula y se dibuja el resultado.</small></div></li></ol>"
     '<p class="visor-leyenda-nota">Todavía no hay ningún resultado en el mapa. V.I.S.O.R. solo muestra lo que tú '
-    "analices en esta sesión o abras a propósito desde el historial.</p>"
+    "analices en esta sesión.</p>"
     '<div class="visor-aviso visor-aviso-general">Un cambio en la señal de radar no confirma una inundación ni '
     "ningún otro fenómeno.</div></div>")
 
 
-def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None, controles: Controles,
-                      resultados: list | None = None) -> None:
+def panel_informacion(fenomeno: Fenomeno, capa: Capa | None, error: str | None,
+                      controles: Controles, resultados: list | None = None) -> None:
+    """Detalles científicos a demanda, sin repetir ni la guía ni la zona AOI.
+
+    La leyenda breve del GeoTIFF vive SOBRE EL MAPA y no aquí. El historial
+    solo se abre desde Explorer, nunca desde controles involuntarios.
+    """
     activos = [r for r in (resultados or []) if r.dibujable and r.id in controles.resultados]
     demo = controles.mostrar_capa
     panel = st.container(key="panel_info")
     with panel:
         with st.container(horizontal=True, vertical_alignment="center", key="cabecera_info"):
-            st.markdown('<div class="mc-titulo-panel">Información</div>', unsafe_allow_html=True)
-            st.button("Cerrar", key="cerrar_info", icon=":material/close:", type="tertiary",
-                      on_click=alternar_info)
-        for res in activos:
-            if flujo.es_historico():
-                abierto = str((st.session_state.get("resultado_activo") or {}).get("abierto", ""))[:16]
-                st.caption("RESULTADO HISTÓRICO")
-                st.markdown('<div class="mc-aviso" id="aviso-historico">Abierto desde el historial '
-                            f'({escape(abierto.replace("T", " "))} UTC). Es un resultado guardado de un análisis '
-                            "anterior: no se ejecutó un análisis nuevo.</div>", unsafe_allow_html=True)
-            else:
-                st.caption("RESULTADO DE ESTE ANÁLISIS")
-            st.markdown(ui_resultados.ficha_html(res), unsafe_allow_html=True)
-            ui_resultados.boton_qgis(res)
-        # Contexto de la zona confirmada (sin pulsar nada); sin zona, una invitación a elegirla.
-        hay_zona = contexto_zona.render(activos, {"analizar": abrir_sar, "centrar": centrar_en,
-                                                   "cambiar": cambiar_zona})
-        if not activos and not demo and not hay_zona:
-            st.markdown(GUIA_INICIO, unsafe_allow_html=True)
+            st.markdown(f'<div class="mc-titulo-panel">{tr("Información", "Information")}</div>',
+                        unsafe_allow_html=True)
+            st.button(tr("Cerrar", "Close"), key="cerrar_info",
+                      icon=":material/close:", type="tertiary", on_click=alternar_info)
+        # Wikipedia y fotografía corresponden exclusivamente a Information
+        # (panel DERECHO), antes y después del análisis. El resultado SAR
+        # sigue a la ficha territorial; nunca se copia al Explorer ni a SAR.
+        if st.session_state.get("ui_info"):
+            zona = contexto_zona.zona_actual()
+            if zona is not None:
+                local = contexto_zona.local_de(zona)
+                referencia = contexto_zona.municipio_de_busqueda(
+                    zona, local, st.session_state.get("lugar"))
+                wiki = contexto_zona.wikipedia_zona(zona, local)
+                st.markdown(contexto_zona.ficha_breve_html(zona, local, wiki, referencia),
+                            unsafe_allow_html=True)
+                if wiki.get("estado") == "CONSULTANDO":
+                    contexto_zona._vigilar_wikipedia_resumen(zona["clave"])
+        if activos:
+            for res in activos:
+                st.caption(tr("HISTÓRICO", "HISTORICAL") if flujo.es_historico()
+                           else tr("RESULTADO ACTUAL", "CURRENT RESULT"))
+                st.markdown(ui_resultados.ficha_html(res), unsafe_allow_html=True)
+                ui_resultados.boton_qgis(res)
+        elif not demo:
+            st.caption(tr("Ejecuta un análisis para consultar sus fechas y procedencia.",
+                          "Run an analysis to inspect its dates and data provenance."))
         if demo:
-            st.caption("CAPA DE DEMOSTRACIÓN")
+            # Solo habilitado cuando VISOR_MOSTRAR_DEMO=1 en un entorno QA.
+            st.caption(tr("CAPA SINTÉTICA", "SYNTHETIC LAYER"))
             panel_info.render(fenomeno, capa, error)
-    barra_lateral.render_leyenda(fenomeno, capa if demo else None, controles, panel)
+    # Los créditos y límites se conservan bajo consulta voluntaria.
+    with panel:
+        fuentes = st.expander(tr("Fuentes y créditos", "Sources and credits"), expanded=False)
+    barra_lateral.render_leyenda(fenomeno, capa if demo else None, controles, fuentes)
+
 
 
 def guia_eco(activos: list) -> None:
@@ -355,22 +392,36 @@ SUBIR_AL_CAMBIAR_DE_PASO = """<script>
 def herramientas_sar() -> None:
     with st.container(key="panel_sar"):
         with st.container(horizontal=True, vertical_alignment="center", key="cabecera_sar"):
-            st.markdown('<div class="mc-titulo-panel">Herramientas SAR</div>', unsafe_allow_html=True)
-            st.button("Minimizar", key="minimizar_sar", icon=":material/remove:", type="tertiary",
+            st.markdown(f'<div class="mc-titulo-panel">{tr("Herramientas SAR", "SAR tools")}</div>', unsafe_allow_html=True)
+            st.button(tr("Minimizar", "Minimize"), key="minimizar_sar", icon=":material/remove:", type="tertiary",
                       on_click=minimizar_sar)
-            st.button("Cerrar", key="cerrar_sar", icon=":material/close:", type="tertiary",
+            st.button(tr("Cerrar", "Close"), key="cerrar_sar", icon=":material/close:", type="tertiary",
                       on_click=cerrar_sar)
-        st.markdown(
-            '<div class="mc-aviso" title="NISAR permite preparar recortes GCOV con NASA Harmony. '
-            'Sentinel-1 requiere RTC locales. Una imagen o cambio SAR aislado no confirma inundaciones.">'
-            "NISAR (banda L) principal · Sentinel-1 (banda C) respaldo. "
-            "Busca y prepara imágenes; compara dos fechas para analizar posibles cambios.</div>",
-            unsafe_allow_html=True,
-        )
-        herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
+        # La selección de fuente es una decisión del motor, no una pregunta
+        # al visitante. No prometer Sentinel automático antes de tener su
+        # pipeline OPERA integrado y científicamente validado.
+        import os
+        modo_legado = os.environ.get("VISOR_SENSOR_DEFECTO") == "SENTINEL"
+        if modo_legado:
+            st.caption(tr("Sentinel-1 requiere RTC locales; solo diagnóstico avanzado.",
+                          "Sentinel-1 requires local RTC scenes; advanced diagnostics only."))
+        else:
+            # La acción principal se ve inmediatamente al abrir SAR Tools.
+            # Es el ÚNICO botón que inicia Harmony; nunca se duplica abajo.
+            v9_experiencia.accion_principal()
+            v9_experiencia.render()
+        if modo_legado:
+            herramientas.render(centrar_en, alternar_explorador, PASOS_SAR)
+        else:
+            # El flujo visual V9 ya busca y elige pares CMR: NO presentar de
+            # nuevo el asistente NISAR antiguo con fechas/descargas distintas.
+            # El editor manual de AOI permanece disponible sin ruido visual.
+            with st.expander(tr("Opciones de zona", "Area options"), expanded=False):
+                herramientas.paso_area(centrar_en)
         st.html(SUBIR_AL_CAMBIAR_DE_PASO, unsafe_allow_javascript=True)
     with st.container(key="sar_minimizado"):
-        st.button("Herramientas SAR · restaurar", key="restaurar_sar", icon=":material/open_in_full:",
+        st.button(tr("Herramientas SAR · restaurar", "Restore SAR tools"), key="restaurar_sar",
+                  icon=":material/open_in_full:",
                   on_click=abrir_sar)
 
 
@@ -378,9 +429,11 @@ def linea_temporal(fechas: list[str] | None = None) -> None:
     """Línea temporal de solo lectura. Con un resultado activo cuya ficha válida
     declara dos fechas, las muestra; nunca interpola ni sugiere estados intermedios."""
     if fechas:
-        titulo = "LÍNEA TEMPORAL · FECHAS DEL RESULTADO ACTIVO"
+        titulo = tr("LÍNEA TEMPORAL · FECHAS DEL RESULTADO ACTIVO",
+                    "TIMELINE · ACTIVE RESULT DATES")
         t1, t2 = f"T₁ · {escape(fechas[0])}", f"T₂ · {escape(fechas[1])}"
-        nota = "Comparación de dos fechas. No hay observaciones intermedias en este producto."
+        nota = tr("Comparación de dos fechas; no incluye observaciones intermedias.",
+                  "Two-date comparison; no intermediate observations are included.")
         clase = " mc-linea-fechada"
     else:
         return          # sin resultado no hay fechas que mostrar: no ocupa sitio sobre el mapa

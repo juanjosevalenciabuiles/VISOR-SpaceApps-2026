@@ -1,0 +1,3 @@
+# El laboratorio IA (ia_lab/) es código de investigación del equipo ML
+# (notebooks y scripts de entrenamiento) y no forma parte de la app publicada.
+extend-exclude = ["ia_lab"]

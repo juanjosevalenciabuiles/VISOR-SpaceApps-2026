@@ -49,17 +49,66 @@ def zona_confirmada() -> tuple[float, float, float, float] | None:
 
 
 def confirmar_zona(limites, origen: str, geometria: dict | None = None) -> None:
-    """Fija la zona de análisis. Lo anterior (catálogo, par, resultado) deja de corresponder."""
-    st.session_state["zona"] = {"limites": sesion.validar_zona(limites), "origen": origen, "geometria": geometria}
+    """Confirma AOI y descarta la búsqueda anterior si queda fuera de ella.
+
+    Un municipio buscado sirve como referencia solo si su punto pertenece a
+    la zona nueva. Si el usuario dibuja/elige otra área, no puede seguir
+    apareciendo el marcador antiguo ni sesgar su contexto o el par NISAR.
+    """
+    nueva = sesion.validar_zona(limites)
+    zona_anterior = zona_confirmada()
+    if zona_anterior != nueva:
+        # Una AOI confirmada por dibujo, búsqueda o recomendación toma el
+        # centro una sola vez. Pan/zoom posteriores quedan en manos de Leaflet.
+        from components import interfaz
+        interfaz.centrar_en(nueva)
+        # La vista del municipio anterior no debe prevalecer en el nuevo AOI.
+        st.session_state.pop("mapa_encuadre_usuario", None)
+        st.session_state.pop("mapa_ultimo_destino", None)
+        st.session_state.pop("mapa_limites", None)
+    lugar = st.session_state.get("lugar")
+    if isinstance(lugar, dict):
+        try:
+            lat, lon = float(lugar["latitud"]), float(lugar["longitud"])
+            dentro = nueva[0] <= lon <= nueva[2] and nueva[1] <= lat <= nueva[3]
+        except (KeyError, TypeError, ValueError):
+            dentro = False
+        if not dentro:
+            st.session_state["lugar"] = None
+            # El texto de búsqueda tampoco debe presentar otra ciudad
+            # como si fuese la de la AOI recién confirmada.
+            st.session_state["lugar_texto"] = None
+            st.session_state["lugares_encontrados"] = None
+    st.session_state["zona"] = {"limites": nueva, "origen": origen, "geometria": geometria}
     st.session_state.update(sar_busqueda=None, sar_error_busqueda=None, mc_informe_sar=None, error_zona=None)
     st.session_state["sel_par"] = None
-    st.session_state["ui_info"] = True      # el panel derecho muestra al instante «Conozcamos esta zona»
+    # Las huellas CMR son de esta AOI y fechas, no datos globales. Un usuario
+    # puede volver a una zona anterior: nunca reactivar automáticamente una
+    # elección de pares de otra sesión, ni reutilizar el resultado anterior.
+    for clave in ("v9_coberturas", "v9_coberturas_error",
+                  "v9_pares_solapados", "v9_ultimo_click_par"):
+        st.session_state.pop(clave, None)
+    # Mostrar automáticamente la ficha territorial al confirmar una AOI válida.
+    # El visitante puede cerrar Information manualmente; pan/zoom no la reabren.
+    st.session_state["ui_info"] = True
 
 
 def quitar_zona() -> None:
     st.session_state["zona"] = None
+    # Al retirar la AOI, no dejar visible una ficha territorial obsoleta.
+    st.session_state["ui_info"] = False
+    # La geometría editable no debe reactivar una zona que el usuario retiró.
+    # Se conserva su firma hasta que Leaflet entregue un dibujo NUEVO.
+    st.session_state["mapa_dibujo"] = None
     st.session_state.update(sar_busqueda=None, sar_error_busqueda=None, mc_informe_sar=None, error_zona=None)
     st.session_state["sel_par"] = None
+    # Las huellas CMR son de esta AOI y fechas, no datos globales. Un usuario
+    # puede volver a una zona anterior: nunca reactivar automáticamente una
+    # elección de pares de otra sesión, ni reutilizar el resultado anterior.
+    for clave in ("v9_coberturas", "v9_coberturas_error",
+                  "v9_pares_solapados", "v9_ultimo_click_par"):
+        st.session_state.pop(clave, None)
+    limpiar_resultado()
 
 
 # --- Contexto y resultado activo ----------------------------------------------

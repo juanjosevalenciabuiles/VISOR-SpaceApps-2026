@@ -26,6 +26,9 @@ from rasterio.errors import RasterioError
 from utils.analisis_sar import area_pixel_ha
 
 RANGO_DB = 10.0
+# Umbral exclusivamente de presentación de la capa del mapa: no interviene
+# en el cálculo físico, los GeoTIFF, la QA ni las estadísticas.
+UMBRAL_TRANSPARENCIA_VISUAL_DB = 2.0
 # Por encima de esta cantidad de píxeles, las estadísticas se calculan sobre una lectura
 # reducida (y se marcan como aproximadas) para no agotar la memoria de Replit.
 MAX_PIXELES_EXACTOS = 25_000_000

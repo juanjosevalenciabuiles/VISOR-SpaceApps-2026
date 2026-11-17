@@ -37,6 +37,8 @@ class Plan:
     termino: str
     avisos: tuple[str, ...]
     punto_prioritario: tuple[float, float] | None = None  # longitud, latitud WGS84
+    id_par_seleccionado: str | None = None
+    criterio_seleccion: str = "MAYOR_COBERTURA_COMUN"
 
     @property
     def granules(self) -> tuple[str, ...]:
@@ -47,6 +49,8 @@ class Plan:
             "tipo": self.tipo, "sensor": "NISAR", "banda": "L",
             "aoi": list(self.aoi), "granules": list(self.granules),
             "cobertura_catalogo_fraccion": round(self.cobertura, 4),
+            "id_par_seleccionado": self.id_par_seleccionado,
+            "criterio_seleccion": self.criterio_seleccion,
             "tamano_total_gb": round(self.tamano_bytes / 1e9, 3),
             "frecuencia": "A", "termino": self.termino,
             "avisos": list(self.avisos), "estado": "PLAN_NO_DESCARGADO",
@@ -257,24 +261,52 @@ def preparar_harmony(plan: Plan, carpeta: Path | None = None, notificar=None, co
     """
     from utils import nisar_harmony as harmony
 
-    if not 64 <= max_mb <= 512:
-        raise ErrorAutoNISAR("Límite Harmony: selecciona entre 64 y 512 MB.")
+    if not 64 <= max_mb <= 1024:
+        raise ErrorAutoNISAR("Límite Harmony: selecciona entre 64 y 1024 MiB.")
     try:
         alcance_geografico.validar_limites(plan.aoi)
     except alcance_geografico.FueraDeAlcance as exc:
         raise ErrorAutoNISAR(str(exc)) from None
     if not os.environ.get("EARTHDATA_TOKEN", "").strip() and cliente is None:
         raise ErrorAutoNISAR("Para usar Harmony configura EARTHDATA_TOKEN en los Secrets de Replit.")
-    caps = caps if caps is not None else harmony.capacidades()
+    madureces = {str(getattr(c, "madurez", "VALIDATED")).upper() for c in plan.candidatos}
+    if len(madureces) != 1 or not madureces.issubset({"VALIDATED", "PROVISIONAL"}):
+        raise ErrorAutoNISAR("No se pueden mezclar productos de madurez distinta en un par NISAR.")
+    madurez = next(iter(madureces))
+    try:
+        caps = caps if caps is not None else harmony.capacidades(madurez=madurez)
+    except harmony.ErrorHarmony as exc:
+        raise ErrorAutoNISAR(str(exc)) from None
+    if caps.get("madurez", "VALIDATED") != madurez:
+        raise ErrorAutoNISAR("Harmony no ha validado capacidades para la colección " + madurez + ".")
     carpeta = Path(carpeta) if carpeta is not None else DATA_DIR / "nisar" / "harmony"
-    # Crear solo el mínimo de archivos científicos: HH/HV (o VV/VH), máscara y looks.
+    # Comprobación por PAR antes de solicitar el primer COG. Los controles
+    # individuales permanecen en harmony.obtener y el stream siempre tiene
+    # límite por capa. Reservar al menos 512 MiB adicionales para metadatos,
+    # staging y margen del entorno de ejecución; no asumir que un despliegue
+    # publicado comparte el disco del workspace de Replit.
     presupuestado = max_mb * 1024**2
+    carpeta.mkdir(parents=True, exist_ok=True)
+    libre = shutil.disk_usage(carpeta).free
+    reserva = 512 * 1024**2
+    if libre < presupuestado + reserva:
+        raise ErrorAutoNISAR(
+            "Espacio insuficiente para el par NISAR: se necesitan "
+            f"{(presupuestado + reserva) / 1024**2:.0f} MiB libres "
+            "para descargar y preparar los COG de forma segura."
+        )
+    # Crear solo el mínimo de capas: copolar + máscara + looks cuando
+    # el análisis temporal V9 ha confirmado un par específico.
     escenas = []
     usados = 0
     for c in plan.candidatos:
         if comprobar:
             comprobar()
-        spec = harmony.especificar(c, plan.aoi, caps)
+        # En el selector visual V9 basta copolar + máscara + numberOfLooks.
+        # Otras adquisiciones conservan HV/VH cuando corresponde.
+        spec = harmony.especificar(
+            c, plan.aoi, caps, solo_cambio=bool(plan.id_par_seleccionado)
+        )
         restante = presupuestado - usados
         if restante < 64 * 1024**2:
             raise ErrorAutoNISAR("Se alcanzó el límite de almacenamiento para este par.")
@@ -305,7 +337,7 @@ def preparar_harmony(plan: Plan, carpeta: Path | None = None, notificar=None, co
     return {
         "estado": "NISAR_COG_PREPARADO_SIN_CLASIFICAR", "sensor": "NISAR", "banda": "L",
         "resultado": "GAMMA0_POTENCIA_NO_INUNDACION",
-        "metodo": "NASA_HARMONY",
+        "metodo": "NASA_HARMONY", "madurez": madurez,
         "bytes_totales": usados, "escenas": escenas,
         "plan": plan.resumen(), "creado_utc": datetime.now(timezone.utc).isoformat(),
         "advertencia": "NISAR banda L, sin interpolación. No confirma agua ni inundación."

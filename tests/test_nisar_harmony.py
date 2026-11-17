@@ -260,3 +260,83 @@ def test_no_descarga_anonima_si_falta_cliente(tmp_path):
     with pytest.raises(h.ErrorHarmony, match="cliente Harmony autenticado"):
         h._descargar_cota("https://harmony.earthdata.nasa.gov/a.tif",
                           tmp_path / "a.tif", 1024**2)
+
+
+
+def test_modo_cambio_solicita_solo_tres_capas_de_uso_real():
+    """V9: gamma0 copolar y las dos QA; HV/HVHV no se usa para ΔdB."""
+    spec = h.especificar(candidato(), AOI, caps(), solo_cambio=True)
+    assert spec.capas == ("HHHH", "mask", "numberOfLooks")
+    assert len(spec.variables) == 3
+    assert all("HVHV" not in item for item in spec.variables)
+    assert h.especificar(candidato(), AOI, caps()).capas == CAPAS
+    vv = candidato(pols=("VV", "VH"))
+    vv_caps = {"coleccion": "C3622241360-ASF",
+               "variables": {"/science/LSAR/GCOV/grids/frequencyA/" + c
+                             for c in ("VVVV", "VHVH", "mask", "numberOfLooks")}}
+    assert h.especificar(vv, AOI, vv_caps, solo_cambio=True).capas == (
+        "VVVV", "mask", "numberOfLooks",
+    )
+
+
+def test_cog_grande_se_rechaza_antes_de_transferir_y_sin_fugar_url(tmp_path):
+    """No solicitar bytes enormes ni exponer parámetros firmados de NASA."""
+    url = "https://harmony.earthdata.nasa.gov/frequencyA_HHHH.tif?secret=NO_MOSTRAR"
+    contenido = tiff()
+    class COGGigante(Respuesta):
+        def __init__(self):
+            super().__init__(contenido, url)
+            self.headers["Content-Length"] = str(300 * 1024**2)
+    destino = tmp_path / "HHHH.tif"
+    llamados = []
+    def abrir(req, timeout):
+        llamados.append(req)
+        return COGGigante()
+    with pytest.raises(h.ErrorHarmony, match="COG_DEMASIADO_GRANDE") as exc:
+        h._descargar_cota(url, destino, max_bytes=100 * 1024**2, abrir=abrir)
+    assert "300.0 MiB" in str(exc.value)
+    assert "100.0 MiB" in str(exc.value)
+    assert "NO_MOSTRAR" not in str(exc.value)
+    assert len(llamados) == 1
+    assert not destino.exists() and not destino.with_suffix(".tif.part").exists()
+
+
+
+def test_harmony_1gib_compartido_con_tope_estricto_por_capa():
+    """El entorno dispone de disco, pero los límites por operación persisten."""
+    assert h.MAX_TOTAL_BYTES == 1024 * 1024**2
+    assert h.MAX_UN_ARCHIVO == 512 * 1024**2
+    assert h.BLOQUE <= 2 * 1024**2
+
+
+def test_harmony_rechaza_presupuesto_superior_a_1gib_antes_de_crear_archivos(tmp_path):
+    """Ni con mucho almacenamiento se permite descargar sin un techo."""
+    spec = h.especificar(candidato(), AOI, caps(), solo_cambio=True)
+    with pytest.raises(h.ErrorHarmony, match="fuera del límite"):
+        h.obtener(spec, tmp_path, limite_bytes=h.MAX_TOTAL_BYTES + 1,
+                  cliente=ClienteFake())
+    assert not any(tmp_path.iterdir())
+
+
+def test_harmony_usa_tope_individual_aun_con_presupuesto_1gib(monkeypatch, tmp_path):
+    """Un COG de 600 MiB no se acepta por tener 1 GiB para todo el par."""
+    spec = h.especificar(candidato(), AOI, caps(), solo_cambio=True)
+    monkeypatch.setattr(h.shutil, "disk_usage",
+                        lambda _: NS(free=3 * 1024**3))
+    class ClienteTres(ClienteFake):
+        def result_urls(self, job):
+            return [f"https://harmony.earthdata.nasa.gov/NISAR_frequencyA_{c}.tif"
+                    for c in spec.capas]
+    class RespuestaGrande(Respuesta):
+        def __init__(self, url):
+            super().__init__(tiff(), url)
+            self.headers["Content-Length"] = str(600 * 1024**2)
+    calls = []
+    def abrir(req, timeout):
+        calls.append(req.full_url)
+        return RespuestaGrande(req.full_url)
+    with pytest.raises(h.ErrorHarmony, match="COG_DEMASIADO_GRANDE"):
+        h.obtener(spec, tmp_path, limite_bytes=1024 * 1024**2,
+                  cliente=ClienteTres(), abrir=abrir, dormir=lambda _: None)
+    assert len(calls) == 1
+    assert not list(tmp_path.glob(".preparando-*"))

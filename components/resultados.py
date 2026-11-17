@@ -13,13 +13,34 @@ import streamlit as st
 
 from components.panel_info import insignia
 from utils.combinacion_sar import umbrales_por_polarizacion
-from utils.diferencia_db import RANGO_DB, TICKS, leyenda_css
-from utils import qgis
+from utils.diferencia_db import RANGO_DB, TICKS, UMBRAL_TRANSPARENCIA_VISUAL_DB, leyenda_css
+from utils import leyenda_sar, qgis
+from utils.i18n import idioma, tr
 from utils.resultados import ResultadoSAR, _firma
 
 NO_DECLARADO = "No declarado en el archivo"
 AVISO = ("Indicio de cambio en la señal de radar. No es una inundación confirmada ni ningún otro "
          "fenómeno: requiere validación independiente.")
+
+NOMBRES_EN = {
+    "diferencia_db": "Radar backscatter change (dB)",
+    "coincidencia_vv_vh": "VV/VH change agreement",
+    "mascara_cambios": "Radar change mask",
+}
+DESCRIPCIONES_EN = {
+    "diferencia_db": "Change in backscatter between two SAR acquisitions. Blue generally marks signal decreases and orange marks increases; neither confirms flooding.",
+    "coincidencia_vv_vh": "Significant radar-signal decreases in VV only, VH only, or both polarizations. Agreement does not confirm flooding.",
+    "mascara_cambios": "Categorical SAR backscatter change between acquisition dates. Class colors are signal-based, not flood-severity levels.",
+}
+
+
+def nombre_visible(perfil) -> str:
+    return tr(perfil.nombre, NOMBRES_EN.get(perfil.clave, perfil.nombre))
+
+
+def descripcion_visible(perfil) -> str:
+    return tr(perfil.descripcion, DESCRIPCIONES_EN.get(perfil.clave, perfil.descripcion))
+
 
 
 def _fila(etiqueta: str, valor: str, origen: str | None = None) -> str:
@@ -55,12 +76,19 @@ def datos_declarados(res: ResultadoSAR) -> dict[str, tuple[str, str | None]]:
     pols_tags = tags.get("POLARIZACION") or ("VV y VH" if "VV" in clases and "VH" in clases else "")
     # Un umbral por polarización: el producto reproducible usa VV −7,5 dB y VH −3 dB.
     umbrales = umbrales_por_polarizacion(res.ficha) if real else {}
+    madureces = {
+        str(e["madurez"]).upper()
+        for e in (bloque.get("entradas") or [])
+        if isinstance(e, dict) and e.get("madurez")
+    }
+    madurez = next(iter(madureces)) if len(madureces) == 1 else None
     umbral = (" · ".join(f"{pol} −{u:g} dB".replace(".", ",") for pol, u in umbrales.items())
               + " (disminución)") if umbrales else None
     return {
         "producto": elegir((res.ficha or {}).get("producto") if real else None,
                            tags.get("PRODUCTO") or tags.get("DESCRIPCION")),
         "sensor": elegir(bloque.get("sensor"), None),
+        "madurez": elegir(madurez, None),
         "fechas": elegir(" → ".join(bloque.get("fechas") or []), tags.get("FECHA")),
         "polarizaciones": elegir(" y ".join(bloque.get("polarizaciones") or []), pols_tags),
         "metodo": elegir(bloque.get("metodo"), None),
@@ -78,24 +106,50 @@ def ficha_html(res: ResultadoSAR) -> str:
     detalle = escape(estado.motivo) + (" Falta: " + escape(", ".join(estado.faltantes)) + "."
                                        if estado.faltantes else "")
     alto, ancho = capa.forma_original
+    madurez = d["madurez"][0]
+    qa = (res.ficha or {}).get("qa") or {}
+    fraccion_qa = qa.get("cobertura_qa_aoi_fraccion")
+    nota_qa = (
+        '<div class="visor-leyenda-nota">' +
+        tr("Píxeles válidos de ambas fechas dentro del AOI: ",
+           "Valid pixels from both dates inside the AOI: ") +
+        f"<strong>{float(fraccion_qa):.1%}</strong>. " +
+        tr("Cobertura QA del análisis, distinta de la huella estimada NASA CMR.",
+           "Analysis QA coverage, distinct from NASA CMR estimated footprint.") +
+        '</div>'
+        if isinstance(fraccion_qa, (int, float)) and 0 <= fraccion_qa <= 1 else ""
+    )
+    aviso_madurez = (
+        '<div class="visor-aviso">' +
+        tr("NISAR PROVISIONAL: datos calibrados parcialmente; no confirma inundaciones.",
+           "NISAR PROVISIONAL: partially calibrated data; not a confirmed flood.") + '</div>'
+        if madurez == "PROVISIONAL" else
+        '<div class="visor-leyenda-nota">' +
+        tr("Colección NISAR VALIDATED.", "NISAR VALIDATED collection.") + '</div>'
+        if madurez == "VALIDATED" else ""
+    )
     partes = [
-        f'<div class="mc-res-titulo">{escape(perfil.nombre)}</div>',
+        f'<div class="mc-res-titulo">{escape(nombre_visible(perfil))}</div>',
         f'<div class="visor-procedencia">{insignia(estado)}'
         f'<p class="visor-nota-procedencia">{detalle}</p></div>',
-        f'<p class="visor-texto">{escape(perfil.descripcion)}</p>',
-        leyenda_html(res),                       # qué significa cada color, antes que lo técnico
-        f'<div class="visor-aviso visor-aviso-general">{escape(AVISO)}</div>',
-        '<details class="mc-detalles" id="res-detalles-tecnicos"><summary>Detalles técnicos</summary>',
+        aviso_madurez,
+        nota_qa,
+        f'<p class="visor-texto">{escape(descripcion_visible(perfil))}</p>',
+        '<details class="mc-detalles"><summary>' + tr("Leyenda científica detallada", "Detailed scientific legend") +
+        '</summary>' + leyenda_html(res) + '</details>',
+        f'<div class="visor-aviso visor-aviso-general">{escape(tr(AVISO, "Exploratory radar-signal change, not confirmed flooding. Independent verification is required."))}</div>',
+        f'<details class="mc-detalles" id="res-detalles-tecnicos"><summary>{tr("Detalles técnicos", "Technical details")}</summary>',
         f'<div class="mc-res-archivo"><code>{escape(res.archivo)}</code></div>',
-        '<div class="visor-seccion">Datos de origen</div>',
-        _fila("Producto", *d["producto"]),
+        f'<div class="visor-seccion">{tr("Datos de origen", "Source data")}</div>',
+        _fila(tr("Producto", "Product"), *d["producto"]),
         _fila("Sensor", *d["sensor"]),
-        _fila("Fechas", *d["fechas"]),
-        _fila("Polarizaciones", *d["polarizaciones"]),
-        _fila("Umbral", "No aplica: dato continuo sin umbral") if perfil.continuo else _fila("Umbral", *d["umbral"]),
+        (_fila(tr("Madurez NISAR", "NISAR product maturity"), *d["madurez"]) if d["sensor"][0] == "NISAR" else ""),
+        _fila(tr("Fechas", "Acquisition dates"), *d["fechas"]),
+        _fila(tr("Polarizaciones", "Polarizations"), *d["polarizaciones"]),
+        _fila(tr("Umbral", "Threshold"), tr("No aplica: dato continuo sin umbral", "Not applicable to continuous data")) if perfil.continuo else _fila(tr("Umbral", "Threshold"), *d["umbral"]),
         _fila("CRS", capa.crs_original),
         _fila("Dimensiones", f"{ancho} × {alto} px"),
-        '<div class="visor-seccion">Método</div>',
+        f'<div class="visor-seccion">{tr("Método", "Method")}</div>',
         f'<p class="visor-texto">{escape(metodo_continuo(res) if perfil.continuo and d["metodo"][1] is None else d["metodo"][0])}</p>',
     ]
     if e and perfil.continuo:
@@ -129,7 +183,7 @@ def ficha_html(res: ResultadoSAR) -> str:
     limitaciones = (res.ficha or {}).get("limitaciones") if estado.es_real else None
     lista = limitaciones if isinstance(limitaciones, list) and limitaciones else list(perfil.limitaciones)
     partes.append(
-        f'<details class="mc-detalles"><summary>Limitaciones ({len(lista)})</summary><ul class="visor-lista">'
+        f'<details class="mc-detalles"><summary>{tr("Limitaciones", "Limitations")} ({len(lista)})</summary><ul class="visor-lista">'
         + "".join(f"<li>{escape(str(x))}</li>" for x in lista) + "</ul></details>"
     )
     partes.append(_detalle_procedencia(res))
@@ -175,16 +229,32 @@ def _detalle_procedencia(res: ResultadoSAR) -> str:
     filas = [_fila("Ficha", f"{res.ruta.with_suffix('.json').name}" if res.ficha is not None else "No existe")]
     bloque = (res.ficha or {}).get("procedencia")
     if estado.es_real and isinstance(bloque, dict):
-        gen = bloque.get("generado_por") or {}
+        # V9 NISAR/Harmony guarda generado_por como texto; otros motores
+        # registran un objeto {funcion, version_motor}. Ambos son válidos.
+        gen = bloque.get("generado_por")
+        if isinstance(gen, dict):
+            nombre = str(gen.get("funcion") or NO_DECLARADO)
+            version = gen.get("version_motor")
+            generado_por = f"{nombre} · motor {version}" if version else nombre
+        elif isinstance(gen, str) and gen.strip():
+            generado_por = gen.strip()
+        else:
+            generado_por = NO_DECLARADO
+        fecha = bloque.get("generado_utc") or (res.ficha or {}).get("creado_utc") or NO_DECLARADO
+        archivo = bloque.get("archivo")
+        sha = archivo.get("sha256") if isinstance(archivo, dict) else None
         filas += [
-            _fila("Generado por", f"{gen.get('funcion', '?')} · motor {gen.get('version_motor', '?')}"),
-            _fila("Fecha de generación", str(bloque.get("generado_utc", NO_DECLARADO))),
-            _fila("SHA-256", str((bloque.get("archivo") or {}).get("sha256", ""))[:16] + "…"),
+            _fila("Generado por", generado_por),
+            _fila("Fecha de generación", str(fecha)),
+            _fila("SHA-256", str(sha)[:16] + "…" if sha else NO_DECLARADO),
         ]
         for entrada in bloque.get("entradas") or []:
             if isinstance(entrada, dict):
-                filas.append(_fila(f"Entrada {entrada.get('polarizacion') or ''}".strip(),
-                                   str(entrada.get("archivo", "?"))))
+                etiqueta = f"Entrada {entrada.get('polarizacion') or ''}".strip()
+                nombre_entrada = entrada.get("archivo") or entrada.get("granule") or NO_DECLARADO
+                filas.append(_fila(etiqueta, str(nombre_entrada)))
+                if entrada.get("madurez") in ("PROVISIONAL", "VALIDATED"):
+                    filas.append(_fila("Madurez de entrada", entrada["madurez"]))
     else:
         filas.append(_fila("Generación", "No documentada: el archivo no trae una ficha válida"))
         tags = res.capa.metadatos
@@ -193,6 +263,31 @@ def _detalle_procedencia(res: ResultadoSAR) -> str:
                 filas.append(_fila(clave.capitalize(), tags[clave], "etiqueta del GeoTIFF"))
     return ('<details class="mc-detalles"><summary>Procedencia y archivo</summary>'
             + "".join(filas) + "</details>")
+
+
+
+def leyenda_rapida_html(res: ResultadoSAR) -> str:
+    """Guía de colores breve junto al GeoTIFF activo; depende de SU perfil.
+
+    Naranja NO representa una inundación pequeña; en coincidencia VV/VH es
+    disminución solo en VH, mientras que en ΔdB es señal en aumento.
+    """
+    if not res.dibujable or res.perfil is None:
+        return ""
+    entradas = leyenda_sar.entradas(res.perfil.clave, idioma())
+    if not entradas:
+        return ""
+    filas = []
+    for color, mensaje in entradas:
+        muestra = ('background:repeating-linear-gradient(45deg,#657080 0 3px,'
+                   'transparent 3px 6px);border:1px solid #8795aa' if color == "transparent"
+                   else f"background:{color};border:1px solid rgba(255,255,255,.35)")
+        filas.append(f'<div class="visor-color-fila"><span class="visor-color-muestra" '
+                     f'style="{muestra}"></span><span>{escape(mensaje)}</span></div>')
+    titulo = tr("¿Qué significa cada color?", "What do the colors mean?")
+    nota = leyenda_sar.aviso(idioma())
+    return (f'<div class="visor-color-resumen" role="note"><strong>{escape(titulo)}</strong>'
+            + "".join(filas) + f'<small>{escape(nota)}</small></div>')
 
 
 def leyenda_html(res: ResultadoSAR) -> str:
@@ -205,6 +300,12 @@ def leyenda_html(res: ResultadoSAR) -> str:
                 f'<div class="mc-rampa-marcas">{marcas}</div>'
                 '<div class="visor-leyenda-clase">dB · ← disminución · aumento →</div>'
                 '<div class="visor-leyenda-clase"><i class="mc-transparente"></i>Sin dato (NoData) (transparente)</div>'
+                f'<div class="visor-leyenda-clase"><i class="mc-transparente"></i>'
+                f'|Δ| ≤ {UMBRAL_TRANSPARENCIA_VISUAL_DB:g} dB: transparente en el mapa (solo visualización)</div>'
+                '<div class="visor-leyenda-clase">Cian / azul: disminuciones agrupadas (Δ ≤ −3 dB), '
+                'posibles indicios; no son inundaciones confirmadas</div>'
+                '<div class="visor-leyenda-clase">Naranja tenue: aumentos agrupados de la señal (Δ &gt; 2 dB)</div>'
+                '<div class="visor-leyenda-clase">Píxeles aislados: ocultos solo para reducir ruido visual</div>'
                 f'<div class="visor-leyenda-nota">{escape(res.perfil.nota)}</div></div>')
     filas = []
     for valor, etiqueta, color in res.perfil.clases:
@@ -247,7 +348,8 @@ def boton_qgis(res: ResultadoSAR) -> None:
         st.caption(str(e))
         return
     st.download_button(
-        "Exportar para QGIS", datos, file_name=nombre, mime="application/zip", key=f"qgis_{res.id}",
+        tr("Exportar para QGIS", "Export for QGIS"), datos, file_name=nombre, mime="application/zip", key=f"qgis_{res.id}",
         icon=":material/download:", on_click="ignore", type="tertiary",
-        help="ZIP con el GeoTIFF original (mismo SHA-256), estilo .qml, ficha (si existe), leyenda y manifiesto.",
+        help=tr("ZIP con GeoTIFF original, estilo QGIS, ficha y manifiesto.",
+                "ZIP with original GeoTIFF, QGIS styling, metadata and manifest."),
     )

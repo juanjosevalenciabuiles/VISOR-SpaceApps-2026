@@ -129,7 +129,8 @@ def test_errores_de_red_y_formato_son_legibles(fallo, error):
 def test_busqueda_vacia(tmp_path):
     r = cat.buscar(*CHIGORODO, "2026-10-21", "2026-11-13", abrir=servidor({"items": []}), hoy=HOY)
     assert r.candidatos == [] and r.pares == []
-    assert any("no devolvió escenas" in a for a in r.avisos)
+    assert any("respondió sin registros" in a for a in r.avisos)
+    assert any("No se sustituye la fuente" in a for a in r.avisos)
 
 
 def test_peticion_es_get_sin_cabecera_de_autenticacion():
@@ -306,3 +307,22 @@ def test_los_enlaces_reales_pasan_las_comprobaciones_de_descarga_sin_red(tmp_pat
         with pytest.raises(nisar_descarga.ErrorDescarga, match="confírmalo"):
             nisar_descarga.comprobar(c, tmp_path, None, libre_bytes=10 ** 12)
     assert 1.1 < min(c["tamano_bytes"] for c in reg["candidatos"]) / 1e9 < 1.3
+
+
+
+def test_catalogo_vacio_no_equivale_a_ausencia_global_de_observaciones():
+    r = cat.buscar(*CHIGORODO, date(2026, 9, 1), date(2026, 9, 30),
+                   abrir=servidor({"items": []}), hoy=HOY)
+    assert r.total_catalogo == 0
+    assert not r.candidatos
+    assert any("anterior a VALIDATED" in a for a in r.avisos)
+    assert any("fechas exactas" in a for a in r.avisos)
+    assert any("Sentinel-1" in a for a in r.avisos)
+
+
+def test_catalogo_con_registros_descartados_se_distingue_de_vacio():
+    r = cat.buscar(*CHIGORODO, date(2026, 10, 22), date(2026, 10, 25),
+                   abrir=servidor({"items": [{"umm": {"GranuleUR": "NO_GCOV"}}]}), hoy=HOY)
+    assert r.total_catalogo == 1
+    assert not r.candidatos
+    assert any("superó los filtros" in a for a in r.avisos)

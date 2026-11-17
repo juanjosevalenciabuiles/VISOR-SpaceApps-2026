@@ -175,9 +175,16 @@ def test_b_c_e_analizar_cambiar_zona_e_historial(abrir, servidor_propio):
     assert "Nuevas (5)" in p.texto("sar_filtro_pares") and "Usadas (1)" in p.texto("sar_filtro_pares")
     p.page.locator(".st-key-sar_filtro_pares label").filter(has_text="Usadas").first.click()
     p.esperar()
-    p.page.locator(".st-key-sar_par [role=combobox]").first.click()
-    p.page.locator("[role=option]").filter(has_text="✓ ★ 2026-09-24 → 2026-10-06").first.click()
-    p.esperar()
+    # Con solo un par «Usado», Streamlit puede seleccionarlo automáticamente.
+    # Chromium no siempre despliega una opción que ya está seleccionada: no
+    # depender del menú si el estado correcto ya está visible en el campo.
+    par_seleccionado = p.page.locator(".st-key-sar_par input").first
+    esperado = "✓ ★ 2026-09-24 → 2026-10-06"
+    if not par_seleccionado.input_value().startswith(esperado):
+        p.page.locator(".st-key-sar_par [role=combobox]").first.click()
+        p.page.locator("[role=option]").filter(has_text=esperado).first.click()
+        p.esperar()
+    assert par_seleccionado.input_value().startswith(esperado), "par usado seleccionado para recuperar"
     p.clic("sar_ver_anterior")
     assert len(p.capas_resultado()) == 1 and "HISTÓRICO" in p.texto("barra_superior")
     assert {n for n in huellas(analisis) if n not in previas} == nuevos, "ver el anterior no recalcula"

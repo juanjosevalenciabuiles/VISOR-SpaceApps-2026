@@ -107,6 +107,8 @@ class Servidor:
                    "VISOR_GEOCODIFICADOR_URL": "desactivado", "VISOR_TRABAJOS_SINCRONOS": "0",
                    "VISOR_TRABAJOS_DIR": str(datos / "trabajos"), "VISOR_DIAGNOSTICO": "desactivado",
                    "VISOR_CONTEXTO_EXTERNO": "desactivado", "VISOR_CONTEXTO_SINCRONO": "0",
+                   "VISOR_IDIOMA_DEFECTO": "es", "VISOR_MOSTRAR_DEMO": "1",
+                    "VISOR_MOSTRAR_HISTORIAL": "1",
                    **(entorno_extra or {})}
         entorno = {k: v for k, v in entorno.items() if v is not None}   # None = quitar la variable
         self.registro = open(datos.parent / f"streamlit_{self.puerto}.log", "w")
@@ -222,6 +224,13 @@ class Pagina:
         page.goto(url)
         self.esperar_mapa()
         page.locator(".st-key-barra_superior").wait_for(timeout=60_000)
+        # La guía NO es un diálogo: es un panel persistente controlado por el
+        # visitante. Al empezar cada escenario E2E se cierra explícitamente.
+        guia = page.locator(".st-key-visor_guia_panel")
+        guia.wait_for(state="visible", timeout=30_000)
+        page.locator(".st-key-visor_guia_cerrar button").first.click()
+        guia.wait_for(state="hidden", timeout=15_000)
+        self.esperar(350)
 
     @property
     def mapa(self):
@@ -317,6 +326,9 @@ class Pagina:
         boton.scroll_into_view_if_needed()
         boton.click()
         self.esperar()
+        # Elegir un GeoTIFF remonta el mapa para eliminar overlays del histórico.
+        self.esperar_mapa()
+        self.marcar_mapa()  # A partir de ahora pan/zoom NO deben desmontarlo.
 
     def demo(self, fenomeno: str | None = None):
         """Enciende a propósito la capa DEMO (y, si se indica, cambia de fenómeno)."""

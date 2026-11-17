@@ -20,10 +20,13 @@ import os
 from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from html import escape
+import unicodedata
 
 import streamlit as st
+from shapely.geometry import Point, shape
 
 from components import flujo
+from utils.i18n import tr
 from utils import contexto_ambiental as externo
 from utils import contexto_local, wikipedia_lugar, verificacion_multifuente
 
@@ -74,6 +77,41 @@ def local_de(zona: dict) -> contexto_local.ContextoLocal:
     return _local(json.dumps(zona["geometria"], sort_keys=True))
 
 
+
+def _normalizar_nombre(valor: str) -> str:
+    return " ".join(unicodedata.normalize("NFKD", valor).encode("ascii", "ignore")
+                    .decode("ascii").casefold().split())
+
+
+def municipio_de_busqueda(zona: dict, local: contexto_local.ContextoLocal,
+                         lugar: dict | None) -> contexto_local.Municipio | None:
+    """Referente administrativo del LUGAR BUSCADO, solo si su punto está en la AOI.
+
+    No se sustituye el municipio buscado por el que tenga mayor fracción del
+    polígono. Tampoco se atribuye una búsqueda anterior a una nueva AOI.
+    """
+    if not isinstance(lugar, dict):
+        return None
+    etiqueta = str(lugar.get("etiqueta") or "")
+    campos = [v.strip() for v in etiqueta.split(",")]
+    if len(campos) < 2:
+        return None
+    try:
+        latitud, longitud = float(lugar["latitud"]), float(lugar["longitud"])
+        punto = Point(longitud, latitud)
+        if not shape(zona["geometria"]).covers(punto):
+            return None
+        hallado = contexto_local.municipio_en_punto(longitud, latitud)
+    except (KeyError, TypeError, ValueError):
+        return None
+    if hallado is None or _normalizar_nombre(campos[0]) != _normalizar_nombre(hallado.nombre):
+        return None
+    if _normalizar_nombre(campos[1]) != _normalizar_nombre(hallado.departamento):
+        return None
+    # Si ocupa menos del 1 % de la AOI, puede no aparecer entre los principales.
+    return next((m for m in local.municipios if m.divipola == hallado.divipola), hallado)
+
+
 def consultando(fuentes: dict[str, dict]) -> bool:
     return any(f.get("estado") == "CONSULTANDO" for f in fuentes.values())
 
@@ -90,13 +128,7 @@ def consultas(zona: dict, inicio: date, fin: date) -> dict[str, dict]:
                           lambda: externo.consultar_ideam(geometria), sincrono=_sincrono())
     eonet = externo.pedir("eonet", f"{zona['clave']}|{desde}|{hasta}",
                           lambda: externo.consultar_eonet(geometria, desde, hasta), sincrono=_sincrono())
-    principal = (local_de(zona).municipios or [None])[0]
-    if principal is None:
-        wiki = {"estado": "SIN_COINCIDENCIAS", "items": []}
-    else:
-        wiki = externo.pedir("wiki", principal.divipola or principal.nombre,
-                             lambda: wikipedia_lugar.consultar(principal.nombre, principal.departamento),
-                             sincrono=_sincrono())
+    wiki = wikipedia_zona(zona)
     return {"ideam": ideam, "eonet": {**eonet, "ventana": (desde, hasta)}, "wiki": wiki}
 
 
@@ -105,9 +137,14 @@ def consultas(zona: dict, inicio: date, fin: date) -> dict[str, dict]:
 # ---------------------------------------------------------------------------
 
 def frases_principales(local: contexto_local.ContextoLocal, inicio: date, fin: date, origen_fechas: str,
-                       fuentes: dict[str, dict]) -> list[str]:
+                       fuentes: dict[str, dict], referencia: contexto_local.Municipio | None = None) -> list[str]:
     frases = []
-    frases.append(f"Está en {local.lugar}." if local.lugar else "No se pudo comprobar a qué municipio pertenece.")
+    if referencia is not None:
+        frases.append(f"Lugar buscado: {referencia.nombre}, {referencia.departamento}.")
+        if local.lugar:
+            frases.append(f"El área de análisis abarca {local.lugar}. Puede incluir otros municipios.")
+    else:
+        frases.append(f"Está en {local.lugar}." if local.lugar else "No se pudo comprobar a qué municipio pertenece.")
     if local.area_km2 is not None:
         frases.append(f"Mide unos {local.area_km2:,.0f} km².".replace(",", "."))
     frases.append(f"Fechas en estudio: {inicio:%d/%m/%Y} a {fin:%d/%m/%Y} ({origen_fechas}).")
@@ -238,6 +275,20 @@ def _radar(activos: list) -> str:
             "«Analizar» en esta ficha cuando quieras comparar dos fechas.</div></div>")
 
 
+def wikipedia_zona(zona: dict, local: contexto_local.ContextoLocal | None = None) -> dict:
+    """Consulta únicamente Wikipedia para la ficha resumida y conserva el caché."""
+    if not externo_activo():
+        return {"estado": "DESACTIVADO", "items": []}
+    local = local if local is not None else local_de(zona)
+    principal = municipio_de_busqueda(zona, local, st.session_state.get("lugar")) or (
+        (local.municipios or [None])[0])
+    if principal is None:
+        return {"estado": "SIN_COINCIDENCIAS", "items": []}
+    return externo.pedir("wiki", principal.divipola or principal.nombre,
+                         lambda: wikipedia_lugar.consultar(principal.nombre, principal.departamento),
+                         sincrono=_sincrono())
+
+
 # ---------------------------------------------------------------------------
 # Ficha del lugar (estilo Google Maps): imagen, nombre, chips y acciones
 # ---------------------------------------------------------------------------
@@ -272,13 +323,13 @@ def _foto(zona: dict, wiki: dict) -> str:
             f'<span class="mc-ficha-credito">{escape(CREDITO_SATELITE)}</span></div>')
 
 
-def _subtitulo(local: contexto_local.ContextoLocal) -> str:
-    if not local.municipios:
+def _subtitulo(local: contexto_local.ContextoLocal, referencia: contexto_local.Municipio | None = None) -> str:
+    if not local.municipios and referencia is None:
         return "Zona en Colombia"
-    m = local.municipios[0]
-    tipo = "Distrito capital" if "D.C." in m.nombre else "Municipio"
-    otros = len(local.municipios) - 1
-    extra = f" · y {otros} municipio{'s' if otros != 1 else ''} más" if otros else ""
+    m = referencia or local.municipios[0]
+    tipo = "Lugar buscado" if referencia else ("Distrito capital" if "D.C." in m.nombre else "Municipio")
+    otros = len([x for x in local.municipios if x.divipola != m.divipola])
+    extra = f" · zona incluye {otros} municipio{'s' if otros != 1 else ''} más" if otros else ""
     return f"{tipo} · {m.departamento}, Colombia{extra}"
 
 
@@ -316,19 +367,75 @@ def chips(local: contexto_local.ContextoLocal, fuentes: dict[str, dict]) -> str:
     return f'<div class="mc-chips-ficha" id="ctx-chips">{"".join(c)}</div>'
 
 
-def cabecera_html(zona: dict, local: contexto_local.ContextoLocal, fuentes: dict[str, dict]) -> str:
+
+def ficha_breve_html(zona: dict, local: contexto_local.ContextoLocal, wiki: dict,
+                     referencia: contexto_local.Municipio | None = None) -> str:
+    """Ficha compacta: foto acreditada, lugar y resumen de Wikipedia; sin capas duplicadas."""
+    ficha = (wiki.get("items") or [None])[0] if wiki.get("estado") == "CON_RESULTADOS" else None
+    municipio = referencia or ((local.municipios or [None])[0])
+    nombre = municipio.nombre if municipio else tr("Zona seleccionada", "Selected area")
+    ubicacion = (f"{escape(municipio.departamento)}, Colombia" if municipio
+                 else tr("Colombia · zona seleccionada", "Colombia · selected area"))
+    datos = []
+    if local.area_km2 is not None:
+        datos.append(f"{local.area_km2:,.1f} km²")
+    if local.municipios:
+        n = len(local.municipios)
+        datos.append(f"{n} " + tr("municipio" if n == 1 else "municipios",
+                                  "municipality" if n == 1 else "municipalities"))
+    detalle = " · ".join(datos)
+    if ficha and ficha.get("extract"):
+        resumen = escape(wikipedia_lugar.recortar(str(ficha["extract"]), 220))
+        url = ficha.get("url")
+        enlace = (f' <a href="{escape(url)}" target="_blank" rel="noopener noreferrer">'
+                  "Wikipedia (ES)</a>" if url else "")
+        descripcion = f'<p class="mc-ficha-desc" id="ctx-descripcion">{resumen}{enlace}</p>'
+    elif wiki.get("estado") == "CONSULTANDO":
+        descripcion = f'<p class="mc-ficha-desc">{tr("Consultando Wikipedia…", "Loading Wikipedia…")}</p>'
+    else:
+        descripcion = (f'<p class="mc-ficha-desc">'
+                       f'{tr("No hay una descripción de Wikipedia comprobada para este lugar.",
+                             "No verified Wikipedia summary is available for this place.")}</p>')
+    return (f'<div class="mc-ficha mc-ficha-breve" id="ctx-ficha" data-zona="{zona["clave"]}">'
+            f'{_foto(zona, wiki)}<div class="mc-ficha-cuerpo">'
+            f'<div class="mc-ctx-titulo">{tr("Sobre esta zona", "About this area")}</div>'
+            f'<h2 class="mc-ficha-nombre">{escape(nombre)}</h2>'
+            f'<div class="mc-ficha-sub">{ubicacion}</div>{descripcion}'
+            f'<div class="visor-leyenda-nota">{escape(detalle)}</div>'
+            '</div></div>')
+
+
+@st.fragment(run_every=2.0)
+def _vigilar_wikipedia_resumen(clave: str) -> None:
+    """Actualiza la ficha cuando termina Wikipedia sin reutilizar argumentos del mapa."""
+    zona = zona_actual()
+    if zona is None or zona["clave"] != clave:
+        return
+    if wikipedia_zona(zona).get("estado") != "CONSULTANDO":
+        st.rerun(scope="app")
+
+def cabecera_html(zona: dict, local: contexto_local.ContextoLocal, fuentes: dict[str, dict],
+                  referencia: contexto_local.Municipio | None = None) -> str:
     wiki = fuentes.get("wiki") or {}
     ficha = (wiki.get("items") or [None])[0] if wiki.get("estado") == "CON_RESULTADOS" else None
-    nombre = local.municipios[0].nombre if local.municipios else "Zona seleccionada"
+    municipio = referencia or ((local.municipios or [None])[0])
+    nombre = municipio.nombre if municipio else "Zona seleccionada"
     descripcion = ""
     if ficha and ficha.get("extract"):
         enlace = (f' <a href="{escape(ficha["url"])}" target="_blank" rel="noopener">Wikipedia</a>'
                   if ficha.get("url") else "")
         descripcion = f'<p class="mc-ficha-desc" id="ctx-descripcion">{escape(ficha["extract"])}{enlace}</p>'
+    nota = ""
+    if referencia and local.municipios and local.municipios[0].divipola != referencia.divipola:
+        principal = local.municipios[0]
+        nota = ('<div class="visor-leyenda-nota" id="ctx-lugar-vs-zona">'
+                f'Buscaste {escape(referencia.nombre)}. El área dibujada abarca más superficie de '
+                f'{escape(principal.nombre)} ({principal.fraccion * 100:.0f} %). '
+                'Los porcentajes de municipios corresponden al área, no al lugar buscado.</div>')
     return (f'<div class="mc-ficha" id="ctx-ficha" data-zona="{zona["clave"]}">{_foto(zona, wiki)}'
             '<div class="mc-ficha-cuerpo"><div class="mc-ctx-titulo">Conozcamos esta zona</div>'
             f'<h2 class="mc-ficha-nombre">{escape(nombre)}</h2>'
-            f'<div class="mc-ficha-sub">{escape(_subtitulo(local))}</div>{descripcion}'
+            f'<div class="mc-ficha-sub">{escape(_subtitulo(local, referencia))}</div>{descripcion}{nota}'
             f"{chips(local, fuentes)}</div></div>")
 
 
@@ -396,7 +503,9 @@ def _contenido(zona: dict, activos: list) -> bool:
     inicio, fin, origen = periodo_actual()
     local = local_de(zona)
     fuentes = consultas(zona, inicio, fin)
-    frases = "".join(f"<li>{escape(f)}</li>" for f in frases_principales(local, inicio, fin, origen, fuentes))
+    referencia = municipio_de_busqueda(zona, local, st.session_state.get("lugar"))
+    frases = "".join(f"<li>{escape(f)}</li>" for f in frases_principales(
+        local, inicio, fin, origen, fuentes, referencia=referencia))
     st.markdown(
         f'<div class="mc-ctx" id="ctx-zona" data-zona="{zona["clave"]}">'
         f"{alerta_principal(fuentes['ideam'])}{_radar(activos)}"
@@ -446,8 +555,13 @@ def render(activos: list, acciones: dict | None = None) -> bool:
     inicio, fin, _ = periodo_actual()
     estados = consultas(zona, inicio, fin)
     # La cabecera y los botones van fuera del fragmento: sus clics recargan la app completa.
-    st.markdown(cabecera_html(zona, local_de(zona), estados), unsafe_allow_html=True)
+    local = local_de(zona)
+    referencia = municipio_de_busqueda(zona, local, st.session_state.get("lugar"))
+    st.markdown(cabecera_html(zona, local, estados, referencia=referencia), unsafe_allow_html=True)
     _acciones(zona, acciones)
+    # Los interruptores IDEAM/DANE/EONET viven únicamente en el dock
+    # permanente; la ficha usa las mismas fuentes pero no duplica widgets.
+    st.caption("Las capas ambientales se activan en «CAPAS DEL MAPA» sin cerrar esta ficha.")
     if consultando(estados):
         _vigilar(zona["clave"], bool(activos))
     else:
