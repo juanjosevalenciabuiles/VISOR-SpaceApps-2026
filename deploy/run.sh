@@ -4,25 +4,22 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PUERTO=5000
-PYTHON=""
-for candidato in python3.12 python3 python; do
-    if command -v "$candidato" >/dev/null 2>&1; then
-        PYTHON="$candidato"
-        break
-    fi
-done
-[[ -n "$PYTHON" ]] || { echo "[VISOR] ERROR: Python del sistema no disponible." >&2; exit 1; }
-[[ -f runtime_packages/streamlit/__init__.py ]] || {
-    echo "[VISOR] ERROR: runtime_packages no existe en el deployment. Verifica deploy/build.sh y el empaquetado." >&2
+PUERTO="${VISOR_DEPLOY_PORT:-5000}"
+[[ "$PUERTO" =~ ^[0-9]+$ ]] || {
+    echo "[VISOR] ERROR: puerto invalido" >&2
     exit 1
 }
-export PYTHONPATH="$PWD/runtime_packages"
-export PYTHONNOUSERSITE=1
-export PIP_USER=0
+# Utilizar un entorno virtual REAL, como start.sh en el Preview funcional.
+# Nunca instalar, actualizar ni crear paquetes al iniciar Autoscale.
+PYTHON="runtime_env/bin/python"
+[[ -x "$PYTHON" ]] || {
+    echo "[VISOR] ERROR: runtime_env no esta disponible. Ejecuta deploy/build.sh durante la construccion." >&2
+    exit 1
+}
+AISLADO=(env -u PYTHONPATH -u PYTHONHOME -u PIP_TARGET PIP_USER=0 PYTHONNOUSERSITE=1)
 
 comprobar() {
-    "$PYTHON" -c 'import pyexpat, rasterio, streamlit, folium, geopandas, shapely, harmony, h5py' >/dev/null 2>&1
+    "${AISLADO[@]}" "$PYTHON" -c 'import pyexpat, rasterio, streamlit, folium, geopandas, shapely, harmony, h5py' >/dev/null 2>&1
 }
 
 # Algunas imagenes Nix exponen libexpat.so en otra ruta. Reutilizar la misma
@@ -44,7 +41,7 @@ fi
 
 if ! comprobar; then
     echo "[VISOR] ERROR: bibliotecas cientificas incompletas; no se intentara pip en runtime." >&2
-    "$PYTHON" -c 'import pyexpat, rasterio, streamlit, folium, geopandas, shapely, harmony, h5py' >&2
+    "${AISLADO[@]}" "$PYTHON" -c 'import pyexpat, rasterio, streamlit, folium, geopandas, shapely, harmony, h5py' >&2
     exit 1
 fi
 
@@ -73,7 +70,7 @@ else
 fi
 
 echo "[VISOR] Iniciando Streamlit con dependencias precompiladas, puerto $PUERTO"
-exec "$PYTHON" -m streamlit run app.py \
+exec "${AISLADO[@]}" "$PYTHON" -m streamlit run app.py \
     --server.address 0.0.0.0 \
     --server.port "$PUERTO" \
     --server.headless true \
