@@ -251,6 +251,43 @@ def preparar(plan: Plan, registro: Path, carpeta_crudos: Path | None = None,
 
 
 
+def _mensaje_seguro_error_red_harmony(exc: Exception) -> str:
+    """Diagnóstico sin URLs firmadas, cookies ni cabeceras de autenticación."""
+    respuesta = getattr(exc, "response", None)
+    codigo = getattr(respuesta, "status_code", None)
+    if codigo is None:
+        codigo = getattr(exc, "code", None)
+    try:
+        codigo = int(codigo)
+    except (ValueError, TypeError):
+        codigo = None
+    if codigo in (401, 403):
+        return (
+            f"NASA Harmony rechazó la autorización (HTTP {codigo}). "
+            "Comprueba EARTHDATA_TOKEN y el acceso a Earthdata en Secrets."
+        )
+    if codigo == 404:
+        return (
+            "NASA Harmony devolvió HTTP 404: no encontró el recurso solicitado. "
+            "Comprueba la disponibilidad del producto GCOV y la colección."
+        )
+    if codigo == 429:
+        return "NASA Harmony devolvió HTTP 429: límite de solicitudes del servicio."
+    if codigo is not None and 500 <= codigo <= 599:
+        return f"NASA Harmony devolvió HTTP {codigo}: fallo del servicio remoto."
+    if codigo is not None and 400 <= codigo <= 499:
+        return f"NASA Harmony rechazó la petición con HTTP {codigo}."
+    clase = type(exc).__name__.lower()
+    if "timeout" in clase or isinstance(exc, TimeoutError):
+        return "La conexión con NASA Harmony agotó el tiempo de respuesta."
+    if "connection" in clase or "urlerror" in clase:
+        return "No se pudo conectar con NASA Harmony durante la preparación."
+    return (
+        "NASA Harmony no completó el recorte: error no identificado en la red "
+        "o el cliente. Revisa los registros del trabajo y el estado del servicio."
+    )
+
+
 def preparar_harmony(plan: Plan, carpeta: Path | None = None, notificar=None, comprobar=None,
                      max_mb: int = 512, caps: dict | None = None, cliente=None,
                      abrir=None, dormir=None) -> dict:
@@ -324,9 +361,9 @@ def preparar_harmony(plan: Plan, carpeta: Path | None = None, notificar=None, co
             from utils import trabajos
             if isinstance(exc, (trabajos.Cancelado, trabajos.TiempoAgotado)):
                 raise
-            # Los errores HTTP pueden contener URLs firmadas: jamás publicarlas
-            # en los registros persistentes ni en la interfaz.
-            raise ErrorAutoNISAR("NASA Harmony no completó el recorte: consulta autenticación y conectividad.") from None
+            # Persistir SOLO el código HTTP/tipo de error, nunca el detalle
+            # bruto de requests (puede contener query params y URL firmada).
+            raise ErrorAutoNISAR(_mensaje_seguro_error_red_harmony(exc)) from None
         usados += salida["bytes_totales"]
         escenas.append({
             "granule": c.granule, "metodo": "HARMONY_COG_SUBSET",
