@@ -28,9 +28,13 @@ def test_run_no_instala_paquetes_ni_modifica_datos():
     run = (ROOT / "deploy/run.sh").read_text(encoding="utf-8")
     ignore = (ROOT / ".replitignore").read_text(encoding="utf-8")
     assert "bash start.sh --verificar" in build
-    assert "runtime_packages" in build
-    assert "runtime_packages" in run
-    assert "PYTHONPATH=" in run
+    assert "runtime_env" in build
+    assert "runtime_env/bin/python" in run
+    assert "PYTHONNOUSERSITE=1" in run
+    assert "PYTHONPATH=" not in run
+    assert "/_stcore/health" in build
+    assert "VISOR_DEPLOY_PORT" in run
+    assert "Ultimas lineas del error real" in build
     assert "python" in run
     assert "--server.port" in run and "0.0.0.0" in run
     assert "pip install" not in run
@@ -38,7 +42,8 @@ def test_run_no_instala_paquetes_ni_modifica_datos():
     assert "rm -rf" not in run
     assert "data/nisar/harmony/**" in ignore
     assert ".git/" in ignore and ".venv/" in ignore
-    assert "runtime_packages/" not in [
+    assert "runtime_packages/" in ignore
+    assert "runtime_env/" not in [
         line.strip() for line in ignore.splitlines()
         if line.strip() and not line.lstrip().startswith("#")
     ]
