@@ -137,3 +137,29 @@ def test_harmony_limite_1gib_no_permite_sobrepasar_ni_descargar_sin_espacio(
             caps={"madurez": "VALIDATED"}, cliente=object(),
         )
     assert not llamadas, "el control de recursos ocurre antes de crear solicitudes"
+
+
+
+def test_diagnostico_http_harmony_no_revela_urls_ni_credenciales():
+    """Un HTTP 403 en cualquier AOI debe orientar hacia permisos, no hacia tamaño."""
+    class ErrorHTTP(Exception):
+        def __init__(self, codigo):
+            super().__init__("https://nasa.gov/data?Signature=SECRETO_PRIVADO")
+            self.response = NS(status_code=codigo)
+
+    for codigo, esperado in ((401, "autorización"), (403, "EARTHDATA_TOKEN"),
+                             (404, "recurso"), (429, "límite de solicitudes"),
+                             (503, "servicio remoto")):
+        visible = auto._mensaje_seguro_error_red_harmony(ErrorHTTP(codigo))
+        assert esperado in visible
+        assert "SECRETO_PRIVADO" not in visible
+        assert "https://" not in visible
+    assert "tiempo" in auto._mensaje_seguro_error_red_harmony(
+        TimeoutError("https://nasa.gov/?Signature=SECRETO_PRIVADO")
+    )
+    assert "conectar" in auto._mensaje_seguro_error_red_harmony(
+        ConnectionError("https://nasa.gov/?Signature=SECRETO_PRIVADO")
+    )
+    assert "SECRETO_PRIVADO" not in auto._mensaje_seguro_error_red_harmony(
+        RuntimeError("https://nasa.gov/?Signature=SECRETO_PRIVADO")
+    )
