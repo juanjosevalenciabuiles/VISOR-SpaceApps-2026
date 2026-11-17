@@ -3,8 +3,11 @@
 #
 # Metadatos de desarrollo (4.9 GiB): no necesarios para ejecutar Streamlit.
 .git/
-# Instalacion duplicada de paquetes (767 MiB): start.sh usa exclusivamente .venv.
+# En desarrollo start.sh usa .venv. El build lo copia a runtime_packages,
+# un directorio visible que SÍ entra en el deployment.
+# Evitamos empaquetar ambas copias (~780 MiB duplicados).
 .pythonlibs/
+.venv/
 # Archivos temporales del editor y las pruebas.
 .cache/
 .pytest_cache/
@@ -36,4 +39,5 @@ data/nisar/harmony/**
 !data/nisar/harmony/3875345486d3a7c7/**
 
 # Conservar data/analisis/: contiene resultados GeoTIFF mostrados en el mapa.
-# Conservar .venv/: start.sh lo verifica y reutiliza al publicar.
+# runtime_packages/ NO se excluye: es la unica copia de paquetes Python
+# que ejecuta deploy/run.sh. El entorno de desarrollo .venv sigue intacto.
