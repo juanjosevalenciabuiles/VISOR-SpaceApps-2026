@@ -67,12 +67,15 @@ if controles.mostrar_capa:
         error = str(e)
 
 # 2. El mapa único, detrás de todo.
+# Refrescar el snapshot en CADA rerun completo: un fragmento de zoom nunca
+# puede reutilizar los overlays/resultados de una ejecución anterior.
+# Es estado de sesión volátil, no se persiste ni modifica ningún GeoTIFF.
+st.session_state["visor_mapa_render_actual"] = {
+    "fenomeno": fenomeno, "capa": capa,
+    "controles": controles, "resultados": resultados,
+}
 with st.container(key="lienzo_mapa"):
-    mapa.render(fenomeno, capa, controles, st.session_state["vista"], resultados,
-                [*herramientas.grupos_mapa(), *capas_ambientales.grupos_mapa(),
-                 *v9_experiencia.grupos_mapa()],
-                seguir_vista=herramientas.necesita_vista(),
-                seleccionar_par=v9_experiencia.modo_seleccion_mapa())
+    mapa.render_vivo()
 
 # Leyenda SAR siempre visible al lado del mapa (solo si hay GeoTIFF activo).
 # Fuente única: el perfil científico del archivo, no el resultado del historial.
