@@ -78,7 +78,7 @@ def test_capacidades_http_diagnostico_seguro(codigo, motivo):
         )
 
     with pytest.raises(h.ErrorHarmony) as exc:
-        h.capacidades(abrir)
+        h.capacidades(abrir, dormir=lambda _: None)
     mensaje = str(exc.value)
     assert f"HTTP {codigo}" in mensaje
     assert motivo in mensaje
@@ -96,9 +96,60 @@ def test_capacidades_distingue_timeout_y_error_de_red():
             raise causa
 
         with pytest.raises(h.ErrorHarmony) as exc:
-            h.capacidades(abrir)
+            h.capacidades(abrir, dormir=lambda _: None)
         assert esperado in str(exc.value)
         assert "privado" not in str(exc.value)
+
+
+
+def test_capacidades_recupera_http_transitorio_en_segundo_intento():
+    llamadas = []
+    esperas = []
+    payload = {
+        "conceptId": "C3622241360-ASF",
+        "shortName": "NISAR_L2_GCOV_V1",
+        "variables": [{"name": v} for v in VARIABLES],
+    }
+
+    def abrir(req, timeout):
+        llamadas.append(req)
+        if len(llamadas) == 1:
+            raise urllib.error.HTTPError(req.full_url, 503, "error temporal", {}, None)
+        return Respuesta(json.dumps(payload).encode(), req.full_url)
+
+    resultado = h.capacidades(abrir, dormir=esperas.append)
+    assert resultado["coleccion"] == "C3622241360-ASF"
+    assert len(llamadas) == 2
+    assert esperas == [1]
+    assert all(req.get_header("Authorization") is None for req in llamadas)
+
+
+def test_capacidades_recupera_error_de_red_y_limita_reintentos():
+    llamadas = []
+    esperas = []
+
+    def abrir(req, timeout):
+        llamadas.append(req)
+        raise urllib.error.URLError("PRIVATE_URL_SIGNED_DATA")
+
+    with pytest.raises(h.ErrorHarmony) as exc:
+        h.capacidades(abrir, dormir=esperas.append)
+    assert len(llamadas) == 3
+    assert esperas == [1, 2]
+    assert "PRIVATE_URL_SIGNED_DATA" not in str(exc.value)
+    assert "No se descargó ningún GeoTIFF" in str(exc.value)
+
+
+def test_capacidades_no_reintenta_http_403():
+    llamadas = []
+
+    def abrir(req, timeout):
+        llamadas.append(req)
+        raise urllib.error.HTTPError(req.full_url, 403, "prohibido", {}, None)
+
+    with pytest.raises(h.ErrorHarmony, match="HTTP 403"):
+        h.capacidades(abrir, dormir=lambda _: pytest.fail("no debe reintentar 403"))
+    assert len(llamadas) == 1
 
 
 def test_capacidades_json_invalido_sin_filtrar_respuesta():
