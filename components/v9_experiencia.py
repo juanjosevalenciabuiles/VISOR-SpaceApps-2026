@@ -825,9 +825,9 @@ def _aplicar_zona_menor_cog() -> None:
 def _error_preparacion_publico(error: str) -> str:
     """Mostrar la causa persistida, sin URL firmadas ni credenciales accidentales."""
     texto = str(error or "").strip()
-    texto = re.sub(r"https?://[^\\s<>]+", "[enlace omitido]", texto, flags=re.IGNORECASE)
+    texto = re.sub(r"https?://[^\s<>]+", "[enlace omitido]", texto, flags=re.IGNORECASE)
     texto = re.sub(
-        r"(?:bearer\\s+|EARTHDATA_TOKEN\\s*[=:]\\s*)(?!en\\b)[^\\s,;]+",
+        r"(?:bearer\s+|EARTHDATA_TOKEN\s*[=:]\s*)[^\s,;]+",
         "[credencial omitida]", texto, flags=re.IGNORECASE,
     )
     return texto[:600] or tr("Error desconocido en el trabajo.", "Unknown job error.")
