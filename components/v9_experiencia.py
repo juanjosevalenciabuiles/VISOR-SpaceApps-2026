@@ -588,6 +588,16 @@ def _mostrar_progreso(trabajo: dict, fase: str) -> None:
                f" · {tr('Estado', 'Status')}: {tr(str(trabajo['estado']), estado_en)}")
 
 
+def _mostrar_resultado_en_information() -> None:
+    """Tras publicar SAR, mostrar el resultado en el panel derecho.
+
+    Solo modifica la visibilidad de paneles; no cambia el resultado,
+    el AOI, los COG, la preparacion ni los trabajos NISAR.
+    """
+    st.session_state["ui_explorador"] = False
+    st.session_state["ui_info"] = True
+
+
 @st.fragment(run_every=2.0)
 def _seguimiento(firma):
     if st.session_state.get("v9_firma") != firma:
@@ -653,9 +663,7 @@ def _seguimiento(firma):
     if st.session_state.get("v9_publicado") != mapa_job:
         flujo.activar(id_resultado(ruta), sesion.ANALISIS, cambio["run_id"])
         st.session_state["v9_publicado"] = mapa_job
-        # No reabrir Explorer a la izquierda al terminar: el resultado SAR
-        # se muestra en el mapa y Wikipedia permanece en Information (derecha).
-        st.session_state["ui_explorador"] = False
+        _mostrar_resultado_en_information()
         st.rerun(scope="app")
 
 
