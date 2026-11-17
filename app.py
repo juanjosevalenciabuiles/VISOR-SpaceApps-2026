@@ -8,8 +8,7 @@ import os
 
 import streamlit as st
 
-from components import bienvenida, capas_ambientales, estilos, flujo, interfaz, mapa, panel_capas, v9_experiencia
-from components import herramientas_sar as herramientas
+from components import bienvenida, estilos, flujo, interfaz, mapa, panel_capas
 from components import resultados as ui_resultados
 from utils import alcance_geografico, diagnostico
 from utils.config import FENOMENOS
