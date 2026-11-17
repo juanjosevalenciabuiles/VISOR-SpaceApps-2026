@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import io
 import json
+import urllib.error
 from types import SimpleNamespace as NS
 
 import numpy as np
@@ -57,6 +58,55 @@ def test_capacidades_publicas_mock_sin_secreto():
     assert set(VARIABLES) == resultado["variables"]
     assert len(pedidos) == 1
     assert pedidos[0].get_header("Authorization") is None
+
+
+@pytest.mark.parametrize(
+    ("codigo", "motivo"),
+    [
+        (401, "acceso rechazado"),
+        (403, "acceso rechazado"),
+        (404, "no encontró capacidades"),
+        (429, "límite temporal"),
+        (503, "fallo del servicio"),
+    ],
+)
+def test_capacidades_http_diagnostico_seguro(codigo, motivo):
+    def abrir(req, timeout):
+        raise urllib.error.HTTPError(
+            req.full_url + "&signature=TOKEN_PRIVADO",
+            codigo, "mensaje remoto privado", {}, None,
+        )
+
+    with pytest.raises(h.ErrorHarmony) as exc:
+        h.capacidades(abrir)
+    mensaje = str(exc.value)
+    assert f"HTTP {codigo}" in mensaje
+    assert motivo in mensaje
+    assert "TOKEN_PRIVADO" not in mensaje
+    assert "mensaje remoto privado" not in mensaje
+    assert "No se descargó ningún GeoTIFF" in mensaje
+
+
+def test_capacidades_distingue_timeout_y_error_de_red():
+    for causa, esperado in [
+        (TimeoutError("privado"), "agotó su tiempo"),
+        (urllib.error.URLError("privado"), "No se logró conectar"),
+    ]:
+        def abrir(req, timeout):
+            raise causa
+
+        with pytest.raises(h.ErrorHarmony) as exc:
+            h.capacidades(abrir)
+        assert esperado in str(exc.value)
+        assert "privado" not in str(exc.value)
+
+
+def test_capacidades_json_invalido_sin_filtrar_respuesta():
+    def abrir(req, timeout):
+        return Respuesta(b"no es JSON", req.full_url)
+
+    with pytest.raises(h.ErrorHarmony, match="JSON inválidos"):
+        h.capacidades(abrir)
 
 
 def test_solo_polarizaciones_presentes_y_mascara():
