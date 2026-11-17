@@ -218,3 +218,84 @@ def test_leaflet_conserva_vista_localmente_sin_guardar_datos_sar():
     assert "moveend" in script
     assert "getCenter" in script and "getZoom" in script
     assert "GeoTIFF" not in script and "fetch(" not in script
+
+
+def test_fragmento_mapa_lee_resultados_frescos_y_no_reactiva_historico(monkeypatch):
+    """Un evento posterior de zoom no puede revivir overlays del rerun anterior."""
+    from components import capas_ambientales, herramientas_sar, v9_experiencia
+    from components.barra_lateral import Controles
+
+    controles_antiguos = Controles("inundacion", False, .85, False, False,
+                                 resultados={"historico": .8})
+    controles_nuevos = Controles("inundacion", False, .85, False, False,
+                               resultados={"nisar_actual": .8})
+    estado = {
+        "vista": {"centro": [7.67, -76.67], "zoom": 12, "n": 3},
+        "visor_mapa_render_actual": {
+            "fenomeno": "inundacion", "capa": None,
+            "controles": controles_antiguos, "resultados": ["historico"],
+        },
+    }
+    monkeypatch.setattr(mapa.st, "session_state", estado)
+    monkeypatch.setattr(herramientas_sar, "grupos_mapa", lambda: [])
+    monkeypatch.setattr(herramientas_sar, "necesita_vista", lambda: False)
+    monkeypatch.setattr(capas_ambientales, "grupos_mapa", lambda: [])
+    monkeypatch.setattr(v9_experiencia, "grupos_mapa", lambda: [])
+    monkeypatch.setattr(v9_experiencia, "modo_seleccion_mapa", lambda: False)
+    vistos = []
+
+    def render_falso(_fenomeno, _capa, controles, _vista, resultados, _extras,
+                     **_kwargs):
+        vistos.append((set(controles.resultados), list(resultados)))
+
+    monkeypatch.setattr(mapa, "render", render_falso)
+    mapa._render_estado_actual()
+    estado["visor_mapa_render_actual"] = {
+        "fenomeno": "inundacion", "capa": None,
+        "controles": controles_nuevos, "resultados": ["nisar_actual"],
+    }
+    mapa._render_estado_actual()  # solo el fragmento se vuelve a ejecutar
+    assert vistos == [
+        ({"historico"}, ["historico"]),
+        ({"nisar_actual"}, ["nisar_actual"]),
+    ]
+
+
+def test_fragmento_recorta_contexto_con_viewport_nuevo(monkeypatch):
+    """Ríos y vías toman los bounds actuales, sin dejar el viewport anterior."""
+    from components import capas_ambientales, herramientas_sar, v9_experiencia
+    from components.barra_lateral import Controles
+
+    previo = (-76.8, 5.6, -76.6, 5.8)
+    nuevo = (-76.6, 6.9, -76.4, 7.1)
+    controles = Controles("inundacion", False, .85, False, False,
+                        hidrografia=True, vista_limites=previo, vista_zoom=9)
+    estado = {"visor_mapa_render_actual": {
+        "fenomeno": "inundacion", "capa": None,
+        "controles": controles, "resultados": [],
+    }}
+    monkeypatch.setattr(mapa.st, "session_state", estado)
+    monkeypatch.setattr(mapa, "vista_actual", lambda _vista: (nuevo, 13))
+    monkeypatch.setattr(herramientas_sar, "grupos_mapa", lambda: [])
+    monkeypatch.setattr(herramientas_sar, "necesita_vista", lambda: False)
+    monkeypatch.setattr(capas_ambientales, "grupos_mapa", lambda: [])
+    monkeypatch.setattr(v9_experiencia, "grupos_mapa", lambda: [])
+    monkeypatch.setattr(v9_experiencia, "modo_seleccion_mapa", lambda: False)
+    vistos = []
+
+    def render_falso(_fenomeno, _capa, c, *_args, **_kwargs):
+        vistos.append((c.vista_limites, c.vista_zoom))
+
+    monkeypatch.setattr(mapa, "render", render_falso)
+    mapa._render_estado_actual()
+    assert vistos == [(nuevo, 13)]
+    assert controles.vista_limites == previo  # no muta los controles del panel
+
+
+def test_app_entrega_snapshot_actual_al_fragmento():
+    from pathlib import Path
+    archivo = Path(__file__).resolve().parents[1] / "app.py"
+    codigo = archivo.read_text(encoding="utf-8")
+    assert 'st.session_state["visor_mapa_render_actual"] = {' in codigo
+    assert "mapa.render_vivo()" in codigo
+
