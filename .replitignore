@@ -29,9 +29,8 @@ exportaciones/
 .env.*
 .streamlit/secrets.toml
 
-# Registro de trabajos del workspace: apunta a cachés Harmony que no se publican
-# y podría reanudar trabajos al arrancar. Producción empieza con historial vacío.
-data/trabajos/
+# data/trabajos/ SÍ se publica (~620 KB): el modo jurado busca ahí los pares
+# Harmony APTO. Los trabajos interrumpidos se marcan ERROR al leerse; no se reanudan.
 
 # Cachés históricos de NASA Harmony (~5,9 GiB, 65 AOI/fechas). Siguen intactos
 # en el workspace. Se conserva solo el par de demostración de Chigorodó.

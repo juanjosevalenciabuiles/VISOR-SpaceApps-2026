@@ -32,6 +32,8 @@ def test_se_excluye_lo_pesado_que_no_sirve_a_la_app():
 def test_resultados_sar_y_par_de_demostracion_se_publican():
     patrones = _patrones()
     assert not any(p.startswith("data/analisis") for p in patrones)
+    # El modo jurado descubre los pares en data/trabajos/ y sus manifiestos en el catálogo.
+    assert not any(p.startswith(("data/trabajos", "data/nisar/catalogo")) for p in patrones)
     assert not any(p.rstrip("/*") == "data" for p in patrones)
     for cache in ("375d3135cd519661", "3875345486d3a7c7"):
         assert f"!data/nisar/harmony/{cache}/**" in patrones
