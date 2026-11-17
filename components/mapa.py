@@ -16,6 +16,7 @@ fija a pantalla completa desde assets/mission_control.css.
 """
 
 import json
+import hashlib
 
 import folium
 import numpy as np
@@ -241,6 +242,19 @@ class SelectorZonaUnica(MacroElement):
         self.lang = idioma()
 
 
+def _identificador_vista_zona(zona: dict | None) -> str:
+    """ID solo de navegacion, estable por AOI; nunca examina el raster."""
+    if not isinstance(zona, dict) or not zona.get("limites"):
+        return "sin_zona"
+    try:
+        bbox = tuple(round(float(v), 6) for v in zona["limites"])
+    except (TypeError, ValueError):
+        return "sin_zona"
+    if len(bbox) != 4 or not all(np.isfinite(v) for v in bbox):
+        return "sin_zona"
+    return hashlib.sha256(json.dumps(bbox).encode("ascii")).hexdigest()[:12]
+
+
 class RecordarVistaNavegador(MacroElement):
     """Conservar pan/zoom entre remontajes Leaflet sin pedir reruns a Streamlit.
 
@@ -250,15 +264,19 @@ class RecordarVistaNavegador(MacroElement):
 
     _template = Template("""{% macro script(this, kwargs) %}
 (function(m) {
-  var clave = 'visor-mapa-vista';
-  try {
-    var guardada = JSON.parse(window.sessionStorage.getItem(clave) || 'null');
-    if (guardada && Number.isFinite(guardada.lat) && Number.isFinite(guardada.lon) &&
-        Number.isFinite(guardada.zoom) && Math.abs(guardada.lat) <= 90 &&
-        Math.abs(guardada.lon) <= 180 && guardada.zoom >= 2 && guardada.zoom <= 22) {
-      m.setView([guardada.lat, guardada.lon], guardada.zoom, {animate: false});
-    }
-  } catch (_) { /* sin almacenamiento: el mapa mantiene la vista normal */ }
+  // Guardar el encuadre por AOI para no recuperar una ciudad antigua.
+  var clave = 'visor-mapa-vista:{{ this.id_zona }}';
+  // Una navegacion explicita desde Python (AOI nueva / buscar) tiene prioridad.
+  if (!{{ this.ignorar_restauracion }}) {
+    try {
+      var guardada = JSON.parse(window.sessionStorage.getItem(clave) || 'null');
+      if (guardada && Number.isFinite(guardada.lat) && Number.isFinite(guardada.lon) &&
+          Number.isFinite(guardada.zoom) && Math.abs(guardada.lat) <= 90 &&
+          Math.abs(guardada.lon) <= 180 && guardada.zoom >= 2 && guardada.zoom <= 22) {
+        m.setView([guardada.lat, guardada.lon], guardada.zoom, {animate: false});
+      }
+    } catch (_) { /* sin almacenamiento: el mapa mantiene la vista normal */ }
+  }
   function guardar() {
     try {
       var centro = m.getCenter(), zoom = m.getZoom();
@@ -274,6 +292,13 @@ class RecordarVistaNavegador(MacroElement):
   guardar();
 })({{ this._parent.get_name() }});
 {% endmacro %}""")
+
+    def __init__(self, id_zona: str = "sin_zona",
+                 ignorar_restauracion: bool = False) -> None:
+        super().__init__()
+        self._name = "RecordarVistaNavegador"
+        self.id_zona = id_zona
+        self.ignorar_restauracion = "true" if ignorar_restauracion else "false"
 
 
 def mapa_fijo() -> folium.Map:
@@ -309,7 +334,10 @@ def mapa_fijo() -> folium.Map:
         _modo_colombia(m)
     # Vista por pestaña en el navegador: al cambiar de resultado SAR no saltar
     # al último zoom registrado antes de la optimización.
-    RecordarVistaNavegador().add_to(m)
+    RecordarVistaNavegador(
+        id_zona=_identificador_vista_zona(st.session_state.get("zona")),
+        ignorar_restauracion=bool(st.session_state.get("mapa_navegacion_explicita")),
+    ).add_to(m)
     m.get_root().header.add_child(folium.Element(ESTILO_LIENZO), name="visor_lienzo")
     # Dibujo de la zona de análisis: solo rectángulo y polígono. Lo dibujado es un borrador;
     # no se convierte en zona hasta confirmarlo en Herramientas SAR («Usar esta zona»).
@@ -647,6 +675,11 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
     # Así el componente no conserva overlays anteriores al cambiar el historial.
     resultado = next(iter(sorted(c.resultados)), "none")
     clave_widget = "mapa" if resultado == "none" and idioma() == "es" else f"mapa__{resultado}__{idioma()}"
+    # El cambio de AOI remonta Leaflet solo UNA vez, para descartar la vista
+    # guardada y los dibujos del municipio anterior. Pan/zoom conservan la clave.
+    id_zona = _identificador_vista_zona(st.session_state.get("zona"))
+    if id_zona != "sin_zona":
+        clave_widget += f"__zona_{id_zona}"
     # El mapa es interactivo en el navegador: un pan/zoom normal no necesita
     # ejecutar de nuevo Streamlit ni volver a serializar los overlays SAR.
     # Solo la AOI dibujada debe activar el servidor. Las herramientas que
@@ -678,6 +711,7 @@ def render(fenomeno: Fenomeno, capa: Capa | None, c: Controles, vista: dict | No
     if remontaje:
         st.session_state["mapa_widget_key"] = clave_widget
         st.session_state["mapa_firma_dibujo"] = None
+    st.session_state["mapa_navegacion_explicita"] = bool(nueva_navegacion)
     centro, zoom = _centro_y_zoom_guardados(vista)
     if remontaje and clave_anterior is not None and not nueva_navegacion:
         # Un cambio de GeoTIFF/seguimiento remonta Leaflet. La vista actual
