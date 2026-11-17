@@ -48,6 +48,15 @@ if ! comprobar; then
     exit 1
 fi
 
+if [[ "${1:-}" == "--verificar" ]]; then
+    echo "[VISOR] Verificacion offline correcta: librerias cientificas disponibles."
+    exit 0
+fi
+if [[ -n "${1:-}" ]]; then
+    echo "[VISOR] ERROR: argumento no reconocido: $1" >&2
+    exit 2
+fi
+
 ORIGENES=()
 IFS=',' read -ra dominios <<< "${REPLIT_DEV_DOMAIN:-},${REPLIT_DOMAINS:-}"
 for dominio in "${dominios[@]}"; do
