@@ -46,7 +46,8 @@ def test_idioma_se_cambia_sin_afectar_resultados(monkeypatch):
 def test_guia_se_muestra_despues_del_mapa_en_todos_los_reruns():
     codigo = (RAIZ / "app.py").read_text(encoding="utf-8")
     assert ast.parse(codigo) is not None
-    assert codigo.index("mapa.render(") < codigo.index("bienvenida.render()")
+    assert codigo.index("mapa.render_vivo()") < codigo.index("bienvenida.render()")
+    assert 'st.session_state["visor_mapa_render_actual"] = {' in codigo
     assert "if bienvenida.corresponde_mostrar():" not in codigo
     assert "bienvenida.render()" in codigo
     guia = (RAIZ / "components" / "bienvenida.py").read_text(encoding="utf-8")
