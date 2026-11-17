@@ -92,7 +92,7 @@ def test_capacidades_distingue_timeout_y_error_de_red():
         (TimeoutError("privado"), "agotó su tiempo"),
         (urllib.error.URLError("privado"), "No se logró conectar"),
     ]:
-        def abrir(req, timeout):
+        def abrir(req, timeout, causa=causa):
             raise causa
 
         with pytest.raises(h.ErrorHarmony) as exc:
