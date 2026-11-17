@@ -653,7 +653,9 @@ def _seguimiento(firma):
     if st.session_state.get("v9_publicado") != mapa_job:
         flujo.activar(id_resultado(ruta), sesion.ANALISIS, cambio["run_id"])
         st.session_state["v9_publicado"] = mapa_job
-        st.session_state["ui_explorador"] = True
+        # No reabrir Explorer a la izquierda al terminar: el resultado SAR
+        # se muestra en el mapa y Wikipedia permanece en Information (derecha).
+        st.session_state["ui_explorador"] = False
         st.rerun(scope="app")
 
 
